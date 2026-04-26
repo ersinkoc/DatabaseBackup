@@ -84,12 +84,30 @@ func TestReleaseWorkflowPublishesArtifacts(t *testing.T) {
 	for _, want := range []string{
 		"tags:",
 		"./scripts/release.sh",
+		"./scripts/provenance.sh",
 		"sha256sum -c",
 		"actions/upload-artifact@v4",
 		"gh release create",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("release.yml missing %q", want)
+		}
+	}
+}
+
+func TestReleaseScriptsIncludeProvenance(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{
+		filepath.Join("..", "scripts", "provenance.sh"),
+		filepath.Join("..", "Makefile"),
+	} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(%s) error = %v", path, err)
+		}
+		if !strings.Contains(string(data), "provenance") {
+			t.Fatalf("%s does not mention provenance", path)
 		}
 	}
 }

@@ -39,12 +39,14 @@ jobs:
         run: |
           BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           VERSION="$VERSION" COMMIT="${COMMIT::12}" BUILD_DATE="$BUILD_DATE" ./scripts/release.sh
+          VERSION="$VERSION" COMMIT="${COMMIT::12}" BUILD_DATE="$BUILD_DATE" BUILDER="github-actions:${GITHUB_RUN_ID}" ./scripts/provenance.sh
 
       - name: Verify checksums
         run: |
           for checksum in bin/*.sha256; do
             sha256sum -c "$checksum"
           done
+          test -s bin/kronos-provenance.json
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
@@ -61,4 +63,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" bin/kronos-* \
             --verify-tag \
             --title "$GITHUB_REF_NAME" \
-            --notes "Kronos release $GITHUB_REF_NAME. Verify downloads with the attached .sha256 files."
+            --notes "Kronos release $GITHUB_REF_NAME. Verify downloads with the attached .sha256 files and inspect kronos-provenance.json for build metadata."

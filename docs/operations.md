@@ -184,8 +184,8 @@ groups:
 
    The `release` workflow runs the full Go test suite, builds the default
    linux/darwin amd64/arm64 binaries through `scripts/release.sh`, verifies all
-   checksums, uploads workflow artifacts, and publishes the tag assets to the
-   GitHub release.
+   checksums, writes `bin/kronos-provenance.json`, uploads workflow artifacts,
+   and publishes the tag assets to the GitHub release.
 
 3. Drain new work by pausing schedules that should not run during the upgrade:
 
