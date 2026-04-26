@@ -190,6 +190,11 @@ func registry() map[string]command {
 			description: "fetch Prometheus metrics",
 			run:         runMetrics,
 		},
+		"notification": {
+			name:        "notification",
+			description: "list and manage notification rules",
+			run:         runNotification,
+		},
 		"ready": {
 			name:        "ready",
 			description: "check control-plane readiness",

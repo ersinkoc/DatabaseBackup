@@ -44,20 +44,21 @@ func completionGlobalFlags() []string {
 
 func completionSubcommands() map[string][]string {
 	subcommands := map[string][]string{
-		"agent":      {"inspect", "list"},
-		"audit":      {"list", "search", "tail", "verify"},
-		"backup":     {"inspect", "list", "now", "protect", "unprotect", "verify"},
-		"completion": {"bash", "fish", "zsh"},
-		"config":     {"inspect", "validate"},
-		"jobs":       {"cancel", "inspect", "list", "retry"},
-		"key":        {"add-slot", "escrow", "list", "remove-slot", "rotate"},
-		"restore":    {"preview", "start"},
-		"retention":  {"apply", "plan", "policy"},
-		"schedule":   {"add", "inspect", "list", "pause", "remove", "resume", "tick", "update"},
-		"storage":    {"add", "du", "inspect", "list", "remove", "test", "update"},
-		"target":     {"add", "inspect", "list", "remove", "test", "update"},
-		"token":      {"create", "inspect", "list", "prune", "revoke", "verify"},
-		"user":       {"add", "grant", "inspect", "list", "remove"},
+		"agent":        {"inspect", "list"},
+		"audit":        {"list", "search", "tail", "verify"},
+		"backup":       {"inspect", "list", "now", "protect", "unprotect", "verify"},
+		"completion":   {"bash", "fish", "zsh"},
+		"config":       {"inspect", "validate"},
+		"jobs":         {"cancel", "inspect", "list", "retry"},
+		"key":          {"add-slot", "escrow", "list", "remove-slot", "rotate"},
+		"notification": {"add", "inspect", "list", "remove", "update"},
+		"restore":      {"preview", "start"},
+		"retention":    {"apply", "plan", "policy"},
+		"schedule":     {"add", "inspect", "list", "pause", "remove", "resume", "tick", "update"},
+		"storage":      {"add", "du", "inspect", "list", "remove", "test", "update"},
+		"target":       {"add", "inspect", "list", "remove", "test", "update"},
+		"token":        {"create", "inspect", "list", "prune", "revoke", "verify"},
+		"user":         {"add", "grant", "inspect", "list", "remove"},
 	}
 	for _, names := range subcommands {
 		sort.Strings(names)

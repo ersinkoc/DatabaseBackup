@@ -95,6 +95,17 @@ kronos jobs cancel --id job-1
 kronos jobs retry --id job-1
 ```
 
+## Notifications
+
+```bash
+kronos notification add --id ops-failures --name ops-failures --event job.failed --webhook-url https://hooks.example.com/kronos --secret "$KRONOS_OPS_WEBHOOK_SECRET"
+kronos notification add --name restore-drills --event job.succeeded,job.canceled --webhook-url https://hooks.example.com/restore-drills
+kronos notification list
+kronos notification inspect --id ops-failures
+kronos notification update --id ops-failures --name ops-failures --event job.failed --webhook-url https://hooks.example.com/kronos --enabled=false
+kronos notification remove --id ops-failures
+```
+
 ## Retention And Restore
 
 ```bash
@@ -135,9 +146,9 @@ kronos audit verify
 ```
 
 Common scope families are `backup`, `target`, `storage`, `schedule`, `job`,
-`retention`, `restore`, `audit`, `token`, `user`, `agent`, and `metrics`, each
-using `:read` or `:write` where applicable. Requested token scopes are capped
-by the token user's role.
+`notification`, `retention`, `restore`, `audit`, `token`, `user`, `agent`, and
+`metrics`, each using `:read` or `:write` where applicable. Requested token
+scopes are capped by the token user's role.
 
 ## Keys
 
