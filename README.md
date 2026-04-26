@@ -39,7 +39,7 @@ This repository currently has the Phase 0 foundation in place and active Phase
   plan/apply/policy add/list/inspect/update/remove, key slot/escrow/rotation helpers,
   restore preview/start,
   user add/list/inspect/remove/grant,
-  health, metrics, and repository garbage collection, plus bash/zsh/fish completion
+  health/readiness, metrics, and repository garbage collection, plus bash/zsh/fish completion
   generation
 - backup listing filters by target, storage, type, protection state, and
   timestamp windows such as `--since 7d`
@@ -47,7 +47,7 @@ This repository currently has the Phase 0 foundation in place and active Phase
   time windows
 - audit listing, tailing, and searching filters by actor, action, resource, and
   occurred-at windows
-- server: config-loading HTTP skeleton with `/healthz`, `/metrics`, and
+- server: config-loading HTTP skeleton with `/healthz`, `/readyz`, `/metrics`, and
   graceful shutdown
 - local mode: starts an embedded control-plane server with local state and can
   run an embedded worker with `--work`

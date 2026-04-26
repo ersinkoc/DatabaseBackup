@@ -41,6 +41,7 @@ In another terminal:
 
 ```bash
 ./bin/kronos health
+./bin/kronos ready
 ```
 
 ## 4. Create An Admin Token

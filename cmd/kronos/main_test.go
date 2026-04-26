@@ -21,7 +21,7 @@ func TestRunHelp(t *testing.T) {
 	}
 
 	text := out.String()
-	for _, want := range []string{"Kronos", "Global Flags", "--server", "--token", "--output", "--request-id", "json, pretty, yaml, or table", "--no-color", "server", "agent", "audit", "health", "jobs", "local", "metrics", "schedule", "storage", "target", "config", "version"} {
+	for _, want := range []string{"Kronos", "Global Flags", "--server", "--token", "--output", "--request-id", "json, pretty, yaml, or table", "--no-color", "server", "agent", "audit", "health", "ready", "jobs", "local", "metrics", "schedule", "storage", "target", "config", "version"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("help output missing %q:\n%s", want, text)
 		}

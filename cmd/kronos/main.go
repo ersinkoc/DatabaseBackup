@@ -190,6 +190,11 @@ func registry() map[string]command {
 			description: "fetch Prometheus metrics",
 			run:         runMetrics,
 		},
+		"ready": {
+			name:        "ready",
+			description: "check control-plane readiness",
+			run:         runReady,
+		},
 		"repair-db": {
 			name:        "repair-db",
 			description: "check and repair the embedded state database",

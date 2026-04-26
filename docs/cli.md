@@ -20,6 +20,7 @@ kronos help backup
 kronos version
 kronos keygen --key-id prod-2026
 kronos health
+kronos ready
 kronos --server http://127.0.0.1:8500 --token "$KRONOS_TOKEN" --output pretty backup list
 kronos --request-id incident-20260426-001 backup list --server http://127.0.0.1:8500
 kronos config validate --config kronos.yaml
