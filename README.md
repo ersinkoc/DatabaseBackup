@@ -133,6 +133,13 @@ export KRONOS_TOKEN=<copy-once-secret>
 ./bin/kronos --server http://127.0.0.1:8500 --token "$KRONOS_TOKEN" backup list
 ```
 
+After rotating credentials, preview and prune inactive token metadata:
+
+```bash
+./bin/kronos token prune --dry-run
+./bin/kronos token prune
+```
+
 Common scope families are `backup`, `target`, `storage`, `schedule`, `job`,
 `retention`, `restore`, `audit`, `token`, `user`, `agent`, and `metrics`, each
 using `:read` or `:write` where applicable. Requested token scopes are capped
