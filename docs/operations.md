@@ -102,9 +102,13 @@ track administrative inventory and token cleanup.
 
    ```bash
    make test
-   make build VERSION=<version> COMMIT=<commit> BUILD_DATE=<rfc3339>
+   make build
    ./bin/kronos version
    ```
+
+   `make build` derives version metadata from Git by default. Set
+   `VERSION=<version> COMMIT=<commit> BUILD_DATE=<rfc3339>` when a release
+   pipeline needs exact stamped values.
 
 2. Drain new work by pausing schedules that should not run during the upgrade:
 

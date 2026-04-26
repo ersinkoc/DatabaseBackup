@@ -3,9 +3,9 @@
 BIN := bin/kronos
 GO ?= go
 GOFMT ?= gofmt
-VERSION ?= dev
-COMMIT ?= unknown
-BUILD_DATE ?= unknown
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 GOFILES := $(shell find . -name '*.go' -not -path './.git/*' -not -path './.tools/*' -not -path './bin/*')
 LDFLAGS := -s -w \
 	-X github.com/kronos/kronos/internal/buildinfo.Version=$(VERSION) \

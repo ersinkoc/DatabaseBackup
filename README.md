@@ -82,6 +82,9 @@ make build
 ./bin/kronos version
 ```
 
+`make build` stamps version metadata from Git when available. Override
+`VERSION`, `COMMIT`, or `BUILD_DATE` for reproducible release builds.
+
 Build and embed the WebUI before producing a UI-enabled binary:
 
 ```bash

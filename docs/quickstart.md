@@ -10,12 +10,17 @@ make build
 ./bin/kronos version
 ```
 
+Build metadata is stamped from Git by default. Override `VERSION`, `COMMIT`, or
+`BUILD_DATE` if you need fixed release metadata.
+
 To embed the React WebUI into the binary, run `make ui` before `make build`.
 
 If `make` is unavailable, build directly:
 
 ```bash
-go build -trimpath -o bin/kronos ./cmd/kronos
+go build -trimpath \
+  -ldflags "-X github.com/kronos/kronos/internal/buildinfo.Version=dev" \
+  -o bin/kronos ./cmd/kronos
 ```
 
 ## 2. Generate Keys
