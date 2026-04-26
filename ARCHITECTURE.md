@@ -593,8 +593,8 @@ make ui
 | Backup engine | Implemented foundation | Driver-to-pipeline bridge with full, incremental fallback, and restore streaming. |
 | Chunk pipeline | Implemented | FastCDC, BLAKE3, dedup index, compression, encryption envelopes, bounded worker graph. |
 | Manifests | Implemented | Signed manifests, commit/load helpers, verification. |
-| Storage | Partially implemented | Local filesystem and S3-compatible backend exist; other backend kinds are domain-level or roadmap. |
-| Drivers | Partially implemented | Redis driver exists; memory test driver exists; Postgres/MySQL/MongoDB are planned in the blueprint. |
+| Storage | Partially implemented | Local filesystem and S3-compatible backend exist; SFTP/Azure/GCS domain kinds fail fast with explicit unsupported-backend errors. |
+| Drivers | Partially implemented | Redis/Valkey driver exists; memory test driver exists; Postgres/MySQL/MongoDB fail fast and remain planned in the blueprint. |
 | Retention | Implemented foundation | Count, time, size, and GFS planning plus server-side policy endpoints. |
 | Notifications | Implemented foundation | Webhook rules for terminal job events, optional HMAC signatures, bounded retries, API/CLI management, and audit metadata. |
 | WebUI | Early product surface | Embedded React/Tailwind operations dashboard build is served by the control plane; live dashboard API support now exists through `/api/v1/overview`. |
