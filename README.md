@@ -39,13 +39,13 @@ This repository currently has the Phase 0 foundation in place and active Phase
 - CLI: dispatcher, version, database repair,
   backup now/list/inspect/protect/unprotect/verification,
   target/storage add/list/inspect/update/remove, schedule add/list/inspect/pause/resume/remove,
-  target test, storage test/du, scheduler tick, jobs list/inspect/cancel/retry, audit
+  target test, storage test/du, scheduler tick, overview, jobs list/inspect/cancel/retry, audit
   list/tail/search/verify, token create/list/inspect/verify/revoke/prune,
   notification add/list/inspect/update/remove, retention
   plan/apply/policy add/list/inspect/update/remove, key slot/escrow/rotation helpers,
   restore preview/start,
   user add/list/inspect/remove/grant,
-  health/readiness, metrics, and repository garbage collection, plus bash/zsh/fish completion
+  health/readiness, metrics, overview, and repository garbage collection, plus bash/zsh/fish completion
   generation
 - backup listing filters by target, storage, type, protection state, and
   timestamp windows such as `--since 7d`
@@ -161,8 +161,8 @@ After rotating credentials, preview and prune inactive token metadata:
 
 Common scope families are `backup`, `target`, `storage`, `schedule`, `job`,
 `retention`, `restore`, `audit`, `token`, `user`, `agent`, and `metrics`, each
-using `:read` or `:write` where applicable. Requested token scopes are capped
-by the token user's role.
+using `:read` or `:write` where applicable. `overview` uses `metrics:read`.
+Requested token scopes are capped by the token user's role.
 
 Agents can use the same bearer secret through `KRONOS_TOKEN` or
 `kronos agent --token <secret>` and advertise concurrency with

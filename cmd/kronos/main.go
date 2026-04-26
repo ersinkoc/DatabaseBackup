@@ -195,6 +195,11 @@ func registry() map[string]command {
 			description: "list and manage notification rules",
 			run:         runNotification,
 		},
+		"overview": {
+			name:        "overview",
+			description: "fetch operations overview",
+			run:         runOverview,
+		},
 		"ready": {
 			name:        "ready",
 			description: "check control-plane readiness",

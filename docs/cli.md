@@ -31,6 +31,7 @@ kronos agent --work --server http://127.0.0.1:8500 --token "$KRONOS_TOKEN" --man
 kronos agent list
 kronos agent inspect --id agent-1
 kronos metrics
+kronos overview
 kronos local --listen 127.0.0.1:8500
 kronos local --config kronos.yaml --work --manifest-private-key <ed25519-private-key-hex> --chunk-key <32-byte-hex-key> --key-id prod-2026
 ```
@@ -147,7 +148,8 @@ kronos audit verify
 
 Common scope families are `backup`, `target`, `storage`, `schedule`, `job`,
 `notification`, `retention`, `restore`, `audit`, `token`, `user`, `agent`, and
-`metrics`, each using `:read` or `:write` where applicable. Requested token
+`metrics`, each using `:read` or `:write` where applicable. `overview` uses
+`metrics:read`. Requested token
 scopes are capped by the token user's role.
 
 ## Keys
