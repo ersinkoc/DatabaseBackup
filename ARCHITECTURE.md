@@ -1,6 +1,6 @@
 # Kronos Architecture
 
-Kronos is a zero-dependency Go backup platform for scheduled, encrypted, verified database backups. The repository is currently beyond a skeleton: it contains the core CLI, a control-plane HTTP server, embedded state storage, scheduler orchestration, agent workers, backup and restore pipelines, manifest verification, retention planning, audit logging, local and S3-compatible storage backends, Redis driver support, OpenAPI coverage, and an embedded React/Tailwind WebUI shell.
+Kronos is a zero-dependency Go backup platform for scheduled, encrypted, verified database backups. The repository is currently beyond a skeleton: it contains the core CLI, a control-plane HTTP server, embedded state storage, scheduler orchestration, agent workers, backup and restore pipelines, manifest verification, retention planning, audit logging, webhook notifications, local and S3-compatible storage backends, Redis driver support, OpenAPI coverage, an operations overview API, and an embedded React/Tailwind WebUI shell.
 
 The project is still in active implementation. The architectural foundation is in place and heavily tested, while broader database driver coverage and some product surfaces described in `.project/IMPLEMENTATION.md` remain roadmap work.
 
@@ -41,12 +41,13 @@ flowchart LR
     active --> agent[Worker agent]
     active --> scheduler[Persistent scheduler]
     active --> api[REST API and OpenAPI]
+    active --> overview[Operations overview API]
     active --> webui[Embedded WebUI dashboard]
     active --> redis[Redis backup driver]
+    active --> notify[Webhook notifications with HMAC and retries]
 
     next --> drivers[Postgres, MySQL, MongoDB drivers]
     next --> storageMore[SFTP, Azure, GCS backends]
-    active --> notify[Webhook notifications]
     next --> hooks[Additional notification channels and hooks]
     next --> advanced[Advanced auth and operations polish]
 ```
@@ -75,6 +76,7 @@ flowchart TB
         Stores[Resource stores]
         Audit[Hash-chained audit log]
         Notify[Notification dispatcher]
+        Overview[Operations overview]
         Metrics[Prometheus metrics]
     end
 
@@ -104,6 +106,7 @@ flowchart TB
     HTTP --> Stores
     HTTP --> Audit
     HTTP --> Notify
+    HTTP --> Overview
     HTTP --> Metrics
     Scheduler --> Orchestrator
     Orchestrator --> Stores
@@ -129,7 +132,6 @@ flowchart TD
     root --> internal[internal]
     root --> api[api/openapi]
     root --> docs[docs]
-    root --> web[web]
     root --> project[.project]
 
     cmd --> cli[CLI command dispatcher and commands]
@@ -153,10 +155,9 @@ flowchart TD
     internal --> schedule[cron and queue logic]
     internal --> restore[restore planning]
     internal --> verify[verification routines]
-    internal --> webui[embedded static handler]
+    internal --> webui[embedded static handler and built assets]
 
     api --> openapi[Checked OpenAPI spec]
-    web --> react[React/Tailwind dashboard source]
 ```
 
 ## Core Package Responsibilities
@@ -242,7 +243,7 @@ classDiagram
 
 ## Control-Plane Request Path
 
-The control plane is built directly on `net/http`. Persistent mode opens `state.db`, creates typed stores, seeds resources from config, starts the scheduler loop, and serves `/healthz`, `/metrics`, `/api/v1/*`, and the embedded WebUI.
+The control plane is built directly on `net/http`. Persistent mode opens `state.db`, creates typed stores, seeds resources from config, starts the scheduler loop, and serves `/healthz`, `/readyz`, `/metrics`, `/api/v1/*`, `/api/v1/overview`, and the embedded WebUI.
 
 ```mermaid
 sequenceDiagram
@@ -251,6 +252,7 @@ sequenceDiagram
     participant Auth as Token verifier
     participant Store as Typed store
     participant KV as kvstore
+    participant Notify as Notification dispatcher
     participant Audit as Audit log
 
     User->>HTTP: REST request
@@ -260,9 +262,20 @@ sequenceDiagram
     Store->>KV: bucket read/write
     KV-->>Store: result
     Store-->>HTTP: domain object
+    HTTP->>Notify: terminal job webhook fanout
     HTTP->>Audit: append mutation event
     Audit->>KV: hash-chained append
     HTTP-->>User: JSON response
+```
+
+```mermaid
+flowchart LR
+    UI[WebUI or CLI] --> Overview[/api/v1/overview]
+    Overview --> Agents[Agent registry]
+    Overview --> Jobs[Job store]
+    Overview --> Backups[Backup store]
+    Overview --> Inventory[Targets, storage, schedules, policies, notifications, users]
+    Overview --> Summary[Compact JSON dashboard summary]
 ```
 
 ## Job Lifecycle
@@ -573,8 +586,8 @@ make ui
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| CLI | Implemented and broad | Dispatcher plus backup, restore, schedule, storage, target, jobs, audit, token, user, key, health, metrics, GC, and completion commands. |
-| Control plane | Implemented foundation | HTTP server, API handlers, token scope checks, stores, scheduler loop, metrics, WebUI serving. |
+| CLI | Implemented and broad | Dispatcher plus backup, restore, schedule, storage, target, jobs, audit, token, user, notification, key, health, metrics, overview, GC, and completion commands. |
+| Control plane | Implemented foundation | HTTP server, API handlers, token scope checks, stores, scheduler loop, overview JSON, metrics, notifications, and WebUI serving. |
 | Agent | Implemented foundation | Heartbeat, resource sync, job claim, execution, finish reporting. |
 | State | Implemented | Embedded kvstore with pager, B+Tree, WAL, buckets, tests, and repair path. |
 | Backup engine | Implemented foundation | Driver-to-pipeline bridge with full, incremental fallback, and restore streaming. |
@@ -583,7 +596,8 @@ make ui
 | Storage | Partially implemented | Local filesystem and S3-compatible backend exist; other backend kinds are domain-level or roadmap. |
 | Drivers | Partially implemented | Redis driver exists; memory test driver exists; Postgres/MySQL/MongoDB are planned in the blueprint. |
 | Retention | Implemented foundation | Count, time, size, and GFS planning plus server-side policy endpoints. |
-| WebUI | Early product surface | React/Tailwind operations dashboard source and embedded serving path exist. |
+| Notifications | Implemented foundation | Webhook rules for terminal job events, optional HMAC signatures, bounded retries, API/CLI management, and audit metadata. |
+| WebUI | Early product surface | Embedded React/Tailwind operations dashboard build is served by the control plane; live dashboard API support now exists through `/api/v1/overview`. |
 | OpenAPI | Implemented | Checked spec under `api/openapi`. |
 
 ## Source Map
@@ -624,8 +638,9 @@ Use this section as a fast path from architecture concepts to code.
 | Audit log | `internal/audit/log.go` |
 | Retention planner | `internal/retention/retention.go` |
 | Restore planner | `internal/restore/plan.go` |
+| Notification rules and dispatcher | `internal/server/notification_store.go` |
 | WebUI handler | `internal/webui/handler.go` |
-| WebUI source | `web/src/App.tsx` and `web/src/components` |
+| WebUI assets | `internal/webui/static` |
 | OpenAPI contract | `api/openapi/openapi.yaml` |
 
 ## Roadmap Gaps
