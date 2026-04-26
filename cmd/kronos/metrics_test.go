@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/kronos/kronos/internal/obs"
 )
 
 func TestRunMetrics(t *testing.T) {
@@ -19,13 +21,16 @@ func TestRunMetrics(t *testing.T) {
 		if r.Header.Get("Authorization") != "Bearer metrics-token" {
 			t.Fatalf("Authorization = %q", r.Header.Get("Authorization"))
 		}
+		if r.Header.Get(obs.RequestIDHeader) != "req-metrics-1" {
+			t.Fatalf("%s = %q", obs.RequestIDHeader, r.Header.Get(obs.RequestIDHeader))
+		}
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 		w.Write([]byte("kronos_agents{status=\"healthy\"} 1\n"))
 	}))
 	defer server.Close()
 
 	var out bytes.Buffer
-	if err := run(context.Background(), &out, []string{"--server", server.URL, "--token", "metrics-token", "metrics"}); err != nil {
+	if err := run(context.Background(), &out, []string{"--server", server.URL, "--token", "metrics-token", "--request-id", "req-metrics-1", "metrics"}); err != nil {
 		t.Fatalf("metrics error = %v", err)
 	}
 	if !strings.Contains(out.String(), `kronos_agents{status="healthy"} 1`) {

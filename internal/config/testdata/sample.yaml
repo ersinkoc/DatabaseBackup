@@ -3,6 +3,8 @@ server:
   listen_webui: "127.0.0.1:8500"
   data_dir: "/tmp/kronos"
   auth:
+    token_verify_rate_limit: 10
+    token_verify_rate_window: "1m"
     oidc:
       issuer: "https://id.example.com"
       client_id: "kronos"

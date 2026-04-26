@@ -184,7 +184,7 @@ func tickScheduler(ctx context.Context, out io.Writer, stores apiStores, registr
 	if err := ctx.Err(); err != nil {
 		return
 	}
-	if failed, err := failLostAgentJobs(stores.jobs, registry, time.Now().UTC()); err != nil {
+	if failed, _, err := failLostAgentJobs(stores.jobs, registry, time.Now().UTC()); err != nil {
 		fmt.Fprintf(out, "scheduler_error=%q\n", err.Error())
 		return
 	} else if failed > 0 {
@@ -254,6 +254,7 @@ type authRateLimiter struct {
 	window  time.Duration
 	clients map[string]authRateWindow
 	ticks   uint64
+	limited uint64
 }
 
 type authRateWindow struct {
@@ -295,11 +296,21 @@ func (l *authRateLimiter) Allow(r *http.Request) bool {
 		return true
 	}
 	if window.count >= l.limit {
+		l.limited++
 		return false
 	}
 	window.count++
 	l.clients[key] = window
 	return true
+}
+
+func (l *authRateLimiter) LimitedTotal() uint64 {
+	if l == nil {
+		return 0
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.limited
 }
 
 func (l *authRateLimiter) pruneLocked(now time.Time) {
@@ -334,6 +345,23 @@ func withRequestID(next http.Handler) http.Handler {
 		w.Header().Set(obs.RequestIDHeader, requestID)
 		next.ServeHTTP(w, r.WithContext(obs.WithRequestID(r.Context(), requestID)))
 	})
+}
+
+func authRateLimitSettings(cfg *config.Config) (int, time.Duration) {
+	limit := authVerifyRateLimit
+	window := authVerifyRateWindow
+	if cfg == nil {
+		return limit, window
+	}
+	if cfg.Server.Auth.TokenVerifyRateLimit > 0 {
+		limit = cfg.Server.Auth.TokenVerifyRateLimit
+	}
+	if cfg.Server.Auth.TokenVerifyRateWindow != "" {
+		if parsed, err := time.ParseDuration(cfg.Server.Auth.TokenVerifyRateWindow); err == nil && parsed > 0 {
+			window = parsed
+		}
+	}
+	return limit, window
 }
 
 func newAPIStores(db *kvstore.DB) (apiStores, error) {
@@ -548,7 +576,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 	if registry == nil {
 		registry = control.NewAgentRegistry(nil, 30*time.Second)
 	}
-	authLimiter := newAuthRateLimiter(authVerifyRateLimit, authVerifyRateWindow)
+	authLimiter := newAuthRateLimiter(authRateLimitSettings(cfg))
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -573,7 +601,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		if !requireScope(w, r, stores.tokens, "metrics:read") {
 			return
 		}
-		handleMetrics(w, registry, stores)
+		handleMetrics(w, registry, stores, authLimiter)
 	})
 	mux.HandleFunc("/api/v1/agents/heartbeat", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -774,7 +802,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		if !requireScope(w, r, stores.tokens, "job:write") {
 			return
 		}
-		handleClaimJob(w, r, stores.jobs, stores.targets, registry)
+		handleClaimJob(w, r, stores.jobs, stores.targets, stores.audit, registry)
 	})
 	mux.HandleFunc("/api/v1/jobs/", func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/api/v1/jobs/")
@@ -814,7 +842,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		if !requireScope(w, r, stores.tokens, "schedule:write") {
 			return
 		}
-		handleSchedulerTick(w, stores, registry)
+		handleSchedulerTick(w, r, stores, registry)
 	})
 	mux.HandleFunc("/api/v1/backups/now", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -1100,8 +1128,11 @@ func writeJSON(w http.ResponseWriter, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 
-func handleMetrics(w http.ResponseWriter, registry *control.AgentRegistry, stores apiStores) {
-	snapshot := obs.MetricsSnapshot{JobsByStatus: make(map[core.JobStatus]int)}
+func handleMetrics(w http.ResponseWriter, registry *control.AgentRegistry, stores apiStores, authLimiter *authRateLimiter) {
+	snapshot := obs.MetricsSnapshot{
+		JobsByStatus:         make(map[core.JobStatus]int),
+		AuthRateLimitedTotal: authLimiter.LimitedTotal(),
+	}
 	if registry != nil {
 		for _, agent := range registry.List() {
 			switch agent.Status {
@@ -1135,14 +1166,21 @@ func handleMetrics(w http.ResponseWriter, registry *control.AgentRegistry, store
 	_ = obs.WritePrometheus(w, snapshot)
 }
 
-func handleSchedulerTick(w http.ResponseWriter, stores apiStores, registry *control.AgentRegistry) {
+func handleSchedulerTick(w http.ResponseWriter, r *http.Request, stores apiStores, registry *control.AgentRegistry) {
 	if stores.schedules == nil || stores.scheduleStates == nil || stores.jobs == nil {
 		http.Error(w, "scheduler stores are not configured", http.StatusServiceUnavailable)
 		return
 	}
-	if _, err := failLostAgentJobs(stores.jobs, registry, time.Now().UTC()); err != nil {
+	if _, failedJobIDs, err := failLostAgentJobs(stores.jobs, registry, time.Now().UTC()); err != nil {
 		http.Error(w, "fail lost agent jobs", http.StatusInternalServerError)
 		return
+	} else if len(failedJobIDs) > 0 {
+		if handleAuditAppendError(w, appendAuditEvent(r, stores.audit, "agent_lost.jobs_failed", "job", "", map[string]any{
+			"job_count": len(failedJobIDs),
+			"job_ids":   failedJobIDs,
+		})) {
+			return
+		}
 	}
 	runner, err := control.NewSchedulerRunner(stores.schedules, stores.scheduleStates, stores.jobs, core.RealClock{})
 	if err != nil {
@@ -1154,6 +1192,18 @@ func handleSchedulerTick(w http.ResponseWriter, stores apiStores, registry *cont
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if len(jobs) > 0 {
+		jobIDs := make([]core.ID, 0, len(jobs))
+		for _, job := range jobs {
+			jobIDs = append(jobIDs, job.ID)
+		}
+		if handleAuditAppendError(w, appendAuditEvent(r, stores.audit, "schedule.tick", "schedule", "", map[string]any{
+			"job_count": len(jobs),
+			"job_ids":   jobIDs,
+		})) {
+			return
+		}
 	}
 	writeJSON(w, map[string]any{"jobs": jobs})
 }
@@ -1255,6 +1305,9 @@ func handleVerifyAudit(w http.ResponseWriter, r *http.Request, log *kaudit.Log) 
 		http.Error(w, err.Error(), http.StatusConflict)
 		return
 	}
+	if handleAuditAppendError(w, appendAuditEvent(r, log, "audit.verified", "audit", "", nil)) {
+		return
+	}
 	writeJSON(w, map[string]any{"ok": true})
 }
 
@@ -1263,7 +1316,11 @@ func appendAuditEvent(r *http.Request, log *kaudit.Log, action string, resourceT
 		return nil
 	}
 	metadata = auditMetadataWithRequest(r, metadata)
-	_, err := log.Append(r.Context(), core.AuditEvent{
+	ctx := context.Background()
+	if r != nil {
+		ctx = r.Context()
+	}
+	_, err := log.Append(ctx, core.AuditEvent{
 		ActorID:      core.ID(r.Header.Get("X-Kronos-Actor")),
 		Action:       action,
 		ResourceType: resourceType,
@@ -1736,7 +1793,7 @@ func backupTypeNeedsParent(backupType core.BackupType) bool {
 	return backupType == core.BackupTypeIncremental || backupType == core.BackupTypeDifferential
 }
 
-func handleClaimJob(w http.ResponseWriter, r *http.Request, store *control.JobStore, targets *control.TargetStore, registry *control.AgentRegistry) {
+func handleClaimJob(w http.ResponseWriter, r *http.Request, store *control.JobStore, targets *control.TargetStore, auditLog *kaudit.Log, registry *control.AgentRegistry) {
 	if store == nil {
 		http.Error(w, "job store is not configured", http.StatusServiceUnavailable)
 		return
@@ -1746,9 +1803,16 @@ func handleClaimJob(w http.ResponseWriter, r *http.Request, store *control.JobSt
 		http.Error(w, "list jobs", http.StatusInternalServerError)
 		return
 	}
-	if _, err := failLostAgentJobs(store, registry, time.Now().UTC()); err != nil {
+	if _, failedJobIDs, err := failLostAgentJobs(store, registry, time.Now().UTC()); err != nil {
 		http.Error(w, "fail lost agent jobs", http.StatusInternalServerError)
 		return
+	} else if len(failedJobIDs) > 0 {
+		if handleAuditAppendError(w, appendAuditEvent(r, auditLog, "agent_lost.jobs_failed", "job", "", map[string]any{
+			"job_count": len(failedJobIDs),
+			"job_ids":   failedJobIDs,
+		})) {
+			return
+		}
 	}
 	jobs, err = store.List()
 	if err != nil {
@@ -1778,6 +1842,14 @@ func handleClaimJob(w http.ResponseWriter, r *http.Request, store *control.JobSt
 		started, err := orchestrator.StartOnAgent(job.ID, agentID)
 		if err != nil {
 			http.Error(w, "claim job", http.StatusInternalServerError)
+			return
+		}
+		if handleAuditAppendError(w, appendAuditEvent(r, auditLog, "job.claimed", "job", started.ID, map[string]any{
+			"target_id":  started.TargetID,
+			"storage_id": started.StorageID,
+			"type":       started.Type,
+			"operation":  started.Operation,
+		})) {
 			return
 		}
 		writeJSON(w, claimJobResponse{Job: &started})
@@ -1833,9 +1905,9 @@ func healthyAgentCapacity(registry *control.AgentRegistry) (int, bool) {
 	return total, true
 }
 
-func failLostAgentJobs(store *control.JobStore, registry *control.AgentRegistry, now time.Time) (int, error) {
+func failLostAgentJobs(store *control.JobStore, registry *control.AgentRegistry, now time.Time) (int, []core.ID, error) {
 	if store == nil || registry == nil {
-		return 0, nil
+		return 0, nil, nil
 	}
 	lostAgents := make(map[string]bool)
 	for _, agent := range registry.List() {
@@ -1844,16 +1916,17 @@ func failLostAgentJobs(store *control.JobStore, registry *control.AgentRegistry,
 		}
 	}
 	if len(lostAgents) == 0 {
-		return 0, nil
+		return 0, nil, nil
 	}
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
 	jobs, err := store.List()
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	failed := 0
+	failedJobIDs := make([]core.ID, 0)
 	for _, job := range jobs {
 		if job.AgentID == "" || !lostAgents[job.AgentID] {
 			continue
@@ -1865,11 +1938,12 @@ func failLostAgentJobs(store *control.JobStore, registry *control.AgentRegistry,
 		job.EndedAt = now.UTC()
 		job.Error = "agent_lost"
 		if err := store.Save(job); err != nil {
-			return failed, err
+			return failed, failedJobIDs, err
 		}
 		failed++
+		failedJobIDs = append(failedJobIDs, job.ID)
 	}
-	return failed, nil
+	return failed, failedJobIDs, nil
 }
 
 func targetHasActiveJob(jobs []core.Job, candidate core.Job) bool {

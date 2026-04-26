@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/kronos/kronos/internal/obs"
 )
 
 func TestRunHealth(t *testing.T) {
@@ -16,13 +18,16 @@ func TestRunHealth(t *testing.T) {
 		if r.Method != http.MethodGet || r.URL.Path != "/healthz" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
+		if r.Header.Get(obs.RequestIDHeader) != "req-health-1" {
+			t.Fatalf("%s = %q", obs.RequestIDHeader, r.Header.Get(obs.RequestIDHeader))
+		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(`{"status":"ok","projects":1}`))
 	}))
 	defer server.Close()
 
 	var out bytes.Buffer
-	if err := run(context.Background(), &out, []string{"--server", server.URL, "--output", "table", "health"}); err != nil {
+	if err := run(context.Background(), &out, []string{"--server", server.URL, "--request-id", "req-health-1", "--output", "table", "health"}); err != nil {
 		t.Fatalf("health error = %v", err)
 	}
 	text := out.String()

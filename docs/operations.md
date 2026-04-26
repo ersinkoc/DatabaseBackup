@@ -23,6 +23,20 @@ least one manifest can be verified:
 ./bin/kronos backup verify --manifest-key <manifest-key> --level manifest --public-key <public-key-hex> --storage-local <repo-path>
 ```
 
+For public or shared control planes, set token verification throttling in
+`kronos.yaml` to match your expected automation volume:
+
+```yaml
+server:
+  auth:
+    token_verify_rate_limit: 10
+    token_verify_rate_window: "1m"
+```
+
+Monitor `kronos_auth_rate_limited_total` on `/metrics` for rejected token
+verification attempts. A steady increase usually means callers need backoff,
+token reuse, or a larger verification budget.
+
 ## Upgrade
 
 1. Build and test the release artifact:

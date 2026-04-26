@@ -325,6 +325,7 @@ func TestServerMetricsEndpoint(t *testing.T) {
 		`kronos_agents{status="healthy"} 1`,
 		`kronos_jobs{status="queued"} 1`,
 		`kronos_backups_total 1`,
+		`kronos_auth_rate_limited_total 0`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("metrics missing %q in %s", want, text)
@@ -396,7 +397,13 @@ func TestServerAuditEndpoints(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("invalid audit limit status = %d, want 400", resp.StatusCode)
 	}
-	resp, err = server.Client().Post(server.URL+"/api/v1/audit/verify", "application/json", nil)
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/audit/verify", nil)
+	if err != nil {
+		t.Fatalf("NewRequest(audit verify) error = %v", err)
+	}
+	req.Header.Set("X-Kronos-Actor", "auditor-1")
+	req.Header.Set(obs.RequestIDHeader, "req-audit-verify-1")
+	resp, err = server.Client().Do(req)
 	if err != nil {
 		t.Fatalf("POST audit verify error = %v", err)
 	}
@@ -407,6 +414,13 @@ func TestServerAuditEndpoints(t *testing.T) {
 	resp.Body.Close()
 	if !strings.Contains(body.String(), `"ok":true`) {
 		t.Fatalf("audit verify body = %q", body.String())
+	}
+	events, err := log.List(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("List(after verify) error = %v", err)
+	}
+	if len(events) != 3 || events[2].Action != "audit.verified" || events[2].ActorID != "auditor-1" || events[2].Metadata["request_id"] != "req-audit-verify-1" {
+		t.Fatalf("audit verify event = %#v", events)
 	}
 }
 
@@ -632,6 +646,112 @@ func TestServerAuthVerifyRateLimit(t *testing.T) {
 	}
 	if got := resp.Header.Get("Retry-After"); got == "" {
 		t.Fatal("POST auth verify rate limited Retry-After header is empty")
+	}
+}
+
+func TestServerAuthVerifyRateLimitUsesConfig(t *testing.T) {
+	t.Parallel()
+
+	db, err := kvstore.Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	stores, err := newAPIStores(db)
+	if err != nil {
+		t.Fatalf("newAPIStores() error = %v", err)
+	}
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Auth: config.AuthConfig{
+				TokenVerifyRateLimit:  2,
+				TokenVerifyRateWindow: "30s",
+			},
+		},
+	}
+	server := httptest.NewServer(newServerHandlerWithStores(cfg, nil, stores))
+	defer server.Close()
+
+	for i := 0; i < 2; i++ {
+		req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/auth/verify", nil)
+		if err != nil {
+			t.Fatalf("NewRequest(%d) error = %v", i, err)
+		}
+		req.Header.Set("Authorization", "Bearer kro_missing_secret")
+		resp, err := server.Client().Do(req)
+		if err != nil {
+			t.Fatalf("POST auth verify %d error = %v", i, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("POST auth verify %d status = %d, want 401", i, resp.StatusCode)
+		}
+	}
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/auth/verify", nil)
+	if err != nil {
+		t.Fatalf("NewRequest(rate limited) error = %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer kro_missing_secret")
+	resp, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("POST auth verify rate limited error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("POST auth verify rate limited status = %d, want 429", resp.StatusCode)
+	}
+}
+
+func TestServerAuthVerifyRateLimitMetrics(t *testing.T) {
+	t.Parallel()
+
+	db, err := kvstore.Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	stores, err := newAPIStores(db)
+	if err != nil {
+		t.Fatalf("newAPIStores() error = %v", err)
+	}
+	cfg := &config.Config{
+		Server: config.ServerConfig{
+			Auth: config.AuthConfig{
+				TokenVerifyRateLimit:  1,
+				TokenVerifyRateWindow: "1m",
+			},
+		},
+	}
+	server := httptest.NewServer(newServerHandlerWithStores(cfg, nil, stores))
+	defer server.Close()
+
+	for i, wantStatus := range []int{http.StatusUnauthorized, http.StatusTooManyRequests} {
+		req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/auth/verify", nil)
+		if err != nil {
+			t.Fatalf("NewRequest(%d) error = %v", i, err)
+		}
+		req.Header.Set("Authorization", "Bearer kro_missing_secret")
+		resp, err := server.Client().Do(req)
+		if err != nil {
+			t.Fatalf("POST auth verify %d error = %v", i, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != wantStatus {
+			t.Fatalf("POST auth verify %d status = %d, want %d", i, resp.StatusCode, wantStatus)
+		}
+	}
+
+	resp, err := server.Client().Get(server.URL + "/metrics")
+	if err != nil {
+		t.Fatalf("GET metrics error = %v", err)
+	}
+	defer resp.Body.Close()
+	var body bytes.Buffer
+	if _, err := body.ReadFrom(resp.Body); err != nil {
+		t.Fatalf("ReadFrom(metrics) error = %v", err)
+	}
+	if !strings.Contains(body.String(), `kronos_auth_rate_limited_total 1`) {
+		t.Fatalf("metrics missing auth rate limit total in %s", body.String())
 	}
 }
 
@@ -1063,7 +1183,13 @@ func TestServerJobClaimAndFinishEndpoints(t *testing.T) {
 	server := httptest.NewServer(newServerHandlerWithStores(nil, nil, stores))
 	defer server.Close()
 
-	resp, err := server.Client().Post(server.URL+"/api/v1/jobs/claim", "application/json", nil)
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/claim", nil)
+	if err != nil {
+		t.Fatalf("NewRequest(claim) error = %v", err)
+	}
+	req.Header.Set("X-Kronos-Agent-ID", "agent-job-1")
+	req.Header.Set(obs.RequestIDHeader, "req-job-claim-1")
+	resp, err := server.Client().Do(req)
 	if err != nil {
 		t.Fatalf("POST jobs claim error = %v", err)
 	}
@@ -1105,6 +1231,16 @@ func TestServerJobClaimAndFinishEndpoints(t *testing.T) {
 	backup, ok, err := stores.backups.Get("backup-1")
 	if err != nil || !ok || backup.JobID != "job-1" || backup.TargetID != "target" || backup.ManifestID != "manifest-1" {
 		t.Fatalf("Get(backup-1 after finish) = %#v ok=%v err=%v", backup, ok, err)
+	}
+	events, err := stores.audit.List(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("List(audit) error = %v", err)
+	}
+	if len(events) != 2 || events[0].Action != "job.claimed" || events[1].Action != "job.finished" {
+		t.Fatalf("job audit events = %#v", events)
+	}
+	if events[0].Metadata["agent_id"] != "agent-job-1" || events[0].Metadata["request_id"] != "req-job-claim-1" {
+		t.Fatalf("job claimed metadata = %#v", events[0].Metadata)
 	}
 }
 
@@ -1188,6 +1324,7 @@ func TestServerJobClaimFailsLostAgentBeforeClaiming(t *testing.T) {
 		t.Fatalf("NewRequest(claim) error = %v", err)
 	}
 	req.Header.Set("X-Kronos-Agent-ID", "agent-ok")
+	req.Header.Set(obs.RequestIDHeader, "req-agent-lost-1")
 	resp, err := server.Client().Do(req)
 	if err != nil {
 		t.Fatalf("POST jobs claim error = %v", err)
@@ -1207,6 +1344,16 @@ func TestServerJobClaimFailsLostAgentBeforeClaiming(t *testing.T) {
 	claimed, ok, err := stores.jobs.Get("queued-a")
 	if err != nil || !ok || claimed.Status != core.JobStatusRunning || claimed.AgentID != "agent-ok" {
 		t.Fatalf("Get(queued-a) = %#v ok=%v err=%v", claimed, ok, err)
+	}
+	events, err := stores.audit.List(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("List(audit) error = %v", err)
+	}
+	if len(events) != 2 || events[0].Action != "agent_lost.jobs_failed" || events[1].Action != "job.claimed" {
+		t.Fatalf("agent lost audit events = %#v", events)
+	}
+	if events[0].Metadata["request_id"] != "req-agent-lost-1" {
+		t.Fatalf("agent lost metadata = %#v", events[0].Metadata)
 	}
 }
 
@@ -1339,12 +1486,15 @@ func TestFailLostAgentJobs(t *testing.T) {
 	registry.Heartbeat(control.AgentHeartbeat{ID: "agent-lost", Now: now.Add(-2 * time.Minute)})
 	registry.Heartbeat(control.AgentHeartbeat{ID: "agent-ok", Now: now})
 
-	failed, err := failLostAgentJobs(stores.jobs, registry, now)
+	failed, failedJobIDs, err := failLostAgentJobs(stores.jobs, registry, now)
 	if err != nil {
 		t.Fatalf("failLostAgentJobs() error = %v", err)
 	}
 	if failed != 1 {
 		t.Fatalf("failed = %d, want 1", failed)
+	}
+	if len(failedJobIDs) != 1 || failedJobIDs[0] != "lost-running" {
+		t.Fatalf("failedJobIDs = %#v, want lost-running", failedJobIDs)
 	}
 	lost, ok, err := stores.jobs.Get("lost-running")
 	if err != nil || !ok || lost.Status != core.JobStatusFailed || lost.Error != "agent_lost" || !lost.EndedAt.Equal(now) {
@@ -1548,7 +1698,12 @@ func TestServerSchedulerTickEndpoint(t *testing.T) {
 	server := httptest.NewServer(newServerHandlerWithStores(nil, nil, stores))
 	defer server.Close()
 
-	resp, err := server.Client().Post(server.URL+"/api/v1/scheduler/tick", "application/json", nil)
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/scheduler/tick", nil)
+	if err != nil {
+		t.Fatalf("NewRequest(scheduler tick) error = %v", err)
+	}
+	req.Header.Set(obs.RequestIDHeader, "req-scheduler-tick-1")
+	resp, err := server.Client().Do(req)
 	if err != nil {
 		t.Fatalf("POST scheduler tick error = %v", err)
 	}
@@ -1569,6 +1724,16 @@ func TestServerSchedulerTickEndpoint(t *testing.T) {
 	}
 	if len(jobs) != 1 || jobs[0].ScheduleID != "schedule-1" {
 		t.Fatalf("jobs = %#v", jobs)
+	}
+	events, err := stores.audit.List(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("List(audit) error = %v", err)
+	}
+	if len(events) != 1 || events[0].Action != "schedule.tick" || events[0].Metadata["request_id"] != "req-scheduler-tick-1" {
+		t.Fatalf("scheduler audit events = %#v", events)
+	}
+	if events[0].Metadata["job_count"] != float64(1) && events[0].Metadata["job_count"] != 1 {
+		t.Fatalf("scheduler audit metadata = %#v", events[0].Metadata)
 	}
 }
 

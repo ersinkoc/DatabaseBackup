@@ -75,6 +75,37 @@ func TestValidateReportsMissingScheduleReferences(t *testing.T) {
 	}
 }
 
+func TestValidateAuthRateLimitSettings(t *testing.T) {
+	t.Parallel()
+
+	base := Config{
+		Server: ServerConfig{Listen: "127.0.0.1:8500", DataDir: "/tmp/kronos"},
+		Projects: []ProjectConfig{{
+			Name:     "default",
+			Storages: []StorageConfig{{Name: "local", Backend: "local", Path: "/tmp/repo"}},
+			Targets:  []TargetConfig{{Name: "redis", Driver: "redis", Connection: ConnectionConfig{Host: "127.0.0.1"}}},
+		}},
+	}
+	valid := base
+	valid.Server.Auth.TokenVerifyRateLimit = 3
+	valid.Server.Auth.TokenVerifyRateWindow = "30s"
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("Validate(valid auth rate limit) error = %v", err)
+	}
+
+	negative := base
+	negative.Server.Auth.TokenVerifyRateLimit = -1
+	if err := negative.Validate(); err == nil || !strings.Contains(err.Error(), "token_verify_rate_limit") {
+		t.Fatalf("Validate(negative rate limit) error = %v, want token_verify_rate_limit", err)
+	}
+
+	badWindow := base
+	badWindow.Server.Auth.TokenVerifyRateWindow = "soon"
+	if err := badWindow.Validate(); err == nil || !strings.Contains(err.Error(), "token_verify_rate_window") {
+		t.Fatalf("Validate(bad window) error = %v, want token_verify_rate_window", err)
+	}
+}
+
 func TestLoadRejectsInvalidYAMLAndPlaceholders(t *testing.T) {
 	t.Parallel()
 

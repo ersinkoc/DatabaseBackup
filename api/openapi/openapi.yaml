@@ -26,7 +26,9 @@ paths:
       summary: Prometheus metrics
       responses:
         "200":
-          description: Text exposition metrics
+          description: >
+            Text exposition metrics, including kronos_auth_rate_limited_total
+            for token verification requests rejected by throttling.
           content:
             text/plain:
               schema:
@@ -125,7 +127,7 @@ paths:
       summary: Verify audit hash chain
       responses:
         "200":
-          description: Audit chain is valid
+          description: Audit chain is valid and an audit.verified event was appended
           content:
             application/json:
               schema:

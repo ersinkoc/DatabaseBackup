@@ -11,10 +11,11 @@ import (
 
 // MetricsSnapshot is a dependency-free Prometheus exposition snapshot.
 type MetricsSnapshot struct {
-	AgentsHealthy  int
-	AgentsDegraded int
-	JobsByStatus   map[core.JobStatus]int
-	BackupsTotal   int
+	AgentsHealthy        int
+	AgentsDegraded       int
+	JobsByStatus         map[core.JobStatus]int
+	BackupsTotal         int
+	AuthRateLimitedTotal uint64
 }
 
 // WritePrometheus writes metrics in the Prometheus text exposition format.
@@ -53,7 +54,16 @@ func WritePrometheus(w io.Writer, snapshot MetricsSnapshot) error {
 	if _, err := fmt.Fprintln(w, "# TYPE kronos_backups_total gauge"); err != nil {
 		return err
 	}
-	_, err := fmt.Fprintf(w, "kronos_backups_total %d\n", snapshot.BackupsTotal)
+	if _, err := fmt.Fprintf(w, "kronos_backups_total %d\n", snapshot.BackupsTotal); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# HELP kronos_auth_rate_limited_total Number of auth verification requests rejected by rate limiting."); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# TYPE kronos_auth_rate_limited_total counter"); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintf(w, "kronos_auth_rate_limited_total %d\n", snapshot.AuthRateLimitedTotal)
 	return err
 }
 

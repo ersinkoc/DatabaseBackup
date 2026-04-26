@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/kronos/kronos/internal/secret"
 	"gopkg.in/yaml.v3"
@@ -37,7 +38,9 @@ type TLSConfig struct {
 
 // AuthConfig configures server authentication.
 type AuthConfig struct {
-	OIDC OIDCConfig `json:"oidc,omitempty" yaml:"oidc,omitempty"`
+	OIDC                  OIDCConfig `json:"oidc,omitempty" yaml:"oidc,omitempty"`
+	TokenVerifyRateLimit  int        `json:"token_verify_rate_limit,omitempty" yaml:"token_verify_rate_limit,omitempty"`
+	TokenVerifyRateWindow string     `json:"token_verify_rate_window,omitempty" yaml:"token_verify_rate_window,omitempty"`
 }
 
 // OIDCConfig configures an OpenID Connect identity provider.
@@ -171,6 +174,14 @@ func (c Config) Validate() error {
 	}
 	if c.Server.DataDir == "" {
 		errs = append(errs, errors.New("server.data_dir is required"))
+	}
+	if c.Server.Auth.TokenVerifyRateLimit < 0 {
+		errs = append(errs, errors.New("server.auth.token_verify_rate_limit must be non-negative"))
+	}
+	if c.Server.Auth.TokenVerifyRateWindow != "" {
+		if _, err := time.ParseDuration(c.Server.Auth.TokenVerifyRateWindow); err != nil {
+			errs = append(errs, fmt.Errorf("server.auth.token_verify_rate_window: %w", err))
+		}
 	}
 	if len(c.Projects) == 0 {
 		errs = append(errs, errors.New("at least one project is required"))

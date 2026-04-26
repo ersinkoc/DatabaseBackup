@@ -21,7 +21,8 @@ func TestWritePrometheus(t *testing.T) {
 			core.JobStatusQueued:  3,
 			core.JobStatusRunning: 1,
 		},
-		BackupsTotal: 4,
+		BackupsTotal:         4,
+		AuthRateLimitedTotal: 5,
 	})
 	if err != nil {
 		t.Fatalf("WritePrometheus() error = %v", err)
@@ -33,6 +34,7 @@ func TestWritePrometheus(t *testing.T) {
 		`kronos_jobs{status="queued"} 3`,
 		`kronos_jobs{status="running"} 1`,
 		`kronos_backups_total 4`,
+		`kronos_auth_rate_limited_total 5`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("metrics missing %q in %s", want, text)
