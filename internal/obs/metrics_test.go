@@ -88,6 +88,7 @@ func TestWritePrometheus(t *testing.T) {
 	}
 	text := out.String()
 	for _, want := range []string{
+		`kronos_build_info{version="dev",commit="unknown",build_date="unknown"} 1`,
 		`kronos_agents{status="healthy"} 2`,
 		`kronos_agents{status="degraded"} 1`,
 		`kronos_agents_capacity 5`,

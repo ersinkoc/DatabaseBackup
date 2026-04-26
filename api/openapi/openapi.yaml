@@ -43,7 +43,8 @@ paths:
       responses:
         "200":
           description: >
-            Text exposition metrics, including kronos_agents_capacity for
+            Text exposition metrics, including kronos_build_info for binary
+            build metadata, kronos_agents_capacity for
             schedulable agent capacity, kronos_jobs_active for active work,
             kronos_jobs_by_operation and kronos_jobs_active_by_operation for
             backup/restore work mix, kronos_jobs_active_by_agent for per-agent

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kronos/kronos/internal/buildinfo"
 	"github.com/kronos/kronos/internal/core"
 )
 
@@ -49,6 +50,15 @@ type MetricsSnapshot struct {
 
 // WritePrometheus writes metrics in the Prometheus text exposition format.
 func WritePrometheus(w io.Writer, snapshot MetricsSnapshot) error {
+	if _, err := fmt.Fprintln(w, "# HELP kronos_build_info Build metadata for the running Kronos binary."); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# TYPE kronos_build_info gauge"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "kronos_build_info{version=\"%s\",commit=\"%s\",build_date=\"%s\"} 1\n", sanitizeLabel(buildinfo.Version), sanitizeLabel(buildinfo.Commit), sanitizeLabel(buildinfo.BuildDate)); err != nil {
+		return err
+	}
 	if _, err := fmt.Fprintln(w, "# HELP kronos_agents Number of known agents by health status."); err != nil {
 		return err
 	}
