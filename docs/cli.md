@@ -98,7 +98,7 @@ kronos jobs retry --id job-1
 ## Notifications
 
 ```bash
-kronos notification add --id ops-failures --name ops-failures --event job.failed --webhook-url https://hooks.example.com/kronos --secret "$KRONOS_OPS_WEBHOOK_SECRET"
+kronos notification add --id ops-failures --name ops-failures --event job.failed --webhook-url https://hooks.example.com/kronos --secret "$KRONOS_OPS_WEBHOOK_SECRET" --max-attempts 2
 kronos notification add --name restore-drills --event job.succeeded,job.canceled --webhook-url https://hooks.example.com/restore-drills
 kronos notification list
 kronos notification inspect --id ops-failures

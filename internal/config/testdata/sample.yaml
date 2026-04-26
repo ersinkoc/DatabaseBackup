@@ -16,6 +16,7 @@ notifications:
     when: job.failed
     webhook: "https://hooks.example.com/kronos"
     secret: "${env:KRONOS_TEST_WEBHOOK_SECRET}"
+    max_attempts: 2
 
 projects:
   - name: default

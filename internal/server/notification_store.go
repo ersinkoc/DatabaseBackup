@@ -77,6 +77,7 @@ func (s *NotificationRuleStore) Delete(id core.ID) error {
 type NotificationDelivery struct {
 	RuleID     core.ID `json:"rule_id"`
 	StatusCode int     `json:"status_code,omitempty"`
+	Attempts   int     `json:"attempts,omitempty"`
 	Error      string  `json:"error,omitempty"`
 }
 
@@ -122,26 +123,39 @@ func (d NotificationDispatcher) DispatchJobTerminal(ctx context.Context, job cor
 			continue
 		}
 		delivery := NotificationDelivery{RuleID: rule.ID}
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, rule.WebhookURL, strings.NewReader(string(payload)))
-		if err != nil {
-			delivery.Error = err.Error()
-			deliveries = append(deliveries, delivery)
-			continue
+		attempts := rule.MaxAttempts
+		if attempts <= 0 {
+			attempts = 1
 		}
-		req.Header.Set("Content-Type", "application/json")
-		if rule.Secret != "" {
-			req.Header.Set("X-Kronos-Signature", notificationSignature(rule.Secret, payload))
-		}
-		resp, err := client.Do(req)
-		if err != nil {
-			delivery.Error = err.Error()
-			deliveries = append(deliveries, delivery)
-			continue
-		}
-		delivery.StatusCode = resp.StatusCode
-		resp.Body.Close()
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		for attempt := 1; attempt <= attempts; attempt++ {
+			delivery.Attempts = attempt
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, rule.WebhookURL, strings.NewReader(string(payload)))
+			if err != nil {
+				delivery.Error = err.Error()
+				break
+			}
+			req.Header.Set("Content-Type", "application/json")
+			if rule.Secret != "" {
+				req.Header.Set("X-Kronos-Signature", notificationSignature(rule.Secret, payload))
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				delivery.Error = err.Error()
+				if ctx.Err() != nil {
+					break
+				}
+				continue
+			}
+			delivery.StatusCode = resp.StatusCode
+			resp.Body.Close()
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				delivery.Error = ""
+				break
+			}
 			delivery.Error = fmt.Sprintf("webhook returned %s", resp.Status)
+			if resp.StatusCode < 500 {
+				break
+			}
 		}
 		deliveries = append(deliveries, delivery)
 	}
@@ -170,6 +184,9 @@ func validateNotificationRule(rule core.NotificationRule) error {
 		default:
 			return fmt.Errorf("unsupported notification event %q", event)
 		}
+	}
+	if rule.MaxAttempts < 0 {
+		return fmt.Errorf("notification max_attempts must be non-negative")
 	}
 	parsed, err := url.Parse(rule.WebhookURL)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {

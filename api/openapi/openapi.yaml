@@ -1619,6 +1619,10 @@ components:
         secret:
           type: string
           description: Optional HMAC signing secret. Redacted unless include_secrets=true is authorized.
+        max_attempts:
+          type: integer
+          minimum: 0
+          description: Maximum webhook delivery attempts. Zero uses the server default of one attempt.
         enabled:
           type: boolean
         created_at:

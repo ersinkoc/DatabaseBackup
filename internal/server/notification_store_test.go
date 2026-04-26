@@ -112,6 +112,52 @@ func TestNotificationDispatcherPostsMatchingJobEvent(t *testing.T) {
 	}
 }
 
+func TestNotificationDispatcherRetriesFailures(t *testing.T) {
+	t.Parallel()
+
+	attempts := 0
+	webhook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer webhook.Close()
+
+	db, err := kvstore.Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	store, err := NewNotificationRuleStore(db)
+	if err != nil {
+		t.Fatalf("NewNotificationRuleStore() error = %v", err)
+	}
+	if err := store.Save(core.NotificationRule{
+		ID:          "rule-1",
+		Name:        "ops",
+		Events:      []core.NotificationEvent{core.NotificationJobFailed},
+		WebhookURL:  webhook.URL,
+		MaxAttempts: 2,
+		Enabled:     true,
+	}); err != nil {
+		t.Fatalf("Save(rule) error = %v", err)
+	}
+
+	deliveries := NotificationDispatcher{Store: store, Client: webhook.Client()}.DispatchJobTerminal(context.Background(), core.Job{
+		ID:     "job-1",
+		Status: core.JobStatusFailed,
+	})
+	if attempts != 2 {
+		t.Fatalf("attempts = %d, want 2", attempts)
+	}
+	if len(deliveries) != 1 || deliveries[0].Attempts != 2 || deliveries[0].StatusCode != http.StatusAccepted || deliveries[0].Error != "" {
+		t.Fatalf("deliveries = %#v", deliveries)
+	}
+}
+
 func TestNotificationRuleValidation(t *testing.T) {
 	t.Parallel()
 
@@ -138,5 +184,8 @@ func TestNotificationRuleValidation(t *testing.T) {
 	}
 	if err := store.Save(core.NotificationRule{ID: "rule", Name: "ops", Events: []core.NotificationEvent{core.NotificationJobFailed}, WebhookURL: "file:///tmp/hook"}); err == nil {
 		t.Fatal("Save(bad webhook) error = nil, want error")
+	}
+	if err := store.Save(core.NotificationRule{ID: "rule", Name: "ops", Events: []core.NotificationEvent{core.NotificationJobFailed}, WebhookURL: "https://hooks.example.com", MaxAttempts: -1}); err == nil {
+		t.Fatal("Save(negative attempts) error = nil, want error")
 	}
 }

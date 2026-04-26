@@ -208,14 +208,15 @@ type RetentionRule struct {
 
 // NotificationRule routes matching events to an outbound webhook.
 type NotificationRule struct {
-	ID         ID                  `json:"id"`
-	Name       string              `json:"name"`
-	Events     []NotificationEvent `json:"events"`
-	WebhookURL string              `json:"webhook_url"`
-	Secret     string              `json:"secret,omitempty"`
-	Enabled    bool                `json:"enabled"`
-	CreatedAt  time.Time           `json:"created_at"`
-	UpdatedAt  time.Time           `json:"updated_at"`
+	ID          ID                  `json:"id"`
+	Name        string              `json:"name"`
+	Events      []NotificationEvent `json:"events"`
+	WebhookURL  string              `json:"webhook_url"`
+	Secret      string              `json:"secret,omitempty"`
+	MaxAttempts int                 `json:"max_attempts,omitempty"`
+	Enabled     bool                `json:"enabled"`
+	CreatedAt   time.Time           `json:"created_at"`
+	UpdatedAt   time.Time           `json:"updated_at"`
 }
 
 // User is a local or federated Kronos principal.

@@ -77,7 +77,7 @@ This repository currently has the Phase 0 foundation in place and active Phase
 - restore API: restore preview plans that validate backup parent chains and
   enqueue restore jobs with dry-run and replace-existing restore options
 - notification API: webhook rule CRUD for terminal job events with optional HMAC
-  payload signatures
+  payload signatures and bounded delivery retries
 - token API: scoped API token create/list/verify/revoke/prune with hashed verifier
   storage and copy-once bearer secret output
 - user API: local user metadata create/list/get/delete plus role grants

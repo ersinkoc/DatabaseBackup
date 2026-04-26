@@ -432,14 +432,15 @@ func seedAPIStoresFromConfig(stores apiStores, cfg *config.Config, now time.Time
 				webhook = notification.Channels[0]
 			}
 			if err := stores.notifications.Save(core.NotificationRule{
-				ID:         core.ID("config/" + name),
-				Name:       name,
-				Events:     events,
-				WebhookURL: webhook,
-				Secret:     notification.Secret,
-				Enabled:    true,
-				CreatedAt:  now,
-				UpdatedAt:  now,
+				ID:          core.ID("config/" + name),
+				Name:        name,
+				Events:      events,
+				WebhookURL:  webhook,
+				Secret:      notification.Secret,
+				MaxAttempts: notification.MaxAttempts,
+				Enabled:     true,
+				CreatedAt:   now,
+				UpdatedAt:   now,
 			}); err != nil {
 				return fmt.Errorf("seed notification %s: %w", name, err)
 			}

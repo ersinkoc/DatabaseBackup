@@ -43,6 +43,9 @@ func TestLoadFileSample(t *testing.T) {
 	if cfg.Notifications[0].Secret != "webhook-secret" {
 		t.Fatalf("notification secret = %q, want webhook-secret", cfg.Notifications[0].Secret)
 	}
+	if cfg.Notifications[0].MaxAttempts != 2 {
+		t.Fatalf("notification max attempts = %d, want 2", cfg.Notifications[0].MaxAttempts)
+	}
 }
 
 func TestLoadUnknownSecretScheme(t *testing.T) {
@@ -140,6 +143,12 @@ func TestValidateNotificationSettings(t *testing.T) {
 	badEvent.Notifications = []NotificationConfig{{Name: "ops", When: "job.started", Webhook: "https://hooks.example.com/kronos"}}
 	if err := badEvent.Validate(); err == nil || !strings.Contains(err.Error(), "not supported") {
 		t.Fatalf("Validate(bad event) error = %v, want not supported", err)
+	}
+
+	badAttempts := base
+	badAttempts.Notifications = []NotificationConfig{{Name: "ops", When: string(core.NotificationJobFailed), Webhook: "https://hooks.example.com/kronos", MaxAttempts: -1}}
+	if err := badAttempts.Validate(); err == nil || !strings.Contains(err.Error(), "max_attempts") {
+		t.Fatalf("Validate(bad attempts) error = %v, want max_attempts", err)
 	}
 }
 

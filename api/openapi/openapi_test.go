@@ -69,7 +69,7 @@ func TestOpenAPIDocumentsNotificationRules(t *testing.T) {
 		t.Fatalf("ReadFile(openapi.yaml) error = %v", err)
 	}
 	text := string(data)
-	for _, want := range []string{"/api/v1/notifications", "/api/v1/notifications/{id}", "NotificationRule", "job.failed", "webhook_url"} {
+	for _, want := range []string{"/api/v1/notifications", "/api/v1/notifications/{id}", "NotificationRule", "job.failed", "webhook_url", "max_attempts"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("openapi.yaml missing %q", want)
 		}

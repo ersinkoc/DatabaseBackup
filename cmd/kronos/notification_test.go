@@ -27,7 +27,7 @@ func TestRunNotificationAddListInspectUpdateRemove(t *testing.T) {
 					t.Fatalf("ReadFrom(add request) error = %v", err)
 				}
 				text := body.String()
-				for _, want := range []string{`"id":"notification-1"`, `"events":["job.failed","job.succeeded"]`, `"webhook_url":"https://hooks.example.com/kronos"`, `"secret":"shared"`, `"enabled":true`} {
+				for _, want := range []string{`"id":"notification-1"`, `"events":["job.failed","job.succeeded"]`, `"webhook_url":"https://hooks.example.com/kronos"`, `"secret":"shared"`, `"max_attempts":2`, `"enabled":true`} {
 					if !strings.Contains(text, want) {
 						t.Fatalf("notification add request missing %q in %s", want, text)
 					}
@@ -73,6 +73,7 @@ func TestRunNotificationAddListInspectUpdateRemove(t *testing.T) {
 		"--event", "job.failed,job.succeeded",
 		"--webhook-url", "https://hooks.example.com/kronos",
 		"--secret", "shared",
+		"--max-attempts", "2",
 	}); err != nil {
 		t.Fatalf("notification add error = %v", err)
 	}

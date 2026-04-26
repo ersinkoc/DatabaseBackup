@@ -117,12 +117,13 @@ type HookAction struct {
 
 // NotificationConfig configures event routing.
 type NotificationConfig struct {
-	Name     string   `json:"name,omitempty" yaml:"name,omitempty"`
-	When     string   `json:"when" yaml:"when"`
-	Events   []string `json:"events,omitempty" yaml:"events,omitempty"`
-	Webhook  string   `json:"webhook,omitempty" yaml:"webhook,omitempty"`
-	Secret   string   `json:"secret,omitempty" yaml:"secret,omitempty"`
-	Channels []string `json:"channels,omitempty" yaml:"channels,omitempty"`
+	Name        string   `json:"name,omitempty" yaml:"name,omitempty"`
+	When        string   `json:"when" yaml:"when"`
+	Events      []string `json:"events,omitempty" yaml:"events,omitempty"`
+	Webhook     string   `json:"webhook,omitempty" yaml:"webhook,omitempty"`
+	Secret      string   `json:"secret,omitempty" yaml:"secret,omitempty"`
+	MaxAttempts int      `json:"max_attempts,omitempty" yaml:"max_attempts,omitempty"`
+	Channels    []string `json:"channels,omitempty" yaml:"channels,omitempty"`
 }
 
 // LoadFile reads, expands, and validates a YAML config file.
@@ -208,6 +209,9 @@ func (c Config) Validate() error {
 		}
 		if notification.Webhook == "" && len(notification.Channels) == 0 {
 			errs = append(errs, fmt.Errorf("notifications[%d].webhook or channels is required", i))
+		}
+		if notification.MaxAttempts < 0 {
+			errs = append(errs, fmt.Errorf("notifications[%d].max_attempts must be non-negative", i))
 		}
 	}
 

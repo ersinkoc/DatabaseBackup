@@ -47,7 +47,8 @@ flowchart LR
   creation, inactive token pruning, request IDs, and audit recording for
   mutations.
 - Webhook notification rules for terminal job events, API management, optional
-  HMAC payload signatures, and delivery metadata in the audit chain.
+  HMAC payload signatures, bounded retries, and delivery metadata in the audit
+  chain.
 - Readiness, health, Prometheus metrics, operations docs, CLI docs, quickstart,
   architecture docs, deployment topology guidance, restore drill guidance,
   multi-platform release artifacts, checksums, provenance metadata, SBOM
@@ -113,7 +114,7 @@ are:
    backup/restore slice and conformance tests.
 2. Wire the WebUI to live API endpoints for dashboard state, jobs, backups, and
    agents.
-3. Add retries, signing, and additional channels for notification delivery.
+3. Add additional notification channels and hook execution surfaces.
 4. Sign release provenance and SBOM metadata with keyless CI identity.
 5. Add cloud-specific deployment manifests for common managed Kubernetes
    environments.

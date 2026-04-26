@@ -60,11 +60,12 @@ func runNotificationAdd(ctx context.Context, out io.Writer, args []string) error
 	eventsText := fs.String("event", "", "comma-separated events: job.succeeded,job.failed,job.canceled")
 	webhookURL := fs.String("webhook-url", "", "webhook URL")
 	secret := fs.String("secret", "", "optional HMAC signing secret")
+	maxAttempts := fs.Int("max-attempts", 1, "maximum webhook delivery attempts")
 	enabled := fs.Bool("enabled", true, "enable the notification rule")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	rule, err := notificationRuleFromFlags(*id, *name, *eventsText, *webhookURL, *secret, *enabled)
+	rule, err := notificationRuleFromFlags(*id, *name, *eventsText, *webhookURL, *secret, *maxAttempts, *enabled)
 	if err != nil {
 		return err
 	}
@@ -79,6 +80,7 @@ func runNotificationUpdate(ctx context.Context, out io.Writer, args []string) er
 	eventsText := fs.String("event", "", "comma-separated events: job.succeeded,job.failed,job.canceled")
 	webhookURL := fs.String("webhook-url", "", "webhook URL")
 	secret := fs.String("secret", "", "optional HMAC signing secret")
+	maxAttempts := fs.Int("max-attempts", 1, "maximum webhook delivery attempts")
 	enabled := fs.Bool("enabled", true, "enable the notification rule")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -86,7 +88,7 @@ func runNotificationUpdate(ctx context.Context, out io.Writer, args []string) er
 	if *id == "" {
 		return fmt.Errorf("--id is required")
 	}
-	rule, err := notificationRuleFromFlags(*id, *name, *eventsText, *webhookURL, *secret, *enabled)
+	rule, err := notificationRuleFromFlags(*id, *name, *eventsText, *webhookURL, *secret, *maxAttempts, *enabled)
 	if err != nil {
 		return err
 	}
@@ -106,7 +108,7 @@ func runNotificationRemove(ctx context.Context, out io.Writer, args []string) er
 	return deleteControl(ctx, http.DefaultClient, *serverAddr, "/api/v1/notifications/"+*id, out)
 }
 
-func notificationRuleFromFlags(id, name, eventsText, webhookURL, secret string, enabled bool) (core.NotificationRule, error) {
+func notificationRuleFromFlags(id, name, eventsText, webhookURL, secret string, maxAttempts int, enabled bool) (core.NotificationRule, error) {
 	if strings.TrimSpace(name) == "" {
 		return core.NotificationRule{}, fmt.Errorf("--name is required")
 	}
@@ -116,17 +118,21 @@ func notificationRuleFromFlags(id, name, eventsText, webhookURL, secret string, 
 	if strings.TrimSpace(webhookURL) == "" {
 		return core.NotificationRule{}, fmt.Errorf("--webhook-url is required")
 	}
+	if maxAttempts < 0 {
+		return core.NotificationRule{}, fmt.Errorf("--max-attempts must be non-negative")
+	}
 	events := splitNotificationEvents(eventsText)
 	if len(events) == 0 {
 		return core.NotificationRule{}, fmt.Errorf("--event is required")
 	}
 	return core.NotificationRule{
-		ID:         core.ID(strings.TrimSpace(id)),
-		Name:       strings.TrimSpace(name),
-		Events:     events,
-		WebhookURL: strings.TrimSpace(webhookURL),
-		Secret:     secret,
-		Enabled:    enabled,
+		ID:          core.ID(strings.TrimSpace(id)),
+		Name:        strings.TrimSpace(name),
+		Events:      events,
+		WebhookURL:  strings.TrimSpace(webhookURL),
+		Secret:      secret,
+		MaxAttempts: maxAttempts,
+		Enabled:     enabled,
 	}, nil
 }
 
