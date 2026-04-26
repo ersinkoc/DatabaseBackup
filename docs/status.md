@@ -44,7 +44,8 @@ flowchart LR
 - REST API for resources, jobs, backups, retention, restore, audit, users, and
   tokens, with checked OpenAPI coverage.
 - Token-based authorization with scoped bearer tokens, role-capped token
-  creation, request IDs, and audit recording for mutations.
+  creation, inactive token pruning, request IDs, and audit recording for
+  mutations.
 - Readiness, health, Prometheus metrics, operations docs, CLI docs, quickstart,
   and architecture docs.
 
@@ -62,6 +63,7 @@ flowchart TB
     Metrics --> Jobs[job operation and agent load metrics]
     Metrics --> BackupFreshness[latest backup freshness metrics]
     Metrics --> Tokens[token revoked/expired metrics]
+    Metrics --> Alerts[Prometheus alert examples]
 
     Ready --> ReadyEndpoint[/readyz]
     Ready --> ReadyCLI[kronos ready]
@@ -69,6 +71,7 @@ flowchart TB
 
     Docs --> OpenAPI[OpenAPI descriptions]
     Docs --> Ops[operations runbook]
+    Docs --> Status[project status snapshot]
 ```
 
 ## Verification State
