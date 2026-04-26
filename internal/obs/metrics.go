@@ -166,22 +166,11 @@ func sortedStringKeys[K ~string, V any](values map[K]V) []string {
 	return keys
 }
 
-func writeLabeledIntGauge(w io.Writer, name, help, label string, values []string, value func(string) int) error {
-	if _, err := fmt.Fprintf(w, "# HELP %s %s\n", name, help); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "# TYPE %s gauge\n", name); err != nil {
-		return err
-	}
-	for _, key := range values {
-		if _, err := fmt.Fprintf(w, "%s{%s=%q} %d\n", name, label, sanitizeLabel(key), value(key)); err != nil {
-			return err
-		}
-	}
-	return nil
+type metricNumber interface {
+	~int | ~int64
 }
 
-func writeLabeledInt64Gauge(w io.Writer, name, help, label string, values []string, value func(string) int64) error {
+func writeLabeledGauge[T metricNumber](w io.Writer, name, help, label string, values []string, value func(string) T) error {
 	if _, err := fmt.Fprintf(w, "# HELP %s %s\n", name, help); err != nil {
 		return err
 	}
