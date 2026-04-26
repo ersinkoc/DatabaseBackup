@@ -673,6 +673,73 @@ paths:
       responses:
         "204":
           description: Deleted
+  /api/v1/notifications:
+    get:
+      summary: List notification rules
+      responses:
+        "200":
+          description: Notification rule list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationRulesResponse"
+    post:
+      summary: Create notification rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationRule"
+      responses:
+        "200":
+          description: Created notification rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationRule"
+        "400":
+          description: Invalid notification rule
+  /api/v1/notifications/{id}:
+    get:
+      summary: Get notification rule
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Notification rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationRule"
+        "404":
+          description: Notification rule not found
+    put:
+      summary: Update notification rule
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationRule"
+      responses:
+        "200":
+          description: Updated notification rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationRule"
+        "404":
+          description: Notification rule not found
+    delete:
+      summary: Delete notification rule
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "204":
+          description: Deleted
   /api/v1/restore:
     post:
       summary: Enqueue a restore job
@@ -1523,6 +1590,41 @@ components:
         updated_at:
           type: string
           format: date-time
+    NotificationRule:
+      type: object
+      required: [id, name, events, webhook_url, enabled, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        events:
+          type: array
+          items:
+            type: string
+            enum: [job.succeeded, job.failed, job.canceled]
+        webhook_url:
+          type: string
+          format: uri
+        secret:
+          type: string
+          description: Optional HMAC signing secret. Returned only to authorized callers.
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    NotificationRulesResponse:
+      type: object
+      required: [notifications]
+      properties:
+        notifications:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationRule"
     RetentionPlanItem:
       type: object
       required: [backup, keep]
