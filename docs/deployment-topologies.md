@@ -123,7 +123,9 @@ work.
 - Keep the control-plane state directory on durable storage and include it in
   backup/restore exercises.
 - Store signing keys, chunk keys, bearer tokens, and repository credentials in a
-  secret manager rather than plain config files.
+  secret manager rather than plain config files. See
+  [Cloud Secret Integration](cloud-secrets.md) for managed secret store
+  patterns.
 - Apply NetworkPolicy rules around the control plane and agents before exposing
   the service outside a trusted namespace.
 - Run `kronos ready`, scrape `/metrics`, and alert on backup freshness before

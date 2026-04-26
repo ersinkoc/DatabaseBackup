@@ -15,6 +15,7 @@ database backups. The product brief and build plan live in `.project/`:
 - [Operations runbook](docs/operations.md)
 - [Deployment topologies](docs/deployment-topologies.md)
 - [Restore drills](docs/restore-drills.md)
+- [Cloud secret integration](docs/cloud-secrets.md)
 - [Project status](docs/status.md)
 - [Kubernetes example](deploy/kubernetes/README.md)
 

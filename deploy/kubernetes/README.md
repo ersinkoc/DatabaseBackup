@@ -34,7 +34,9 @@ Before using this in production:
 - Keep `replicas: 1` unless the state backend is moved to a shared,
   concurrency-safe service.
 - Configure backup repository credentials with Kubernetes Secrets or external
-  secret injection.
+  secret injection. See
+  [Cloud Secret Integration](../../docs/cloud-secrets.md) for managed secret
+  store patterns.
 - Keep agent `replicas` and `--capacity` aligned with each database target's
   safe backup concurrency.
 - Review the included NetworkPolicy and tighten allowed namespaces/pods for
