@@ -15,7 +15,10 @@ type MetricsSnapshot struct {
 	AgentsDegraded       int
 	AgentsCapacity       int
 	JobsByStatus         map[core.JobStatus]int
+	JobsActive           int
 	BackupsTotal         int
+	BackupsProtected     int
+	BackupsBytesTotal    int64
 	AuditEventsTotal     int
 	AuthRateLimitedTotal uint64
 }
@@ -59,6 +62,15 @@ func WritePrometheus(w io.Writer, snapshot MetricsSnapshot) error {
 			return err
 		}
 	}
+	if _, err := fmt.Fprintln(w, "# HELP kronos_jobs_active Number of currently active jobs."); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# TYPE kronos_jobs_active gauge"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "kronos_jobs_active %d\n", snapshot.JobsActive); err != nil {
+		return err
+	}
 	if _, err := fmt.Fprintln(w, "# HELP kronos_backups_total Number of backup metadata records."); err != nil {
 		return err
 	}
@@ -66,6 +78,24 @@ func WritePrometheus(w io.Writer, snapshot MetricsSnapshot) error {
 		return err
 	}
 	if _, err := fmt.Fprintf(w, "kronos_backups_total %d\n", snapshot.BackupsTotal); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# HELP kronos_backups_protected Number of backup metadata records protected from retention."); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# TYPE kronos_backups_protected gauge"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "kronos_backups_protected %d\n", snapshot.BackupsProtected); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# HELP kronos_backups_bytes_total Total logical bytes recorded across backup metadata."); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# TYPE kronos_backups_bytes_total gauge"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "kronos_backups_bytes_total %d\n", snapshot.BackupsBytesTotal); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintln(w, "# HELP kronos_audit_events_total Number of audit events stored in the hash chain."); err != nil {

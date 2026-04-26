@@ -22,7 +22,10 @@ func TestWritePrometheus(t *testing.T) {
 			core.JobStatusQueued:  3,
 			core.JobStatusRunning: 1,
 		},
+		JobsActive:           2,
 		BackupsTotal:         4,
+		BackupsProtected:     2,
+		BackupsBytesTotal:    4096,
 		AuditEventsTotal:     6,
 		AuthRateLimitedTotal: 5,
 	})
@@ -36,7 +39,10 @@ func TestWritePrometheus(t *testing.T) {
 		`kronos_agents_capacity 5`,
 		`kronos_jobs{status="queued"} 3`,
 		`kronos_jobs{status="running"} 1`,
+		`kronos_jobs_active 2`,
 		`kronos_backups_total 4`,
+		`kronos_backups_protected 2`,
+		`kronos_backups_bytes_total 4096`,
 		`kronos_audit_events_total 6`,
 		`kronos_auth_rate_limited_total 5`,
 	} {

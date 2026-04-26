@@ -1156,6 +1156,9 @@ func handleMetrics(w http.ResponseWriter, r *http.Request, registry *control.Age
 		}
 		for _, job := range jobs {
 			snapshot.JobsByStatus[job.Status]++
+			if job.Status == core.JobStatusRunning || job.Status == core.JobStatusFinalizing {
+				snapshot.JobsActive++
+			}
 		}
 	}
 	if stores.backups != nil {
@@ -1165,6 +1168,12 @@ func handleMetrics(w http.ResponseWriter, r *http.Request, registry *control.Age
 			return
 		}
 		snapshot.BackupsTotal = len(backups)
+		for _, backup := range backups {
+			snapshot.BackupsBytesTotal += backup.SizeBytes
+			if backup.Protected {
+				snapshot.BackupsProtected++
+			}
+		}
 	}
 	if stores.audit != nil {
 		events, err := stores.audit.List(r.Context(), 0)

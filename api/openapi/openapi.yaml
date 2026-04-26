@@ -28,9 +28,12 @@ paths:
         "200":
           description: >
             Text exposition metrics, including kronos_agents_capacity for
-            schedulable agent capacity, kronos_audit_events_total for audit-chain
-            depth, and kronos_auth_rate_limited_total for token verification
-            requests rejected by throttling.
+            schedulable agent capacity, kronos_jobs_active for active work,
+            kronos_backups_bytes_total for logical backup bytes,
+            kronos_backups_protected for retention-protected backups,
+            kronos_audit_events_total for audit-chain depth, and
+            kronos_auth_rate_limited_total for token verification requests
+            rejected by throttling.
           content:
             text/plain:
               schema:

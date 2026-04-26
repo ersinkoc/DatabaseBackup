@@ -303,7 +303,13 @@ func TestServerMetricsEndpoint(t *testing.T) {
 	if err := stores.jobs.Save(core.Job{ID: "job-1", Status: core.JobStatusQueued, QueuedAt: now}); err != nil {
 		t.Fatalf("Save(job) error = %v", err)
 	}
-	if err := stores.backups.Save(core.Backup{ID: "backup-1", TargetID: "target", StorageID: "storage", JobID: "job-1", Type: core.BackupTypeFull, ManifestID: "manifest-1", StartedAt: now.Add(-time.Hour), EndedAt: now}); err != nil {
+	if err := stores.jobs.Save(core.Job{ID: "job-2", Status: core.JobStatusRunning, QueuedAt: now, StartedAt: now}); err != nil {
+		t.Fatalf("Save(running job) error = %v", err)
+	}
+	if err := stores.jobs.Save(core.Job{ID: "job-3", Status: core.JobStatusFinalizing, QueuedAt: now, StartedAt: now}); err != nil {
+		t.Fatalf("Save(finalizing job) error = %v", err)
+	}
+	if err := stores.backups.Save(core.Backup{ID: "backup-1", TargetID: "target", StorageID: "storage", JobID: "job-1", Type: core.BackupTypeFull, ManifestID: "manifest-1", StartedAt: now.Add(-time.Hour), EndedAt: now, SizeBytes: 2048, Protected: true}); err != nil {
 		t.Fatalf("Save(backup) error = %v", err)
 	}
 	if _, err := stores.audit.Append(context.Background(), core.AuditEvent{Action: "target.created", ResourceType: "target", ResourceID: "target"}); err != nil {
@@ -331,7 +337,12 @@ func TestServerMetricsEndpoint(t *testing.T) {
 		`kronos_agents{status="degraded"} 1`,
 		`kronos_agents_capacity 4`,
 		`kronos_jobs{status="queued"} 1`,
+		`kronos_jobs{status="running"} 1`,
+		`kronos_jobs{status="finalizing"} 1`,
+		`kronos_jobs_active 2`,
 		`kronos_backups_total 1`,
+		`kronos_backups_protected 1`,
+		`kronos_backups_bytes_total 2048`,
 		`kronos_audit_events_total 1`,
 		`kronos_auth_rate_limited_total 0`,
 	} {

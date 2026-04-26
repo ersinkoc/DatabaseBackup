@@ -43,6 +43,15 @@ control-plane mutations and scheduled operations.
 Monitor `kronos_agents_capacity` to confirm the healthy agent fleet can claim
 the expected number of concurrent jobs.
 
+Monitor `kronos_jobs_active` alongside `kronos_agents_capacity` to alert when
+running and finalizing work is saturating the fleet.
+
+Monitor `kronos_backups_protected` before retention changes to make sure
+critical restore points are intentionally pinned.
+
+Monitor `kronos_backups_bytes_total` for logical protected-data growth and to
+spot unexpectedly large backup runs.
+
 ## Upgrade
 
 1. Build and test the release artifact:
