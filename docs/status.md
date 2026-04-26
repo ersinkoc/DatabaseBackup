@@ -95,8 +95,8 @@ are:
 - Deeper WebUI interaction against real API data beyond the current embedded
   dashboard shell.
 - Notification delivery and hook execution surfaces from the product plan.
-- Broader production hardening around auth integrations, deployment packaging,
-  and multi-instance operational patterns.
+- Broader production hardening around auth integrations and multi-instance
+  operational patterns.
 
 ## Next Best Work
 
@@ -105,7 +105,7 @@ are:
 2. Wire the WebUI to live API endpoints for dashboard state, jobs, backups, and
    agents.
 3. Add notification and hook primitives around job terminal events.
-4. Add packaging/release automation that stamps build metadata and publishes
-   reproducible binaries.
+4. Extend release automation from local stamped binaries/checksums to published
+   multi-platform artifacts.
 5. Extend operations docs with production deployment topologies and alert rule
    examples.
