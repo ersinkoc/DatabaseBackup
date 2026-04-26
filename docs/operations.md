@@ -111,7 +111,8 @@ from the control-plane store.
 
 For dashboard integrations, use `GET /api/v1/overview` to fetch a compact JSON
 summary of agent capacity, inventory counts, active job counts, backup totals,
-and the latest jobs/backups without scraping Prometheus text output.
+readiness checks, and the latest jobs/backups without scraping Prometheus text
+output.
 
 ## Notifications
 

@@ -69,7 +69,7 @@ func TestOpenAPIDocumentsOverview(t *testing.T) {
 		t.Fatalf("ReadFile(openapi.yaml) error = %v", err)
 	}
 	text := string(data)
-	for _, want := range []string{"/api/v1/overview", "OverviewResponse", "latest_jobs", "latest_backups", "notification_rules_enabled"} {
+	for _, want := range []string{"/api/v1/overview", "OverviewResponse", "latest_jobs", "latest_backups", "notification_rules_enabled", "ReadinessResponse"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("openapi.yaml missing %q", want)
 		}

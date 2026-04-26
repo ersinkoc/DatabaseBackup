@@ -577,6 +577,8 @@ func TestServerOverviewEndpoint(t *testing.T) {
 		`"schedules_paused":1`,
 		`"active":1`,
 		`"running":1`,
+		`"health":{"status":"ok"`,
+		`"jobs":"ok"`,
 		`"bytes_total":1024`,
 		`"protected":1`,
 		`"notification_rules_enabled":1`,

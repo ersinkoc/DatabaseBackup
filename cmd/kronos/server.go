@@ -1455,6 +1455,7 @@ type overviewResponse struct {
 	Inventory     overviewInventory `json:"inventory"`
 	Jobs          overviewJobs      `json:"jobs"`
 	Backups       overviewBackups   `json:"backups"`
+	Health        readinessResponse `json:"health"`
 	LatestJobs    []core.Job        `json:"latest_jobs,omitempty"`
 	LatestBackups []core.Backup     `json:"latest_backups,omitempty"`
 }
@@ -1495,6 +1496,8 @@ func handleOverview(w http.ResponseWriter, r *http.Request, registry *control.Ag
 		Jobs:        overviewJobs{ByStatus: make(map[core.JobStatus]int)},
 		Backups:     overviewBackups{ByType: make(map[core.BackupType]int)},
 	}
+	readiness, _ := readinessSnapshot(r.Context(), stores)
+	response.Health = readiness
 	if registry != nil {
 		for _, agent := range registry.List() {
 			switch agent.Status {
@@ -1631,6 +1634,13 @@ type readinessResponse struct {
 }
 
 func handleReadiness(w http.ResponseWriter, r *http.Request, stores apiStores) {
+	response, status := readinessSnapshot(r.Context(), stores)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+func readinessSnapshot(ctx context.Context, stores apiStores) (readinessResponse, int) {
 	checks := make(map[string]string)
 	status := http.StatusOK
 	var firstErr error
@@ -1661,7 +1671,7 @@ func handleReadiness(w http.ResponseWriter, r *http.Request, stores apiStores) {
 		if stores.audit == nil {
 			return nil
 		}
-		_, err := stores.audit.List(r.Context(), 1)
+		_, err := stores.audit.List(ctx, 1)
 		return err
 	})
 	check("tokens", func() error {
@@ -1719,9 +1729,7 @@ func handleReadiness(w http.ResponseWriter, r *http.Request, stores apiStores) {
 		response.Status = "error"
 		response.Error = firstErr.Error()
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(response)
+	return response, status
 }
 
 func handleSchedulerTick(w http.ResponseWriter, r *http.Request, stores apiStores, registry *control.AgentRegistry) {
