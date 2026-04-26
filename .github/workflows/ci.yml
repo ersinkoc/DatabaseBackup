@@ -49,5 +49,10 @@ jobs:
       - name: Check build script
         run: sh -n scripts/build.sh
 
+      - name: Build release artifact
+        run: |
+          VERSION=ci COMMIT=${GITHUB_SHA::12} BUILD_DATE=1970-01-01T00:00:00Z ./scripts/build.sh linux/amd64
+          sha256sum -c bin/kronos-linux-amd64.sha256
+
       - name: Check completion script
         run: ./bin/kronos completion bash | bash -n
