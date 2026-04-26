@@ -49,6 +49,72 @@ func TestServerHealthHandler(t *testing.T) {
 	}
 }
 
+func TestServerReadinessHandler(t *testing.T) {
+	t.Parallel()
+
+	db, err := kvstore.Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	stores, err := newAPIStores(db)
+	if err != nil {
+		t.Fatalf("newAPIStores() error = %v", err)
+	}
+	server := httptest.NewServer(newServerHandlerWithStores(nil, nil, stores))
+	defer server.Close()
+
+	resp, err := server.Client().Get(server.URL + "/readyz")
+	if err != nil {
+		t.Fatalf("GET /readyz error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /readyz status = %d, want 200", resp.StatusCode)
+	}
+	var ready readinessResponse
+	if err := json.NewDecoder(resp.Body).Decode(&ready); err != nil {
+		t.Fatalf("Decode(/readyz) error = %v", err)
+	}
+	if ready.Status != "ok" || ready.Checks["jobs"] != "ok" || ready.Checks["audit"] != "ok" || ready.Checks["retention_policies"] != "ok" {
+		t.Fatalf("readiness = %#v", ready)
+	}
+}
+
+func TestServerReadinessReturnsUnavailableWhenStoreFails(t *testing.T) {
+	t.Parallel()
+
+	db, err := kvstore.Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	stores, err := newAPIStores(db)
+	if err != nil {
+		t.Fatalf("newAPIStores() error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	server := httptest.NewServer(newServerHandlerWithStores(nil, nil, stores))
+	defer server.Close()
+
+	resp, err := server.Client().Get(server.URL + "/readyz")
+	if err != nil {
+		t.Fatalf("GET /readyz error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("GET /readyz status = %d, want 503", resp.StatusCode)
+	}
+	var ready readinessResponse
+	if err := json.NewDecoder(resp.Body).Decode(&ready); err != nil {
+		t.Fatalf("Decode(/readyz) error = %v", err)
+	}
+	if ready.Status != "error" || ready.Error == "" {
+		t.Fatalf("readiness = %#v", ready)
+	}
+}
+
 func TestServerRequestIDHeader(t *testing.T) {
 	t.Parallel()
 
@@ -2855,6 +2921,7 @@ func TestServerRejectsBadRequestsAndMethods(t *testing.T) {
 		status int
 	}{
 		{method: http.MethodPost, path: "/healthz", status: http.StatusMethodNotAllowed},
+		{method: http.MethodPost, path: "/readyz", status: http.StatusMethodNotAllowed},
 		{method: http.MethodPost, path: "/api/v1/agents/heartbeat", body: `{"status":"healthy"}`, status: http.StatusBadRequest},
 		{method: http.MethodPost, path: "/api/v1/users", body: `{`, status: http.StatusBadRequest},
 		{method: http.MethodPost, path: "/api/v1/users/missing/grant", body: `{`, status: http.StatusBadRequest},

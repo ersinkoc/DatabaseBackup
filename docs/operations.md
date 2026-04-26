@@ -121,6 +121,7 @@ track administrative inventory and token cleanup.
 
    ```bash
    curl -fsS http://127.0.0.1:8500/healthz
+   curl -fsS http://127.0.0.1:8500/readyz
    ./bin/kronos agent list
    ./bin/kronos schedule resume --id <schedule-id>
    ./bin/kronos schedule tick

@@ -21,6 +21,22 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
+  /readyz:
+    get:
+      summary: Readiness check
+      responses:
+        "200":
+          description: State stores are readable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+        "503":
+          description: One or more state stores are unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
   /metrics:
     get:
       summary: Prometheus metrics
@@ -938,6 +954,20 @@ components:
           type: string
         projects:
           type: integer
+    ReadinessResponse:
+      type: object
+      required: [status, checks]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [ok, error]
+        error:
+          type: string
     OKResponse:
       type: object
       required: [ok]

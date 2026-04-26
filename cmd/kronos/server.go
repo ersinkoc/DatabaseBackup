@@ -592,6 +592,14 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		}
 		fmt.Fprintf(w, `{"status":"ok","projects":%d}`, len(cfg.Projects))
 	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", http.MethodGet)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		handleReadiness(w, r, stores)
+	})
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			w.Header().Set("Allow", http.MethodGet)
@@ -1293,6 +1301,106 @@ func handleMetrics(w http.ResponseWriter, r *http.Request, registry *control.Age
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 	w.WriteHeader(http.StatusOK)
 	_ = obs.WritePrometheus(w, snapshot)
+}
+
+type readinessResponse struct {
+	Status string            `json:"status"`
+	Checks map[string]string `json:"checks"`
+	Error  string            `json:"error,omitempty"`
+}
+
+func handleReadiness(w http.ResponseWriter, r *http.Request, stores apiStores) {
+	checks := make(map[string]string)
+	status := http.StatusOK
+	var firstErr error
+
+	check := func(name string, fn func() error) {
+		if fn == nil {
+			return
+		}
+		if err := fn(); err != nil {
+			checks[name] = "error"
+			status = http.StatusServiceUnavailable
+			if firstErr == nil {
+				firstErr = fmt.Errorf("%s: %w", name, err)
+			}
+			return
+		}
+		checks[name] = "ok"
+	}
+
+	check("jobs", func() error {
+		if stores.jobs == nil {
+			return nil
+		}
+		_, err := stores.jobs.List()
+		return err
+	})
+	check("audit", func() error {
+		if stores.audit == nil {
+			return nil
+		}
+		_, err := stores.audit.List(r.Context(), 1)
+		return err
+	})
+	check("tokens", func() error {
+		if stores.tokens == nil {
+			return nil
+		}
+		_, err := stores.tokens.List()
+		return err
+	})
+	check("users", func() error {
+		if stores.users == nil {
+			return nil
+		}
+		_, err := stores.users.List()
+		return err
+	})
+	check("targets", func() error {
+		if stores.targets == nil {
+			return nil
+		}
+		_, err := stores.targets.List()
+		return err
+	})
+	check("storages", func() error {
+		if stores.storages == nil {
+			return nil
+		}
+		_, err := stores.storages.List()
+		return err
+	})
+	check("schedules", func() error {
+		if stores.schedules == nil {
+			return nil
+		}
+		_, err := stores.schedules.List()
+		return err
+	})
+	check("backups", func() error {
+		if stores.backups == nil {
+			return nil
+		}
+		_, err := stores.backups.List()
+		return err
+	})
+	check("retention_policies", func() error {
+		if stores.policies == nil {
+			return nil
+		}
+		_, err := stores.policies.List()
+		return err
+	})
+
+	response := readinessResponse{Status: "ok", Checks: checks}
+	if firstErr != nil {
+		response.Status = "error"
+		response.Error = firstErr.Error()
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func handleSchedulerTick(w http.ResponseWriter, r *http.Request, stores apiStores, registry *control.AgentRegistry) {
