@@ -54,6 +54,25 @@ func TestCLIReferenceDocumentsRequestID(t *testing.T) {
 	}
 }
 
+func TestKubernetesManifestsExist(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join("..", "deploy", "kubernetes")
+	for _, name := range []string{"namespace.yaml", "configmap.yaml", "pvc.yaml", "deployment.yaml", "service.yaml"} {
+		path := filepath.Join(root, name)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(%s) error = %v", path, err)
+		}
+		text := string(data)
+		for _, want := range []string{"apiVersion:", "kind:", "metadata:"} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("%s missing %q", path, want)
+			}
+		}
+	}
+}
+
 func markdownFiles(t *testing.T, root string) []string {
 	t.Helper()
 
