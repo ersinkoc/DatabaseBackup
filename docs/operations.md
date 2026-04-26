@@ -118,6 +118,7 @@ notifications:
   - name: ops-failures
     when: job.failed
     webhook: "${env:KRONOS_OPS_WEBHOOK}"
+    secret: "${env:KRONOS_OPS_WEBHOOK_SECRET}"
   - name: restore-drills
     events:
       - job.succeeded
@@ -127,9 +128,11 @@ notifications:
 
 Supported events are `job.succeeded`, `job.failed`, and `job.canceled`. Webhook
 delivery is attempted during job finalization and delivery results are recorded
-in the `job.finished` audit event metadata. Treat notification endpoints as
-production dependencies: use HTTPS, keep receiver timeouts short, and make the
-receiver idempotent because retries may be added in later releases.
+in the `job.finished` audit event metadata. When `secret` is set, Kronos sends
+`X-Kronos-Signature: sha256=<hex-hmac>` over the JSON payload. Treat
+notification endpoints as production dependencies: use HTTPS, verify signatures,
+keep receiver timeouts short, and make the receiver idempotent because retries
+may be added in later releases.
 
 ## Alert Rule Examples
 

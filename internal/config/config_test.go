@@ -16,6 +16,7 @@ func TestLoadFileSample(t *testing.T) {
 	t.Setenv("KRONOS_TEST_OIDC_SECRET", "oidc-secret")
 	t.Setenv("KRONOS_TEST_PG_PASSWORD", "pg-secret")
 	t.Setenv("KRONOS_TEST_KEY_SUFFIX", "suffix")
+	t.Setenv("KRONOS_TEST_WEBHOOK_SECRET", "webhook-secret")
 
 	cfg, err := LoadFile(context.Background(), "testdata/sample.yaml", secret.NewRegistry())
 	if err != nil {
@@ -38,6 +39,9 @@ func TestLoadFileSample(t *testing.T) {
 	}
 	if len(cfg.Notifications) != 1 || cfg.Notifications[0].Name != "ops-failures" || cfg.Notifications[0].When != string(core.NotificationJobFailed) {
 		t.Fatalf("notifications = %#v", cfg.Notifications)
+	}
+	if cfg.Notifications[0].Secret != "webhook-secret" {
+		t.Fatalf("notification secret = %q, want webhook-secret", cfg.Notifications[0].Secret)
 	}
 }
 

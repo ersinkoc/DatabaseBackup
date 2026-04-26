@@ -2,6 +2,9 @@ package server
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -126,6 +129,9 @@ func (d NotificationDispatcher) DispatchJobTerminal(ctx context.Context, job cor
 			continue
 		}
 		req.Header.Set("Content-Type", "application/json")
+		if rule.Secret != "" {
+			req.Header.Set("X-Kronos-Signature", notificationSignature(rule.Secret, payload))
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			delivery.Error = err.Error()
@@ -140,6 +146,12 @@ func (d NotificationDispatcher) DispatchJobTerminal(ctx context.Context, job cor
 		deliveries = append(deliveries, delivery)
 	}
 	return deliveries
+}
+
+func notificationSignature(secret string, payload []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(payload)
+	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
 func validateNotificationRule(rule core.NotificationRule) error {

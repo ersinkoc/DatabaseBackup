@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,10 +58,12 @@ func TestNotificationDispatcherPostsMatchingJobEvent(t *testing.T) {
 	t.Parallel()
 
 	var got map[string]any
+	var signature string
 	webhook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Fatalf("method = %s, want POST", r.Method)
 		}
+		signature = r.Header.Get("X-Kronos-Signature")
 		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
 			t.Fatalf("Decode() error = %v", err)
 		}
@@ -82,6 +85,7 @@ func TestNotificationDispatcherPostsMatchingJobEvent(t *testing.T) {
 		Name:       "ops",
 		Events:     []core.NotificationEvent{core.NotificationJobFailed},
 		WebhookURL: webhook.URL,
+		Secret:     "shared-secret",
 		Enabled:    true,
 		CreatedAt:  time.Now().UTC(),
 		UpdatedAt:  time.Now().UTC(),
@@ -102,6 +106,9 @@ func TestNotificationDispatcherPostsMatchingJobEvent(t *testing.T) {
 	}
 	if got["event"] != string(core.NotificationJobFailed) || got["job_id"] != "job-1" || got["error"] != "boom" {
 		t.Fatalf("payload = %#v", got)
+	}
+	if signature == "" || !strings.HasPrefix(signature, "sha256=") {
+		t.Fatalf("signature = %q, want sha256 signature", signature)
 	}
 }
 

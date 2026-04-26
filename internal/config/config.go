@@ -121,6 +121,7 @@ type NotificationConfig struct {
 	When     string   `json:"when" yaml:"when"`
 	Events   []string `json:"events,omitempty" yaml:"events,omitempty"`
 	Webhook  string   `json:"webhook,omitempty" yaml:"webhook,omitempty"`
+	Secret   string   `json:"secret,omitempty" yaml:"secret,omitempty"`
 	Channels []string `json:"channels,omitempty" yaml:"channels,omitempty"`
 }
 

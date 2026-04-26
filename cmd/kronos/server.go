@@ -436,6 +436,7 @@ func seedAPIStoresFromConfig(stores apiStores, cfg *config.Config, now time.Time
 				Name:       name,
 				Events:     events,
 				WebhookURL: webhook,
+				Secret:     notification.Secret,
 				Enabled:    true,
 				CreatedAt:  now,
 				UpdatedAt:  now,
