@@ -66,6 +66,7 @@ paths:
             labels for backup freshness,
             kronos_backups_protected for retention-protected backups,
             kronos_retention_policies_total, kronos_users_total,
+            kronos_notification_rules_total, kronos_notification_rules_enabled,
             kronos_tokens_total, kronos_tokens_revoked, and
             kronos_tokens_expired for administrative
             inventory, kronos_audit_events_total for audit-chain depth, and

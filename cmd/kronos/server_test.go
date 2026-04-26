@@ -411,6 +411,12 @@ func TestServerMetricsEndpoint(t *testing.T) {
 	if err := stores.policies.Save(core.RetentionPolicy{ID: "policy-1", Name: "daily", Rules: []core.RetentionRule{{Kind: "count", Params: map[string]any{"n": 7}}}}); err != nil {
 		t.Fatalf("Save(policy) error = %v", err)
 	}
+	if err := stores.notifications.Save(core.NotificationRule{ID: "notification-1", Name: "ops", Events: []core.NotificationEvent{core.NotificationJobFailed}, WebhookURL: "https://hooks.example.com/kronos", Enabled: true}); err != nil {
+		t.Fatalf("Save(notification enabled) error = %v", err)
+	}
+	if err := stores.notifications.Save(core.NotificationRule{ID: "notification-2", Name: "disabled", Events: []core.NotificationEvent{core.NotificationJobSucceeded}, WebhookURL: "https://hooks.example.com/disabled", Enabled: false}); err != nil {
+		t.Fatalf("Save(notification disabled) error = %v", err)
+	}
 	if err := stores.users.Save(core.User{ID: "user-1", Email: "admin@example.com", DisplayName: "Admin", Role: core.RoleAdmin}); err != nil {
 		t.Fatalf("Save(user) error = %v", err)
 	}
@@ -491,6 +497,8 @@ func TestServerMetricsEndpoint(t *testing.T) {
 		`kronos_backups_latest_completed_by_storage_timestamp{storage_id="storage"} 1777118400`,
 		`kronos_backups_latest_completed_by_storage_timestamp{storage_id="storage-archive"} 1777118400`,
 		`kronos_retention_policies_total 1`,
+		`kronos_notification_rules_total 2`,
+		`kronos_notification_rules_enabled 1`,
 		`kronos_users_total 1`,
 		`kronos_tokens_total 3`,
 		`kronos_tokens_revoked 1`,

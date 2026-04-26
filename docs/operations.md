@@ -101,8 +101,9 @@ labeled freshness metrics to catch stalled backup coverage before restores are
 needed.
 
 Monitor `kronos_retention_policies_total`, `kronos_users_total`,
+`kronos_notification_rules_total`, `kronos_notification_rules_enabled`,
 `kronos_tokens_total`, `kronos_tokens_revoked`, and `kronos_tokens_expired` to
-track administrative inventory and token cleanup.
+track administrative inventory, notification coverage, and token cleanup.
 
 Run `./bin/kronos token prune --dry-run` after token rotation windows to preview
 revoked or expired token metadata, then `./bin/kronos token prune` to remove it

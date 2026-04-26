@@ -12,42 +12,44 @@ import (
 
 // MetricsSnapshot is a dependency-free Prometheus exposition snapshot.
 type MetricsSnapshot struct {
-	ProcessStartedAt       int64
-	ProcessUptimeSeconds   int64
-	AgentsHealthy          int
-	AgentsDegraded         int
-	AgentsCapacity         int
-	TargetsTotal           int
-	TargetsByDriver        map[core.TargetDriver]int
-	StoragesTotal          int
-	StoragesByKind         map[core.StorageKind]int
-	SchedulesTotal         int
-	SchedulesPaused        int
-	SchedulesByType        map[core.BackupType]int
-	JobsByStatus           map[core.JobStatus]int
-	JobsByOperation        map[core.JobOperation]int
-	JobsActive             int
-	JobsActiveByOperation  map[core.JobOperation]int
-	JobsActiveByAgent      map[string]int
-	BackupsTotal           int
-	BackupsByType          map[core.BackupType]int
-	BackupsByTarget        map[core.ID]int
-	BackupsByStorage       map[core.ID]int
-	BackupsProtected       int
-	BackupsBytesTotal      int64
-	BackupsBytesByTarget   map[core.ID]int64
-	BackupsBytesByStorage  map[core.ID]int64
-	BackupsChunksTotal     int
-	BackupsLatestCompleted int64
-	BackupsLatestByTarget  map[core.ID]int64
-	BackupsLatestByStorage map[core.ID]int64
-	RetentionPoliciesTotal int
-	UsersTotal             int
-	TokensTotal            int
-	TokensRevoked          int
-	TokensExpired          int
-	AuditEventsTotal       int
-	AuthRateLimitedTotal   uint64
+	ProcessStartedAt         int64
+	ProcessUptimeSeconds     int64
+	AgentsHealthy            int
+	AgentsDegraded           int
+	AgentsCapacity           int
+	TargetsTotal             int
+	TargetsByDriver          map[core.TargetDriver]int
+	StoragesTotal            int
+	StoragesByKind           map[core.StorageKind]int
+	SchedulesTotal           int
+	SchedulesPaused          int
+	SchedulesByType          map[core.BackupType]int
+	JobsByStatus             map[core.JobStatus]int
+	JobsByOperation          map[core.JobOperation]int
+	JobsActive               int
+	JobsActiveByOperation    map[core.JobOperation]int
+	JobsActiveByAgent        map[string]int
+	BackupsTotal             int
+	BackupsByType            map[core.BackupType]int
+	BackupsByTarget          map[core.ID]int
+	BackupsByStorage         map[core.ID]int
+	BackupsProtected         int
+	BackupsBytesTotal        int64
+	BackupsBytesByTarget     map[core.ID]int64
+	BackupsBytesByStorage    map[core.ID]int64
+	BackupsChunksTotal       int
+	BackupsLatestCompleted   int64
+	BackupsLatestByTarget    map[core.ID]int64
+	BackupsLatestByStorage   map[core.ID]int64
+	RetentionPoliciesTotal   int
+	NotificationRulesTotal   int
+	NotificationRulesEnabled int
+	UsersTotal               int
+	TokensTotal              int
+	TokensRevoked            int
+	TokensExpired            int
+	AuditEventsTotal         int
+	AuthRateLimitedTotal     uint64
 }
 
 // WritePrometheus writes metrics in the Prometheus text exposition format.
@@ -273,6 +275,24 @@ func WritePrometheus(w io.Writer, snapshot MetricsSnapshot) error {
 		return err
 	}
 	if _, err := fmt.Fprintf(w, "kronos_retention_policies_total %d\n", snapshot.RetentionPoliciesTotal); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# HELP kronos_notification_rules_total Number of configured notification rules."); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# TYPE kronos_notification_rules_total gauge"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "kronos_notification_rules_total %d\n", snapshot.NotificationRulesTotal); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# HELP kronos_notification_rules_enabled Number of enabled notification rules."); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# TYPE kronos_notification_rules_enabled gauge"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "kronos_notification_rules_enabled %d\n", snapshot.NotificationRulesEnabled); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintln(w, "# HELP kronos_users_total Number of configured users."); err != nil {

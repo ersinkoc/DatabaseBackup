@@ -1385,6 +1385,19 @@ func handleMetrics(w http.ResponseWriter, r *http.Request, registry *control.Age
 		}
 		snapshot.RetentionPoliciesTotal = len(policies)
 	}
+	if stores.notifications != nil {
+		rules, err := stores.notifications.List()
+		if err != nil {
+			http.Error(w, "list notification rules", http.StatusInternalServerError)
+			return
+		}
+		snapshot.NotificationRulesTotal = len(rules)
+		for _, rule := range rules {
+			if rule.Enabled {
+				snapshot.NotificationRulesEnabled++
+			}
+		}
+	}
 	if stores.users != nil {
 		users, err := stores.users.List()
 		if err != nil {
