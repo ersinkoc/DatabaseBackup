@@ -157,8 +157,19 @@ func TestRunVersion(t *testing.T) {
 	if err := run(context.Background(), &out, []string{"version"}); err != nil {
 		t.Fatalf("run version error = %v", err)
 	}
-	if !strings.Contains(out.String(), "kronos ") {
-		t.Fatalf("version output = %q, want kronos prefix", out.String())
+	for _, want := range []string{"kronos ", "commit:", "built:"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("version output missing %q: %q", want, out.String())
+		}
+	}
+}
+
+func TestRunVersionRejectsArgs(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+	if err := run(context.Background(), &out, []string{"version", "extra"}); err == nil {
+		t.Fatal("run version extra arg error = nil, want error")
 	}
 }
 
