@@ -25,7 +25,7 @@ help:
 		'  integration  Run integration tests' \
 		'  e2e          Run end-to-end tests' \
 		'  ui           Build the embedded WebUI' \
-		'  release      Build a release binary' \
+		'  release      Build a stamped release binary and checksum' \
 		'  clean        Remove generated artifacts' \
 		'  check        Run fmt check, vet, lint, vuln, tests, build, and script checks'
 
@@ -60,7 +60,8 @@ e2e:
 ui:
 	./web/build.sh
 
-release: build
+release:
+	GO=$(GO) VERSION="$(VERSION)" COMMIT="$(COMMIT)" BUILD_DATE="$(BUILD_DATE)" ./scripts/build.sh
 
 clean:
 	rm -rf bin bench/bench.out

@@ -21,4 +21,15 @@ CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" "$go_cmd" build -trimpath \
 	-ldflags "-s -w -X github.com/kronos/kronos/internal/buildinfo.Version=$version -X github.com/kronos/kronos/internal/buildinfo.Commit=$commit -X github.com/kronos/kronos/internal/buildinfo.BuildDate=$build_date" \
 	-o "$out" ./cmd/kronos
 
+checksum="$out.sha256"
+if command -v sha256sum >/dev/null 2>&1; then
+	sha256sum "$out" >"$checksum"
+elif command -v shasum >/dev/null 2>&1; then
+	shasum -a 256 "$out" >"$checksum"
+else
+	echo "sha256sum or shasum is required to write $checksum" >&2
+	exit 1
+fi
+
 echo "$out"
+echo "$checksum"

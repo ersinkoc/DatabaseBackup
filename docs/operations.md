@@ -102,11 +102,12 @@ track administrative inventory and token cleanup.
 
    ```bash
    make test
-   make build
-   ./bin/kronos version
+   make release
+   ./bin/kronos-$(go env GOOS)-$(go env GOARCH) version
+   sha256sum -c ./bin/kronos-$(go env GOOS)-$(go env GOARCH).sha256
    ```
 
-   `make build` derives version metadata from Git by default. Set
+   `make release` derives version metadata from Git by default. Set
    `VERSION=<version> COMMIT=<commit> BUILD_DATE=<rfc3339>` when a release
    pipeline needs exact stamped values.
 
