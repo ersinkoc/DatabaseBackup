@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kronos-config
+  namespace: kronos
+data:
+  kronos.yaml: |
+    server:
+      listen: "0.0.0.0:8500"
+      auth:
+        token_verify_rate_limit: 10
+        token_verify_rate_window: "1m"
+    projects: []

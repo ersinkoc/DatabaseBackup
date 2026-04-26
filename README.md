@@ -14,6 +14,7 @@ database backups. The product brief and build plan live in `.project/`:
 - [CLI reference](docs/cli.md)
 - [Operations runbook](docs/operations.md)
 - [Project status](docs/status.md)
+- [Kubernetes example](deploy/kubernetes/README.md)
 
 This repository currently has the Phase 0 foundation in place and active Phase
 1/early Phase 2 implementation work:

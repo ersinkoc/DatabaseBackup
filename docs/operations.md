@@ -4,6 +4,11 @@ This runbook covers routine Kronos control-plane and agent operations. Commands
 assume `./bin/kronos`; add `--server` and `--token` when operating against a
 remote control plane.
 
+For Kubernetes deployments, start from
+[deploy/kubernetes](../deploy/kubernetes/README.md) and replace the image,
+configuration, secrets, and network policy with your environment-specific
+controls.
+
 ## Preflight
 
 ```bash
