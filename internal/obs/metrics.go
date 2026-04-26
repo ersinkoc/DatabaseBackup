@@ -38,6 +38,7 @@ type MetricsSnapshot struct {
 	UsersTotal             int
 	TokensTotal            int
 	TokensRevoked          int
+	TokensExpired          int
 	AuditEventsTotal       int
 	AuthRateLimitedTotal   uint64
 }
@@ -245,6 +246,15 @@ func WritePrometheus(w io.Writer, snapshot MetricsSnapshot) error {
 		return err
 	}
 	if _, err := fmt.Fprintf(w, "kronos_tokens_revoked %d\n", snapshot.TokensRevoked); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# HELP kronos_tokens_expired Number of API tokens past their expiration time."); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "# TYPE kronos_tokens_expired gauge"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "kronos_tokens_expired %d\n", snapshot.TokensExpired); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintln(w, "# HELP kronos_audit_events_total Number of audit events stored in the hash chain."); err != nil {

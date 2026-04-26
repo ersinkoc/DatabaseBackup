@@ -355,6 +355,10 @@ func TestServerMetricsEndpoint(t *testing.T) {
 	if _, err := stores.tokens.Create("active", "user-1", []string{"backup:read"}, time.Now().UTC().Add(time.Hour)); err != nil {
 		t.Fatalf("Create(active token) error = %v", err)
 	}
+	if _, err := stores.tokens.Create("expired", "user-1", []string{"backup:read"}, time.Now().UTC().Add(5*time.Millisecond)); err != nil {
+		t.Fatalf("Create(expired token) error = %v", err)
+	}
+	time.Sleep(10 * time.Millisecond)
 	if _, err := stores.tokens.Revoke(createdToken.Token.ID); err != nil {
 		t.Fatalf("Revoke(token) error = %v", err)
 	}
@@ -412,8 +416,9 @@ func TestServerMetricsEndpoint(t *testing.T) {
 		`kronos_backups_latest_completed_by_storage_timestamp{storage_id="storage-archive"} 1777118400`,
 		`kronos_retention_policies_total 1`,
 		`kronos_users_total 1`,
-		`kronos_tokens_total 2`,
+		`kronos_tokens_total 3`,
 		`kronos_tokens_revoked 1`,
+		`kronos_tokens_expired 1`,
 		`kronos_audit_events_total 1`,
 		`kronos_auth_rate_limited_total 0`,
 	} {

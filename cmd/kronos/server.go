@@ -1258,9 +1258,13 @@ func handleMetrics(w http.ResponseWriter, r *http.Request, registry *control.Age
 			return
 		}
 		snapshot.TokensTotal = len(tokens)
+		now := time.Now().UTC()
 		for _, token := range tokens {
 			if !token.RevokedAt.IsZero() {
 				snapshot.TokensRevoked++
+			}
+			if !token.ExpiresAt.IsZero() && !token.ExpiresAt.After(now) {
+				snapshot.TokensExpired++
 			}
 		}
 	}

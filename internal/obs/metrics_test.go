@@ -63,6 +63,7 @@ func TestWritePrometheus(t *testing.T) {
 		UsersTotal:             10,
 		TokensTotal:            11,
 		TokensRevoked:          4,
+		TokensExpired:          3,
 		AuditEventsTotal:       6,
 		AuthRateLimitedTotal:   5,
 	})
@@ -108,6 +109,7 @@ func TestWritePrometheus(t *testing.T) {
 		`kronos_users_total 10`,
 		`kronos_tokens_total 11`,
 		`kronos_tokens_revoked 4`,
+		`kronos_tokens_expired 3`,
 		`kronos_audit_events_total 6`,
 		`kronos_auth_rate_limited_total 5`,
 	} {

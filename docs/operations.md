@@ -79,8 +79,8 @@ labeled freshness metrics to catch stalled backup coverage before restores are
 needed.
 
 Monitor `kronos_retention_policies_total`, `kronos_users_total`,
-`kronos_tokens_total`, and `kronos_tokens_revoked` to track administrative
-inventory and token cleanup.
+`kronos_tokens_total`, `kronos_tokens_revoked`, and `kronos_tokens_expired` to
+track administrative inventory and token cleanup.
 
 ## Upgrade
 
