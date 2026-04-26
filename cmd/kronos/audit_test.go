@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/kronos/kronos/internal/obs"
 )
 
 func TestRunAuditListAndVerify(t *testing.T) {
@@ -93,6 +95,29 @@ func TestRunAuditListPassesFilters(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("audit list error = %v", err)
+	}
+}
+
+func TestFetchAuditEventsPropagatesRequestIDAndErrors(t *testing.T) {
+	t.Parallel()
+
+	var gotRequestID string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotRequestID = r.Header.Get("X-Kronos-Request-ID")
+		w.Header().Set("X-Kronos-Request-ID", "req-audit-error-1")
+		http.Error(w, "audit unavailable", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	_, err := fetchAuditEvents(obs.WithRequestID(context.Background(), "req-audit-fetch-1"), server.Client(), server.URL, nil)
+	if err == nil {
+		t.Fatal("fetchAuditEvents() error = nil, want error")
+	}
+	if gotRequestID != "req-audit-fetch-1" {
+		t.Fatalf("X-Kronos-Request-ID = %q, want req-audit-fetch-1", gotRequestID)
+	}
+	if text := err.Error(); !strings.Contains(text, "request_id=req-audit-error-1") || !strings.Contains(text, "audit unavailable") {
+		t.Fatalf("fetchAuditEvents() error = %q", text)
 	}
 }
 

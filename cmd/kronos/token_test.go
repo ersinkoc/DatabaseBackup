@@ -54,6 +54,9 @@ func TestRunTokenCreateListInspectRevoke(t *testing.T) {
 			if r.Header.Get("Authorization") != "Bearer kro_secret" {
 				t.Fatalf("authorization = %q", r.Header.Get("Authorization"))
 			}
+			if r.Header.Get("X-Kronos-Request-ID") == "" {
+				t.Fatal("token verify request id header is empty")
+			}
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, `{"token":{"id":"token-1","name":"ci"}}`)
 		default:
@@ -96,6 +99,28 @@ func TestRunTokenCreateListInspectRevoke(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), `"token":{"id":"token-1"`) {
 		t.Fatalf("token verify output = %q", out.String())
+	}
+}
+
+func TestRunTokenVerifyErrorIncludesRequestID(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("X-Kronos-Request-ID"); got != "req-token-1" {
+			t.Fatalf("X-Kronos-Request-ID = %q, want req-token-1", got)
+		}
+		w.Header().Set("X-Kronos-Request-ID", "req-token-1")
+		http.Error(w, "too many auth attempts", http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	var out bytes.Buffer
+	err := run(context.Background(), &out, []string{"token", "verify", "--server", server.URL, "--secret", "kro_secret", "--request-id", "req-token-1"})
+	if err == nil {
+		t.Fatal("token verify error = nil, want error")
+	}
+	if text := err.Error(); !strings.Contains(text, "request_id=req-token-1") || !strings.Contains(text, "too many auth attempts") {
+		t.Fatalf("token verify error = %q", text)
 	}
 }
 

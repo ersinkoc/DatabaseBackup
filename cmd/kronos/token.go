@@ -124,6 +124,7 @@ func runTokenVerify(ctx context.Context, out io.Writer, args []string) error {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+*secret)
+	setControlRequestID(ctx, req)
 	return doControlRequest(http.DefaultClient, req, out)
 }
 

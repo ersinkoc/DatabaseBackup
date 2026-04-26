@@ -159,7 +159,9 @@ func fetchAuditEvents(ctx context.Context, client *http.Client, serverAddr strin
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("GET /api/v1/audit failed: %s", resp.Status)
+		var body strings.Builder
+		_, _ = io.Copy(&body, io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("GET /api/v1/audit failed: %s%s: %s", resp.Status, responseRequestID(resp), strings.TrimSpace(body.String()))
 	}
 	var payload auditListResponse
 	decoder := json.NewDecoder(io.LimitReader(resp.Body, 16*1024*1024))
