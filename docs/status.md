@@ -94,8 +94,17 @@ The repository currently passes the full Go test suite:
 .tools/go/bin/go test ./...
 ```
 
-The docs test also checks local Markdown links, and the OpenAPI package has a
-checked spec test. The current explicit `not implemented` markers are
+The production-readiness gate is also available without relying on `make`:
+
+```bash
+GO=.tools/go/bin/go ./scripts/production-check.sh
+```
+
+This gate checks Go formatting, runs `go vet`, runs the full test suite, builds
+the binary, validates shell scripts, validates generated bash completion
+syntax, and verifies that `kronos version` can execute. The docs test also
+checks local Markdown links, and the OpenAPI package has a checked spec test.
+The current explicit `not implemented` markers are
 intentional fail-fast boundaries for roadmap database drivers and storage
 backends; unsupported capabilities are surfaced early instead of falling
 through to ambiguous runtime behavior.

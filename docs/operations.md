@@ -227,6 +227,7 @@ groups:
 1. Build and test the release artifacts:
 
    ```bash
+   ./scripts/production-check.sh
    make test
    make release-all
    make provenance
