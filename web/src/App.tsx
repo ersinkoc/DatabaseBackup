@@ -264,9 +264,11 @@ export function App() {
   const [updatingScheduleID, setUpdatingScheduleID] = useState<string | null>(null);
   const [restoreTargetID, setRestoreTargetID] = useState("");
   const [restoreAt, setRestoreAt] = useState("");
+  const [restoreConfirmation, setRestoreConfirmation] = useState("");
+  const [restoreReplaceExisting, setRestoreReplaceExisting] = useState(false);
   const [restorePlan, setRestorePlan] = useState<RestorePlan | null>(null);
   const [restoreJob, setRestoreJob] = useState<Job | null>(null);
-  const [restoring, setRestoring] = useState<"preview" | "start" | null>(null);
+  const [restoring, setRestoring] = useState<"preview" | "start" | "live" | null>(null);
 
   async function loadOverview({ refresh = false }: { refresh?: boolean } = {}) {
     if (refresh) {
@@ -387,6 +389,8 @@ export function App() {
       setSelectedBackup(detail);
       setRestoreTargetID(detail.target_id || "");
       setRestoreAt("");
+      setRestoreConfirmation("");
+      setRestoreReplaceExisting(false);
       setRestorePlan(null);
       setRestoreJob(null);
     } catch (err) {
@@ -501,7 +505,7 @@ export function App() {
       const plan = await requestJSON<RestorePlan>("/api/v1/restore/preview", apiToken, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(restorePayload(selectedBackup.id, restoreTargetID, restoreAt, true)),
+        body: JSON.stringify(restorePayload(selectedBackup.id, restoreTargetID, restoreAt, true, false)),
       });
       setRestorePlan(plan);
     } catch (err) {
@@ -521,7 +525,7 @@ export function App() {
       const response = await requestJSON<RestoreStartResponse>("/api/v1/restore", apiToken, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(restorePayload(selectedBackup.id, restoreTargetID, restoreAt, true)),
+        body: JSON.stringify(restorePayload(selectedBackup.id, restoreTargetID, restoreAt, true, false)),
       });
       setRestorePlan(response.plan);
       setRestoreJob(response.job);
@@ -529,6 +533,29 @@ export function App() {
       setOverview((current) => updateOverviewJobCounts(current, "", response.job.status));
     } catch (err) {
       setDetailError(err instanceof Error ? err.message : "restore dry-run request failed");
+    } finally {
+      setRestoring(null);
+    }
+  }
+
+  async function startLiveRestore() {
+    if (!selectedBackup || restoreConfirmation !== selectedBackup.id) {
+      return;
+    }
+    setRestoring("live");
+    setDetailError(null);
+    try {
+      const response = await requestJSON<RestoreStartResponse>("/api/v1/restore", apiToken, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(restorePayload(selectedBackup.id, restoreTargetID, restoreAt, false, restoreReplaceExisting)),
+      });
+      setRestorePlan(response.plan);
+      setRestoreJob(response.job);
+      setJobs((current) => sortJobs([response.job, ...current.filter((job) => job.id !== response.job.id)]).slice(0, 8));
+      setOverview((current) => updateOverviewJobCounts(current, "", response.job.status));
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "restore request failed");
     } finally {
       setRestoring(null);
     }
@@ -811,13 +838,18 @@ export function App() {
               <BackupDetail
                 backup={selectedBackup}
                 restoreAt={restoreAt}
+                restoreConfirmation={restoreConfirmation}
                 restoreJob={restoreJob}
                 restorePlan={restorePlan}
+                restoreReplaceExisting={restoreReplaceExisting}
                 restoreTargetID={restoreTargetID}
                 restoring={restoring}
                 targets={targets}
                 onPreview={previewRestore}
+                onRestoreConfirmationChange={setRestoreConfirmation}
                 onRestoreAtChange={setRestoreAt}
+                onRestoreReplaceExistingChange={setRestoreReplaceExisting}
+                onStartLive={startLiveRestore}
                 onStartDryRun={startDryRunRestore}
                 onTargetChange={setRestoreTargetID}
               />
@@ -1042,25 +1074,35 @@ function JobDetail({ job }: { job: Job | null }) {
 function BackupDetail({
   backup,
   restoreAt,
+  restoreConfirmation,
   restoreJob,
   restorePlan,
+  restoreReplaceExisting,
   restoreTargetID,
   restoring,
   targets,
   onPreview,
+  onRestoreConfirmationChange,
   onRestoreAtChange,
+  onRestoreReplaceExistingChange,
+  onStartLive,
   onStartDryRun,
   onTargetChange,
 }: {
   backup: Backup | null;
   restoreAt: string;
+  restoreConfirmation: string;
   restoreJob: Job | null;
   restorePlan: RestorePlan | null;
+  restoreReplaceExisting: boolean;
   restoreTargetID: string;
-  restoring: "preview" | "start" | null;
+  restoring: "preview" | "start" | "live" | null;
   targets: Target[];
   onPreview: () => Promise<void>;
+  onRestoreConfirmationChange: (value: string) => void;
   onRestoreAtChange: (value: string) => void;
+  onRestoreReplaceExistingChange: (value: boolean) => void;
+  onStartLive: () => Promise<void>;
   onStartDryRun: () => Promise<void>;
   onTargetChange: (value: string) => void;
 }) {
@@ -1119,11 +1161,40 @@ function BackupDetail({
               {restoring === "start" ? "Queuing" : "Queue dry run"}
             </Button>
           </div>
+          <label className="flex min-h-9 items-center gap-2 rounded-md bg-surface px-3 text-sm text-muted" htmlFor="replace-existing">
+            <input
+              id="replace-existing"
+              checked={restoreReplaceExisting}
+              className="h-4 w-4 accent-bronze"
+              type="checkbox"
+              onChange={(event) => onRestoreReplaceExistingChange(event.target.checked)}
+            />
+            Replace existing destination data
+          </label>
+          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="restore-confirm">
+            Confirm backup ID
+            <input
+              id="restore-confirm"
+              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+              placeholder={backup.id}
+              value={restoreConfirmation}
+              onChange={(event) => onRestoreConfirmationChange(event.target.value)}
+            />
+          </label>
+          <Button
+            className="h-8 text-xs"
+            disabled={restoring !== null || restoreConfirmation !== backup.id}
+            onClick={() => void onStartLive()}
+            type="button"
+            variant="primary"
+          >
+            {restoring === "live" ? "Queuing" : "Queue restore"}
+          </Button>
         </div>
         {restorePlan ? <RestorePlanDetail plan={restorePlan} /> : null}
         {restoreJob ? (
-          <div className="mt-3 rounded-md border border-success/35 bg-success/10 px-3 py-2 text-xs text-success">
-            Dry-run restore queued as {restoreJob.id}
+          <div className={`mt-3 rounded-md border px-3 py-2 text-xs ${restoreJob.restore_dry_run ? "border-success/35 bg-success/10 text-success" : "border-warning/45 bg-warning/10 text-warning"}`}>
+            {restoreJob.restore_dry_run ? "Dry-run restore" : "Restore"} queued as {restoreJob.id}
           </div>
         ) : null}
       </div>
@@ -1169,11 +1240,14 @@ function sortBackups(values: Backup[]) {
   return [...values].sort((a, b) => Date.parse(b.ended_at) - Date.parse(a.ended_at));
 }
 
-function restorePayload(backupID: string, targetID: string, at: string, dryRun: boolean) {
+function restorePayload(backupID: string, targetID: string, at: string, dryRun: boolean, replaceExisting: boolean) {
   const payload: Record<string, unknown> = {
     backup_id: backupID,
     dry_run: dryRun,
   };
+  if (replaceExisting) {
+    payload.replace_existing = true;
+  }
   if (targetID.trim() !== "") {
     payload.target_id = targetID.trim();
   }
