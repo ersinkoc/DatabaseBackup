@@ -3,6 +3,7 @@
 package mysql
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -167,8 +168,10 @@ func runMySQL(t *testing.T, ctx context.Context, target drivers.Target, sql stri
 	if env := mysqlEnv(target); len(env) > 0 {
 		cmd.Env = append(os.Environ(), env...)
 	}
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("mysql error = %v output=%s", err, strings.TrimSpace(string(out)))
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if out, err := cmd.Output(); err != nil {
+		t.Fatalf("mysql error = %v output=%s stderr=%s", err, strings.TrimSpace(string(out)), strings.TrimSpace(stderr.String()))
 	}
 }
 
@@ -180,9 +183,11 @@ func queryMySQLScalar(t *testing.T, ctx context.Context, target drivers.Target, 
 	if env := mysqlEnv(target); len(env) > 0 {
 		cmd.Env = append(os.Environ(), env...)
 	}
-	out, err := cmd.CombinedOutput()
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("query %q error = %v output=%s", sql, err, strings.TrimSpace(string(out)))
+		t.Fatalf("query %q error = %v output=%s stderr=%s", sql, err, strings.TrimSpace(string(out)), strings.TrimSpace(stderr.String()))
 	}
 	return strings.TrimSpace(string(out))
 }
