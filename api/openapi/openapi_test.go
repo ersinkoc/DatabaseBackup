@@ -24,7 +24,7 @@ func TestOpenAPIReferencesResolve(t *testing.T) {
 		t.Fatal("components missing")
 	}
 	sections := map[string]map[string]any{}
-	for _, name := range []string{"parameters", "schemas", "securitySchemes"} {
+	for _, name := range []string{"headers", "parameters", "schemas", "securitySchemes"} {
 		section, ok := components[name].(map[string]any)
 		if !ok {
 			t.Fatalf("components.%s missing", name)
@@ -55,6 +55,21 @@ func TestOpenAPIDocumentsRequestIDAndAuthRateLimit(t *testing.T) {
 	}
 	text := string(data)
 	for _, want := range []string{"X-Kronos-Request-ID", "RequestID:", `"429":`, "Retry-After"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("openapi.yaml missing %q", want)
+		}
+	}
+}
+
+func TestOpenAPIDocumentsSecurityHeaders(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("openapi.yaml")
+	if err != nil {
+		t.Fatalf("ReadFile(openapi.yaml) error = %v", err)
+	}
+	text := string(data)
+	for _, want := range []string{"Cache-Control: no-store", "Content-Security-Policy", "X-Content-Type-Options", "X-Frame-Options", "NoStore:"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("openapi.yaml missing %q", want)
 		}

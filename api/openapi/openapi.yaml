@@ -7,7 +7,11 @@ info:
     token is provided, endpoints enforce exact scopes plus resource:*,
     admin:*, or *. Clients may send X-Kronos-Request-ID for request
     correlation; the control plane echoes it on every response or generates one
-    when omitted.
+    when omitted. Control-plane API, health, readiness, and metrics responses
+    are sent with `Cache-Control: no-store`, and API/WebUI responses include
+    baseline browser security headers such as X-Content-Type-Options,
+    X-Frame-Options, Referrer-Policy, Permissions-Policy, and
+    Content-Security-Policy.
 servers:
   - url: http://127.0.0.1:8500
 paths:
@@ -1035,6 +1039,25 @@ components:
       description: Request correlation identifier echoed by the control plane.
       schema:
         type: string
+    NoStore:
+      description: Control-plane responses are not cacheable.
+      schema:
+        type: string
+        example: no-store
+    ContentSecurityPolicy:
+      description: Baseline same-origin browser content security policy.
+      schema:
+        type: string
+    XContentTypeOptions:
+      description: Prevent MIME sniffing.
+      schema:
+        type: string
+        example: nosniff
+    XFrameOptions:
+      description: Prevent framing of API and WebUI responses.
+      schema:
+        type: string
+        example: DENY
   parameters:
     ID:
       name: id
