@@ -119,7 +119,9 @@ responses, including `X-Content-Type-Options`, `X-Frame-Options`,
 `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, and a
 same-origin content security policy. `Strict-Transport-Security` is deliberately
 left to TLS-terminating deployments because local mode commonly serves plain
-HTTP on loopback.
+HTTP on loopback. API, health/readiness, and metrics responses also use
+`Cache-Control: no-store` so token material, audit data, and operational state
+are not retained by shared caches.
 
 ## Notifications
 

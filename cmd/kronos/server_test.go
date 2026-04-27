@@ -182,6 +182,36 @@ func TestServerSecurityHeaders(t *testing.T) {
 	}
 }
 
+func TestServerControlPlaneResponsesAreNotCached(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(newServerHandler(nil))
+	defer server.Close()
+
+	for _, path := range []string{"/healthz", "/readyz", "/metrics", "/api/v1/overview"} {
+		resp, err := server.Client().Get(server.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s error = %v", path, err)
+		}
+		resp.Body.Close()
+		if got := resp.Header.Get("Cache-Control"); got != "no-store" {
+			t.Fatalf("GET %s Cache-Control = %q, want no-store", path, got)
+		}
+		if got := resp.Header.Get("Pragma"); got != "no-cache" {
+			t.Fatalf("GET %s Pragma = %q, want no-cache", path, got)
+		}
+	}
+
+	resp, err := server.Client().Get(server.URL + "/")
+	if err != nil {
+		t.Fatalf("GET / error = %v", err)
+	}
+	resp.Body.Close()
+	if got := resp.Header.Get("Cache-Control"); got == "no-store" {
+		t.Fatalf("GET / Cache-Control = %q, want static WebUI cache policy left to file server", got)
+	}
+}
+
 func TestAuditMetadataUsesRequestContext(t *testing.T) {
 	t.Parallel()
 

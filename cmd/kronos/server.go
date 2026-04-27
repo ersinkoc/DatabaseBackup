@@ -362,6 +362,20 @@ func withSecurityHeaders(next http.Handler) http.Handler {
 	})
 }
 
+func withControlPlaneCacheHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isControlPlanePath(r.URL.Path) {
+			w.Header().Set("Cache-Control", "no-store")
+			w.Header().Set("Pragma", "no-cache")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isControlPlanePath(path string) bool {
+	return path == "/healthz" || path == "/readyz" || path == "/metrics" || strings.HasPrefix(path, "/api/")
+}
+
 func authRateLimitSettings(cfg *config.Config) (int, time.Duration) {
 	limit := authVerifyRateLimit
 	window := authVerifyRateWindow
@@ -1263,7 +1277,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		}
 	})
 	mux.Handle("/", webui.Handler())
-	return withSecurityHeaders(withRequestID(mux))
+	return withSecurityHeaders(withControlPlaneCacheHeaders(withRequestID(mux)))
 }
 
 func writeJSON(w http.ResponseWriter, value any) {
