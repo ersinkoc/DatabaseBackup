@@ -149,8 +149,9 @@ production suite. The largest remaining areas are:
   and broader upgrade rehearsal evidence.
 - Additional database driver depth. Current executable driver coverage is
   Redis/Valkey, the PostgreSQL logical MVP, and a MySQL/MariaDB
-  `mysqldump`/`mysql` logical MVP with unit coverage. MySQL/MariaDB still needs
-  real-service conformance, and MongoDB remains roadmap work.
+  `mysqldump`/`mysql` logical MVP with unit coverage plus real-service MySQL
+  8.4 conformance for backup/restore of indexed JSON data. MariaDB-specific
+  conformance and MongoDB remain roadmap work.
 - Additional storage backends such as SFTP, Azure Blob, and Google Cloud
   Storage. Current executable backends are local filesystem and S3-compatible
   object storage.
@@ -163,7 +164,7 @@ production suite. The largest remaining areas are:
 
 ## Next Best Work
 
-1. Add MySQL/MariaDB real-service conformance and restore rehearsal coverage.
+1. Add MariaDB-specific conformance and larger MySQL restore drill coverage.
 2. Extend PostgreSQL hardening around full-cluster global-object restore
    rehearsals, operator-scale restore drills, and broader upgrade rehearsal
    evidence.

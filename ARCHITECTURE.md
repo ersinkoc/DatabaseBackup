@@ -597,7 +597,7 @@ make ui
 | Chunk pipeline | Implemented | FastCDC, BLAKE3, dedup index, compression, encryption envelopes, bounded worker graph. |
 | Manifests | Implemented | Signed manifests, commit/load helpers, verification. |
 | Storage | Partially implemented | Local filesystem and S3-compatible backend exist; SFTP/Azure/GCS domain kinds fail fast with explicit unsupported-backend errors. |
-| Drivers | Partially implemented | Redis/Valkey driver exists; PostgreSQL has a `pg_dump`/`psql` logical MVP with optional `pg_dumpall --globals-only` role metadata capture; MySQL/MariaDB has a `mysqldump`/`mysql` logical MVP; memory test driver exists; MongoDB remains planned in the blueprint. |
+| Drivers | Partially implemented | Redis/Valkey driver exists; PostgreSQL has a `pg_dump`/`psql` logical MVP with optional `pg_dumpall --globals-only` role metadata capture; MySQL/MariaDB has a `mysqldump`/`mysql` logical MVP with real-service MySQL 8.4 conformance; memory test driver exists; MongoDB remains planned in the blueprint. |
 | Retention | Implemented foundation | Count, time, size, and GFS planning plus server-side policy endpoints. |
 | Notifications | Implemented foundation | Webhook rules for terminal job events, optional HMAC signatures, bounded retries, API/CLI management, and audit metadata. |
 | WebUI | Early product surface | Embedded React/Tailwind operations dashboard build is served by the control plane; live dashboard API support now exists through `/api/v1/overview`. |
@@ -661,7 +661,7 @@ flowchart TD
     Backbone --> Pipeline[Backup pipeline]
     Backbone --> Verify[Verification]
 
-    Gaps --> MoreDrivers[Production-grade Postgres plus MySQL and MongoDB drivers]
+    Gaps --> MoreDrivers[Production-grade Postgres, MariaDB, and MongoDB drivers]
     Gaps --> MoreStorage[SFTP, Azure Blob, GCS, WebDAV backends]
     Gaps --> Auth[Advanced auth flows and hardening]
     Gaps --> Notifications[Notifications, hooks, and routing]
@@ -672,7 +672,7 @@ flowchart TD
 Recommended next engineering slices:
 
 1. Extend PostgreSQL hardening around version compatibility, richer global-object restore drills, and larger restore rehearsals.
-2. Add MySQL/MariaDB real-service conformance and expand database driver coverage to MongoDB.
+2. Add MariaDB-specific conformance and expand database driver coverage to MongoDB.
 3. Deepen the WebUI from operational dashboard shell into resource CRUD and job detail workflows.
 4. Add storage backend parity for the domain-level kinds already present in `core.StorageKind`.
 5. Harden production auth, token lifecycle, and audit coverage around every mutation.
