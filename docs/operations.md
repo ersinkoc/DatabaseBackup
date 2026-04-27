@@ -268,7 +268,8 @@ groups:
    checksums, writes `bin/kronos-provenance.json` and
    `bin/kronos-sbom.json`, signs binaries plus provenance/SBOM metadata with
    keyless cosign signatures, verifies those signatures against the GitHub
-   Actions OIDC issuer and release workflow identity, uploads workflow
+   Actions OIDC issuer and release workflow identity, creates GitHub build
+   provenance and SBOM attestations for the release binaries, uploads workflow
    artifacts, and publishes the tag assets to the GitHub release.
 
    To verify downloaded release signatures outside CI, install `cosign` and run:
@@ -277,6 +278,9 @@ groups:
    COSIGN_CERTIFICATE_IDENTITY_REGEXP='https://github.com/ersinkoc/DatabaseBackup/.github/workflows/release.yml@refs/tags/v.*' \
      ./scripts/verify-signatures.sh bin
    ```
+
+   GitHub-hosted build and SBOM attestations are emitted by the release
+   workflow and can be inspected from the release workflow run summary.
 
 3. Drain new work by pausing schedules that should not run during the upgrade:
 
