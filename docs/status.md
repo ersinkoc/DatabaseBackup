@@ -116,7 +116,9 @@ through to ambiguous runtime behavior.
 Tagged E2E coverage is available for the implemented worker/control-plane/Redis
 backup and restore path, retention apply metadata pruning, and lost-agent
 recovery during job claim. The same tagged suite also covers server restart
-recovery for active jobs reopened from persisted state:
+recovery for active jobs reopened from persisted state, plus PostgreSQL
+worker/control-plane/local-storage backup and restore smoke coverage through
+fake `pg_dump` and `psql` tools:
 
 ```bash
 .tools/go/bin/go test -tags=e2e ./cmd/kronos
@@ -131,8 +133,9 @@ Kronos is usable for its implemented Redis/local/S3-oriented paths, and now has
 a PostgreSQL logical driver MVP. It is not yet a broad multi-database
 production suite. The largest remaining areas are:
 
-- PostgreSQL real-service conformance and E2E tests. Current PostgreSQL driver
-  coverage is command-runner unit coverage over `pg_dump` and `psql`.
+- PostgreSQL real-service conformance tests. Current PostgreSQL driver coverage
+  includes command-runner unit coverage over `pg_dump` and `psql`, plus tagged
+  worker pipeline smoke E2E coverage with fake client tools.
 - Additional database drivers such as MySQL and MongoDB. Current executable
   driver coverage is Redis/Valkey plus the PostgreSQL logical MVP.
 - Additional storage backends such as SFTP, Azure Blob, and Google Cloud
