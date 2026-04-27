@@ -39,6 +39,9 @@ func runJobsList(ctx context.Context, out io.Writer, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := validateListTimeFlags(*since, *until); err != nil {
+		return err
+	}
 	query := url.Values{}
 	query.Set("status", *status)
 	query.Set("operation", *operation)

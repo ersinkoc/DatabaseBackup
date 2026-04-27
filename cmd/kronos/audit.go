@@ -42,6 +42,9 @@ func runAuditList(ctx context.Context, out io.Writer, args []string) error {
 	if *limit < 0 {
 		return fmt.Errorf("--limit must be non-negative")
 	}
+	if err := validateAuditTimeFlags(filters); err != nil {
+		return err
+	}
 	query := auditFilterQuery(filters)
 	if *limit > 0 {
 		query.Set("limit", fmt.Sprint(*limit))
@@ -69,6 +72,9 @@ func runAuditTail(ctx context.Context, out io.Writer, args []string) error {
 	if *limit < 0 {
 		return fmt.Errorf("--limit must be non-negative")
 	}
+	if err := validateAuditTimeFlags(filters); err != nil {
+		return err
+	}
 	events, err := fetchAuditEvents(ctx, http.DefaultClient, *serverAddr, auditFilterQuery(filters))
 	if err != nil {
 		return err
@@ -89,6 +95,9 @@ func runAuditSearch(ctx context.Context, out io.Writer, args []string) error {
 	}
 	if *query == "" {
 		return fmt.Errorf("--query is required")
+	}
+	if err := validateAuditTimeFlags(filters); err != nil {
+		return err
 	}
 	events, err := fetchAuditEvents(ctx, http.DefaultClient, *serverAddr, auditFilterQuery(filters))
 	if err != nil {
@@ -137,6 +146,10 @@ func auditFilterQuery(filters auditFilterFlags) url.Values {
 	query.Set("since", *filters.Since)
 	query.Set("until", *filters.Until)
 	return query
+}
+
+func validateAuditTimeFlags(filters auditFilterFlags) error {
+	return validateListTimeFlags(*filters.Since, *filters.Until)
 }
 
 func fetchAuditEvents(ctx context.Context, client *http.Client, serverAddr string, query url.Values) ([]core.AuditEvent, error) {

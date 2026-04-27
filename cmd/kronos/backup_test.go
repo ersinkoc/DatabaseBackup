@@ -558,4 +558,7 @@ func TestRunBackupNowRequiresTargetAndStorage(t *testing.T) {
 	if err := run(context.Background(), &out, []string{"backup", "protect"}); err == nil {
 		t.Fatal("backup protect without id error = nil, want error")
 	}
+	if err := run(context.Background(), &out, []string{"backup", "list", "--since", "1h", "--until", "2h"}); err == nil {
+		t.Fatal("backup list inverted time range error = nil, want error")
+	}
 }

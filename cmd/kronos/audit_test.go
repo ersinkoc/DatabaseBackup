@@ -191,4 +191,13 @@ func TestRunAuditRejectsUnknownSubcommand(t *testing.T) {
 	if err := run(context.Background(), &out, []string{"audit", "list", "--limit", "-1"}); err == nil {
 		t.Fatal("audit list negative limit error = nil, want error")
 	}
+	if err := run(context.Background(), &out, []string{"audit", "list", "--since", "1h", "--until", "2h"}); err == nil {
+		t.Fatal("audit list inverted time range error = nil, want error")
+	}
+	if err := run(context.Background(), &out, []string{"audit", "tail", "--since", "1h", "--until", "2h"}); err == nil {
+		t.Fatal("audit tail inverted time range error = nil, want error")
+	}
+	if err := run(context.Background(), &out, []string{"audit", "search", "--query", "job", "--since", "1h", "--until", "2h"}); err == nil {
+		t.Fatal("audit search inverted time range error = nil, want error")
+	}
 }

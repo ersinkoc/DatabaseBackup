@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/kronos/kronos/internal/chunk"
 	"github.com/kronos/kronos/internal/core"
@@ -93,6 +94,9 @@ func runBackupList(ctx context.Context, out io.Writer, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if err := validateListTimeFlags(*since, *until); err != nil {
+		return err
+	}
 	query := url.Values{}
 	query.Set("target_id", *targetID)
 	query.Set("storage_id", *storageID)
@@ -129,6 +133,22 @@ func pathWithQuery(path string, query url.Values) string {
 		return path
 	}
 	return path + "?" + clean.Encode()
+}
+
+func validateListTimeFlags(sinceText string, untilText string) error {
+	if sinceText == "" || untilText == "" {
+		return nil
+	}
+	now := time.Now().UTC()
+	since, err := parseBackupListTime(sinceText, now)
+	if err != nil {
+		return fmt.Errorf("invalid --since: %w", err)
+	}
+	until, err := parseBackupListTime(untilText, now)
+	if err != nil {
+		return fmt.Errorf("invalid --until: %w", err)
+	}
+	return validateTimeRange(since, until)
 }
 
 func runBackupProtect(ctx context.Context, out io.Writer, args []string, protected bool) error {
