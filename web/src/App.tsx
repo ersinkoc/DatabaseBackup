@@ -198,6 +198,31 @@ type RetentionPolicyListResponse = {
   policies?: RetentionPolicy[];
 };
 
+type RestorePlanStep = {
+  backup_id: string;
+  type?: string;
+  parent_id?: string;
+  manifest_id?: string;
+  target_id?: string;
+  storage_id?: string;
+  started_at?: string;
+  ended_at?: string;
+};
+
+type RestorePlan = {
+  backup_id: string;
+  target_id: string;
+  storage_id: string;
+  at?: string;
+  steps: RestorePlanStep[];
+  warnings?: string[];
+};
+
+type RestoreStartResponse = {
+  job: Job;
+  plan: RestorePlan;
+};
+
 function AppLogo() {
   return (
     <div className="flex h-12 items-center gap-3 px-4">
@@ -237,6 +262,11 @@ export function App() {
   const [selectedRetentionPolicy, setSelectedRetentionPolicy] = useState<RetentionPolicy | null>(null);
   const [loadingAutomationID, setLoadingAutomationID] = useState<string | null>(null);
   const [updatingScheduleID, setUpdatingScheduleID] = useState<string | null>(null);
+  const [restoreTargetID, setRestoreTargetID] = useState("");
+  const [restoreAt, setRestoreAt] = useState("");
+  const [restorePlan, setRestorePlan] = useState<RestorePlan | null>(null);
+  const [restoreJob, setRestoreJob] = useState<Job | null>(null);
+  const [restoring, setRestoring] = useState<"preview" | "start" | null>(null);
 
   async function loadOverview({ refresh = false }: { refresh?: boolean } = {}) {
     if (refresh) {
@@ -353,7 +383,12 @@ export function App() {
     setLoadingBackupID(backup.id);
     setDetailError(null);
     try {
-      setSelectedBackup(await requestJSON<Backup>(`/api/v1/backups/${encodeURIComponent(backup.id)}`, apiToken));
+      const detail = await requestJSON<Backup>(`/api/v1/backups/${encodeURIComponent(backup.id)}`, apiToken);
+      setSelectedBackup(detail);
+      setRestoreTargetID(detail.target_id || "");
+      setRestoreAt("");
+      setRestorePlan(null);
+      setRestoreJob(null);
     } catch (err) {
       setDetailError(err instanceof Error ? err.message : "backup detail request failed");
     } finally {
@@ -452,6 +487,50 @@ export function App() {
       setDetailError(err instanceof Error ? err.message : "schedule update failed");
     } finally {
       setUpdatingScheduleID(null);
+    }
+  }
+
+  async function previewRestore() {
+    if (!selectedBackup) {
+      return;
+    }
+    setRestoring("preview");
+    setDetailError(null);
+    setRestoreJob(null);
+    try {
+      const plan = await requestJSON<RestorePlan>("/api/v1/restore/preview", apiToken, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(restorePayload(selectedBackup.id, restoreTargetID, restoreAt, true)),
+      });
+      setRestorePlan(plan);
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "restore preview failed");
+    } finally {
+      setRestoring(null);
+    }
+  }
+
+  async function startDryRunRestore() {
+    if (!selectedBackup) {
+      return;
+    }
+    setRestoring("start");
+    setDetailError(null);
+    try {
+      const response = await requestJSON<RestoreStartResponse>("/api/v1/restore", apiToken, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(restorePayload(selectedBackup.id, restoreTargetID, restoreAt, true)),
+      });
+      setRestorePlan(response.plan);
+      setRestoreJob(response.job);
+      setJobs((current) => sortJobs([response.job, ...current.filter((job) => job.id !== response.job.id)]).slice(0, 8));
+      setOverview((current) => updateOverviewJobCounts(current, "", response.job.status));
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "restore dry-run request failed");
+    } finally {
+      setRestoring(null);
     }
   }
 
@@ -729,7 +808,19 @@ export function App() {
               <ScheduleDetail schedule={selectedSchedule} updating={updatingScheduleID === selectedSchedule?.id} onToggle={toggleSchedulePause} />
               <RetentionPolicyDetail policy={selectedRetentionPolicy} />
               <JobDetail job={selectedJob} />
-              <BackupDetail backup={selectedBackup} />
+              <BackupDetail
+                backup={selectedBackup}
+                restoreAt={restoreAt}
+                restoreJob={restoreJob}
+                restorePlan={restorePlan}
+                restoreTargetID={restoreTargetID}
+                restoring={restoring}
+                targets={targets}
+                onPreview={previewRestore}
+                onRestoreAtChange={setRestoreAt}
+                onStartDryRun={startDryRunRestore}
+                onTargetChange={setRestoreTargetID}
+              />
             </aside>
           </div>
         </section>
@@ -948,7 +1039,31 @@ function JobDetail({ job }: { job: Job | null }) {
   );
 }
 
-function BackupDetail({ backup }: { backup: Backup | null }) {
+function BackupDetail({
+  backup,
+  restoreAt,
+  restoreJob,
+  restorePlan,
+  restoreTargetID,
+  restoring,
+  targets,
+  onPreview,
+  onRestoreAtChange,
+  onStartDryRun,
+  onTargetChange,
+}: {
+  backup: Backup | null;
+  restoreAt: string;
+  restoreJob: Job | null;
+  restorePlan: RestorePlan | null;
+  restoreTargetID: string;
+  restoring: "preview" | "start" | null;
+  targets: Target[];
+  onPreview: () => Promise<void>;
+  onRestoreAtChange: (value: string) => void;
+  onStartDryRun: () => Promise<void>;
+  onTargetChange: (value: string) => void;
+}) {
   if (!backup) {
     return null;
   }
@@ -965,7 +1080,69 @@ function BackupDetail({ backup }: { backup: Backup | null }) {
         <HealthRow label="Manifest" value={backup.manifest_id || "-"} tone="bronze" />
         <HealthRow label="Ended" value={formatDateTime(backup.ended_at) ?? "-"} tone="indigo" />
       </div>
+      <div className="mt-5 border-t border-line pt-4">
+        <h3 className="text-sm font-semibold text-marble">Restore validation</h3>
+        <div className="mt-3 grid gap-3">
+          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="restore-target">
+            Target
+            <select
+              id="restore-target"
+              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition focus:border-bronze"
+              value={restoreTargetID}
+              onChange={(event) => onTargetChange(event.target.value)}
+            >
+              <option value={backup.target_id}>{backup.target_id || "Original target"}</option>
+              {targets
+                .filter((target) => target.id !== backup.target_id)
+                .map((target) => (
+                  <option key={target.id} value={target.id}>
+                    {target.name || target.id}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="restore-at">
+            Point in time
+            <input
+              id="restore-at"
+              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+              placeholder="RFC3339, optional"
+              value={restoreAt}
+              onChange={(event) => onRestoreAtChange(event.target.value)}
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <Button className="h-8 text-xs" disabled={restoring !== null} onClick={() => void onPreview()} type="button" variant="ghost">
+              {restoring === "preview" ? "Previewing" : "Preview"}
+            </Button>
+            <Button className="h-8 text-xs" disabled={restoring !== null} onClick={() => void onStartDryRun()} type="button" variant="secondary">
+              {restoring === "start" ? "Queuing" : "Queue dry run"}
+            </Button>
+          </div>
+        </div>
+        {restorePlan ? <RestorePlanDetail plan={restorePlan} /> : null}
+        {restoreJob ? (
+          <div className="mt-3 rounded-md border border-success/35 bg-success/10 px-3 py-2 text-xs text-success">
+            Dry-run restore queued as {restoreJob.id}
+          </div>
+        ) : null}
+      </div>
     </section>
+  );
+}
+
+function RestorePlanDetail({ plan }: { plan: RestorePlan }) {
+  return (
+    <div className="mt-4 grid gap-3">
+      <HealthRow label="Plan target" value={plan.target_id || "-"} tone="bronze" />
+      <HealthRow label="Storage" value={plan.storage_id || "-"} tone="indigo" />
+      <HealthRow label="Steps" value={metricValue(plan.steps.length, false)} tone="warning" />
+      {plan.at ? <HealthRow label="At" value={formatDateTime(plan.at) ?? plan.at} tone="indigo" /> : null}
+      {plan.steps.map((step, index) => (
+        <HealthRow key={`${step.backup_id}-${index}`} label={`Step ${index + 1}`} value={`${step.type || "backup"} ${step.backup_id}`} tone="bronze" />
+      ))}
+      {plan.warnings && plan.warnings.length > 0 ? <HealthRow label="Warnings" value={plan.warnings.join(", ")} tone="warning" /> : null}
+    </div>
   );
 }
 
@@ -992,13 +1169,31 @@ function sortBackups(values: Backup[]) {
   return [...values].sort((a, b) => Date.parse(b.ended_at) - Date.parse(a.ended_at));
 }
 
+function restorePayload(backupID: string, targetID: string, at: string, dryRun: boolean) {
+  const payload: Record<string, unknown> = {
+    backup_id: backupID,
+    dry_run: dryRun,
+  };
+  if (targetID.trim() !== "") {
+    payload.target_id = targetID.trim();
+  }
+  if (at.trim() !== "") {
+    payload.at = at.trim();
+  }
+  return payload;
+}
+
 function updateOverviewJobCounts(current: Overview | null, previousStatus: string, nextStatus: string) {
   if (!current || previousStatus === nextStatus) {
     return current;
   }
   const byStatus = { ...current.jobs.by_status };
-  byStatus[previousStatus] = Math.max(0, (byStatus[previousStatus] ?? 0) - 1);
-  byStatus[nextStatus] = (byStatus[nextStatus] ?? 0) + 1;
+  if (previousStatus !== "") {
+    byStatus[previousStatus] = Math.max(0, (byStatus[previousStatus] ?? 0) - 1);
+  }
+  if (nextStatus !== "") {
+    byStatus[nextStatus] = (byStatus[nextStatus] ?? 0) + 1;
+  }
   const activeDelta = activeJobDelta(previousStatus, nextStatus);
   const failedDelta = failedJobDelta(previousStatus, nextStatus);
   return {

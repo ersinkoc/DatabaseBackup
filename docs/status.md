@@ -164,8 +164,9 @@ broad multi-database production suite. The largest remaining areas are:
 - Deeper WebUI interaction beyond the current authenticated live
   overview/jobs/backups/inventory dashboard plus
   target/storage/schedule/retention/job/backup detail, schedule pause/resume,
-  job cancel/retry, and backup protection actions, such as resource CRUD,
-  richer backup drill actions, and restore workflows.
+  restore preview/dry-run queueing, job cancel/retry, and backup protection
+  actions, such as resource CRUD, non-dry-run restore workflow controls, and
+  richer backup drill actions.
 - Richer notification channels and hook execution surfaces from the product
   plan.
 - Broader production hardening around auth integrations and multi-instance

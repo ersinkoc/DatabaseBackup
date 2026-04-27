@@ -73,9 +73,9 @@ This repository currently has the Phase 0 foundation in place and active Phase
 - WebUI: embedded React/Tailwind operations dashboard served by the control
   plane, with live overview/jobs/backups/target/storage data, browser-side
   bearer token support, target/storage/schedule/retention/job/backup detail
-  inspection, schedule pause/resume, job cancel/retry and backup
-  protect/unprotect actions, a Vite build pipeline, and deployment-safe cache
-  headers
+  inspection, restore preview and dry-run queueing, schedule pause/resume, job
+  cancel/retry and backup protect/unprotect actions, a Vite build pipeline, and
+  deployment-safe cache headers
 - agent/server: heartbeat endpoint, list/inspect APIs, in-memory agent
   registry, and heartbeat-only or worker-mode agent process
 - agent worker: control-plane HTTP client with resource sync, heartbeat, job
