@@ -43,6 +43,7 @@ func TestMongoDBDriverConformanceBackupRestore(t *testing.T) {
 	restoreAdmin := mongoTestTarget(restoreAddr, "admin", restoreUser, restorePassword)
 	sourceTarget := mongoTestTarget(sourceAddr, sourceDB, sourceUser, sourcePassword)
 	restoreTarget := mongoTestTarget(restoreAddr, restoreDB, restoreUser, restorePassword)
+	restoreCommandTarget := mongoRestoreCommandTarget(restoreAddr, restoreDB, restoreUser, restorePassword)
 	sourceTarget.Options = map[string]string{"connection_test_collection": "users"}
 
 	cleanupMongoDatabase(t, ctx, sourceAdmin, sourceDB)
@@ -73,7 +74,7 @@ func TestMongoDBDriverConformanceBackupRestore(t *testing.T) {
 	}
 
 	cleanupMongoDatabase(t, ctx, sourceAdmin, sourceDB)
-	if err := driver.Restore(ctx, restoreTarget, &backup, drivers.RestoreOptions{ReplaceExisting: true}); err != nil {
+	if err := driver.Restore(ctx, restoreCommandTarget, &backup, drivers.RestoreOptions{ReplaceExisting: true}); err != nil {
 		t.Fatalf("Restore() error = %v", err)
 	}
 
@@ -161,6 +162,26 @@ func mongoTestTarget(addr string, database string, username string, password str
 		connection["password"] = password
 	}
 	return drivers.Target{Connection: connection}
+}
+
+func mongoRestoreCommandTarget(addr string, database string, username string, password string) drivers.Target {
+	target := mongoTestTarget(addr, database, username, password)
+	host, port := splitAddress(addr)
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	if port == "" {
+		port = "27017"
+	}
+	target.Connection["uri"] = "mongodb://" + netJoinHostPort(host, port)
+	return target
+}
+
+func netJoinHostPort(host string, port string) string {
+	if strings.Contains(host, ":") && !strings.HasPrefix(host, "[") {
+		return "[" + host + "]:" + port
+	}
+	return host + ":" + port
 }
 
 func requireCommand(t *testing.T, name string) {
