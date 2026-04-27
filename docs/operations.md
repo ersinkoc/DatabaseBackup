@@ -426,6 +426,9 @@ request ID in the error text when the server provides one.
    ./bin/kronos jobs inspect --id <restore-job-id>
    ```
 
+   Point-in-time restore timestamps supplied with `--at` must be RFC3339 values
+   and cannot be in the future.
+
 5. Verify the audit chain after recovery:
 
    ```bash

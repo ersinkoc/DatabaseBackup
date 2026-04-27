@@ -3083,6 +3083,10 @@ func handleRestorePreview(w http.ResponseWriter, r *http.Request, store *control
 		http.Error(w, "invalid restore preview request", http.StatusBadRequest)
 		return
 	}
+	if err := validateRestoreAt(request.At, time.Now().UTC()); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	backups, err := store.List()
 	if err != nil {
 		http.Error(w, "list backups", http.StatusInternalServerError)
@@ -3117,6 +3121,10 @@ func handleRestoreStart(w http.ResponseWriter, r *http.Request, backups *control
 	var request krestore.Request
 	if err := decodeJSONRequest(w, r, &request); err != nil {
 		http.Error(w, "invalid restore request", http.StatusBadRequest)
+		return
+	}
+	if err := validateRestoreAt(request.At, time.Now().UTC()); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	list, err := backups.List()
@@ -3174,6 +3182,19 @@ func handleRestoreStart(w http.ResponseWriter, r *http.Request, backups *control
 		return
 	}
 	writeJSON(w, restoreStartResponse{Job: job, Plan: plan})
+}
+
+func validateRestoreAt(at time.Time, now time.Time) error {
+	if at.IsZero() {
+		return nil
+	}
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+	if at.After(now.UTC()) {
+		return fmt.Errorf("restore at must not be in the future")
+	}
+	return nil
 }
 
 func handleListRetentionPolicies(w http.ResponseWriter, store *control.RetentionPolicyStore) {

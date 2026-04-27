@@ -41,9 +41,9 @@ func runRestorePreview(ctx context.Context, out io.Writer, args []string) error 
 		payload["target_id"] = core.ID(*targetID)
 	}
 	if *atText != "" {
-		at, err := time.Parse(time.RFC3339, *atText)
+		at, err := parseRestoreAt(*atText)
 		if err != nil {
-			return fmt.Errorf("parse --at: %w", err)
+			return err
 		}
 		payload["at"] = at
 	}
@@ -79,11 +79,22 @@ func runRestoreStart(ctx context.Context, out io.Writer, args []string) error {
 		payload["replace_existing"] = true
 	}
 	if *atText != "" {
-		at, err := time.Parse(time.RFC3339, *atText)
+		at, err := parseRestoreAt(*atText)
 		if err != nil {
-			return fmt.Errorf("parse --at: %w", err)
+			return err
 		}
 		payload["at"] = at
 	}
 	return postControlJSON(ctx, http.DefaultClient, *serverAddr, "/api/v1/restore", payload, out)
+}
+
+func parseRestoreAt(value string) (time.Time, error) {
+	at, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parse --at: %w", err)
+	}
+	if at.After(time.Now().UTC()) {
+		return time.Time{}, fmt.Errorf("--at must not be in the future")
+	}
+	return at, nil
 }

@@ -1613,6 +1613,7 @@ components:
         at:
           type: string
           format: date-time
+          description: Optional point-in-time target timestamp. Future timestamps are rejected.
     RestoreStartRequest:
       allOf:
         - $ref: "#/components/schemas/RestorePreviewRequest"

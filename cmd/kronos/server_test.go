@@ -2765,6 +2765,15 @@ func TestServerRestorePreviewEndpoint(t *testing.T) {
 	if resp.StatusCode != http.StatusOK || !strings.Contains(text, `"backup_id":"incr"`) || !strings.Contains(text, `"target_id":"restore-target"`) || !strings.Contains(text, `"backup_id":"full"`) {
 		t.Fatalf("restore preview status=%d body=%q", resp.StatusCode, text)
 	}
+
+	resp, err = server.Client().Post(server.URL+"/api/v1/restore/preview", "application/json", strings.NewReader(`{"backup_id":"incr","at":"2999-01-01T00:00:00Z"}`))
+	if err != nil {
+		t.Fatalf("POST restore preview future at error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("restore preview future at status = %d, want 400", resp.StatusCode)
+	}
 }
 
 func TestServerRestoreStartEndpoint(t *testing.T) {
@@ -2802,6 +2811,15 @@ func TestServerRestoreStartEndpoint(t *testing.T) {
 	if resp.StatusCode != http.StatusOK || !strings.Contains(text, `"operation":"restore"`) || !strings.Contains(text, `"restore_backup_id":"backup-1"`) || !strings.Contains(text, `"restore_manifest_id":"manifest-1"`) || !strings.Contains(text, `"target_id":"restore-target"`) || !strings.Contains(text, `"restore_dry_run":true`) || !strings.Contains(text, `"restore_replace_existing":true`) {
 		t.Fatalf("restore start status=%d body=%q", resp.StatusCode, text)
 	}
+	resp, err = server.Client().Post(server.URL+"/api/v1/restore", "application/json", strings.NewReader(`{"backup_id":"backup-1","at":"2999-01-01T00:00:00Z","dry_run":true}`))
+	if err != nil {
+		t.Fatalf("POST restore start future at error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("restore start future at status = %d, want 400", resp.StatusCode)
+	}
+
 	jobs, err := stores.jobs.List()
 	if err != nil {
 		t.Fatalf("List(jobs) error = %v", err)

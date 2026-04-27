@@ -91,11 +91,17 @@ func TestRunRestorePreviewRequiresFields(t *testing.T) {
 	if err := run(context.Background(), &out, []string{"restore", "preview", "--backup", "backup-1", "--at", "bad"}); err == nil {
 		t.Fatal("restore preview with bad at error = nil, want error")
 	}
+	if err := run(context.Background(), &out, []string{"restore", "preview", "--backup", "backup-1", "--at", "2999-01-01T00:00:00Z"}); err == nil {
+		t.Fatal("restore preview with future at error = nil, want error")
+	}
 	if err := run(context.Background(), &out, []string{"restore", "start"}); err == nil {
 		t.Fatal("restore start without backup error = nil, want error")
 	}
 	if err := run(context.Background(), &out, []string{"restore", "start", "--backup", "backup-1", "--dry-run", "--at", "bad"}); err == nil {
 		t.Fatal("restore start with bad at error = nil, want error")
+	}
+	if err := run(context.Background(), &out, []string{"restore", "start", "--backup", "backup-1", "--dry-run", "--at", "2999-01-01T00:00:00Z"}); err == nil {
+		t.Fatal("restore start with future at error = nil, want error")
 	}
 	if err := run(context.Background(), &out, []string{"restore", "missing"}); err == nil {
 		t.Fatal("restore missing error = nil, want error")
