@@ -226,7 +226,7 @@ jobs:
           #!/usr/bin/env sh
           set -eu
           command_name="$(basename "$0")"
-          exec docker run -i --rm --network host "mysql:${MYSQL_VERSION:?}" "$command_name" "$@"
+          exec docker run -i --rm --network host -e MYSQL_PWD="${MYSQL_PWD:-}" "mysql:${MYSQL_VERSION:?}" "$command_name" "$@"
           SH
             chmod +x ".tools/mysql-client/${command}"
           done
