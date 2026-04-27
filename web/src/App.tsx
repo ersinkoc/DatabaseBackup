@@ -111,8 +111,11 @@ type Backup = {
   target_id: string;
   storage_id: string;
   type: string;
+  manifest_id?: string;
+  started_at?: string;
   ended_at: string;
   size_bytes: number;
+  chunk_count?: number;
   protected: boolean;
 };
 
@@ -172,6 +175,8 @@ export function App() {
   const [storages, setStorages] = useState<Storage[]>([]);
   const [updatingBackupID, setUpdatingBackupID] = useState<string | null>(null);
   const [updatingJobID, setUpdatingJobID] = useState<string | null>(null);
+  const [selectedBackup, setSelectedBackup] = useState<Backup | null>(null);
+  const [loadingBackupID, setLoadingBackupID] = useState<string | null>(null);
 
   async function loadOverview({ refresh = false }: { refresh?: boolean } = {}) {
     if (refresh) {
@@ -269,6 +274,18 @@ export function App() {
       setDetailError(err instanceof Error ? err.message : `job ${action} failed`);
     } finally {
       setUpdatingJobID(null);
+    }
+  }
+
+  async function inspectBackup(backup: Backup) {
+    setLoadingBackupID(backup.id);
+    setDetailError(null);
+    try {
+      setSelectedBackup(await requestJSON<Backup>(`/api/v1/backups/${encodeURIComponent(backup.id)}`, apiToken));
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "backup detail request failed");
+    } finally {
+      setLoadingBackupID(null);
     }
   }
 
@@ -479,6 +496,15 @@ export function App() {
                           >
                             {updatingBackupID === backup.id ? "Saving" : backup.protected ? "Protected" : "Protect"}
                           </Button>
+                          <Button
+                            className="h-7 px-2 text-xs"
+                            disabled={loadingBackupID === backup.id}
+                            onClick={() => void inspectBackup(backup)}
+                            type="button"
+                            variant="ghost"
+                          >
+                            {loadingBackupID === backup.id ? "Loading" : "Details"}
+                          </Button>
                         </div>
                       </div>
                     ))
@@ -490,6 +516,8 @@ export function App() {
                   )}
                 </div>
               </section>
+
+              <BackupDetail backup={selectedBackup} />
             </aside>
           </div>
         </section>
@@ -559,6 +587,27 @@ function JobActionButton({ job, updating, onAction }: { job: Job; updating: bool
     );
   }
   return <span className="text-xs text-muted">-</span>;
+}
+
+function BackupDetail({ backup }: { backup: Backup | null }) {
+  if (!backup) {
+    return null;
+  }
+  return (
+    <section className="rounded-md border border-line bg-panel p-4">
+      <h2 className="text-base font-semibold">Backup detail</h2>
+      <div className="mt-4 grid gap-3">
+        <HealthRow label="ID" value={backup.id} tone="bronze" />
+        <HealthRow label="Type" value={backup.type || "-"} tone="indigo" />
+        <HealthRow label="Target" value={backup.target_id || "-"} tone="bronze" />
+        <HealthRow label="Storage" value={backup.storage_id || "-"} tone="indigo" />
+        <HealthRow label="Chunks" value={metricValue(backup.chunk_count, false)} tone="warning" />
+        <HealthRow label="Size" value={formatBytes(backup.size_bytes)} tone="success" />
+        <HealthRow label="Manifest" value={backup.manifest_id || "-"} tone="bronze" />
+        <HealthRow label="Ended" value={formatDateTime(backup.ended_at) ?? "-"} tone="indigo" />
+      </div>
+    </section>
+  );
 }
 
 async function requestJSON<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
