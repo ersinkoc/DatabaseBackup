@@ -671,7 +671,7 @@ flowchart TD
 
 Recommended next engineering slices:
 
-1. Add PostgreSQL conformance and E2E tests with a real service and restore verification.
+1. Extend PostgreSQL hardening around roles, global objects, version compatibility, and larger restore drills.
 2. Expand database driver coverage to MySQL and MongoDB.
 3. Deepen the WebUI from operational dashboard shell into resource CRUD and job detail workflows.
 4. Add storage backend parity for the domain-level kinds already present in `core.StorageKind`.
