@@ -12,6 +12,18 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,6 +54,14 @@ jobs:
 
       - name: Test
         run: go test -race ./...
+
+      - name: PostgreSQL conformance
+        env:
+          KRONOS_POSTGRES_TEST_DSN: postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          go test -tags=integration ./internal/drivers/postgres
 
       - name: Production readiness gate
         run: ./scripts/production-check.sh
