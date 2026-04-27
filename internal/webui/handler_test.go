@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -30,7 +31,14 @@ func TestHandlerServesIndexAndSPAFallback(t *testing.T) {
 func TestHandlerServesImmutableHashedAssets(t *testing.T) {
 	t.Parallel()
 
-	req := httptest.NewRequest(http.MethodGet, "/assets/index-B2p5ODFz.js", nil)
+	assets, err := fs.Glob(embeddedStatic, "static/assets/index-*.js")
+	if err != nil {
+		t.Fatalf("Glob(asset) error = %v", err)
+	}
+	if len(assets) == 0 {
+		t.Fatal("embedded static assets missing index bundle")
+	}
+	req := httptest.NewRequest(http.MethodGet, strings.TrimPrefix(assets[0], "static"), nil)
 	rec := httptest.NewRecorder()
 	Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {

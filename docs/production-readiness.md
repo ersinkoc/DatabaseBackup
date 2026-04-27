@@ -141,7 +141,8 @@ executes `kronos version`.
 1. Add broader MongoDB version/recovery coverage, including authenticated
    targets and larger archive restore drills.
 2. Extend PostgreSQL hardening around broader upgrade rehearsal evidence.
-3. WebUI live API wiring for overview, jobs, backups, agents, and readiness.
+3. Expand the WebUI beyond the live overview dashboard into resource CRUD, job
+   detail, backup detail, and restore workflows.
 4. Production deployment hardening for single-replica Kubernetes and external
    secret management.
 5. Run a signed-tag release rehearsal and archive checksum, signature, and
