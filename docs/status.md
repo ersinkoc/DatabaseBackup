@@ -94,8 +94,10 @@ The repository currently passes the full Go test suite:
 ```
 
 The docs test also checks local Markdown links, and the OpenAPI package has a
-checked spec test. The latest scans did not find outstanding `TODO`, `FIXME`,
-or `not implemented` markers in the primary source and docs paths.
+checked spec test. The current explicit `not implemented` markers are
+intentional fail-fast boundaries for roadmap database drivers and storage
+backends; unsupported capabilities are surfaced early instead of falling
+through to ambiguous runtime behavior.
 
 ## Known Gaps
 
