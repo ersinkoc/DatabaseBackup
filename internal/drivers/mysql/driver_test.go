@@ -81,7 +81,7 @@ func TestDriverBackupFullUsesMysqlDump(t *testing.T) {
 	}
 }
 
-func TestDriverBackupFullCanDisableGTIDPurged(t *testing.T) {
+func TestDriverBackupFullCanOmitGTIDPurged(t *testing.T) {
 	t.Parallel()
 
 	runner := &fakeRunner{outputs: [][]byte{[]byte("create table users(id int);\n")}}
@@ -91,7 +91,7 @@ func TestDriverBackupFullCanDisableGTIDPurged(t *testing.T) {
 			"database": "app",
 		},
 		Options: map[string]string{
-			"set_gtid_purged": "false",
+			"set_gtid_purged": "omit",
 		},
 	}
 	if _, err := driver.BackupFull(context.Background(), target, &drivers.MemoryRecordStream{}); err != nil {
@@ -99,7 +99,7 @@ func TestDriverBackupFullCanDisableGTIDPurged(t *testing.T) {
 	}
 	args := strings.Join(runner.calls[0].args, " ")
 	if strings.Contains(args, "--set-gtid-purged") {
-		t.Fatalf("mysqldump args include disabled GTID option: %q", args)
+		t.Fatalf("mysqldump args include omitted GTID option: %q", args)
 	}
 }
 

@@ -153,19 +153,26 @@ func mysqlDumpArgs(target drivers.Target) []string {
 		"--triggers",
 		"--events",
 	)
-	if mysqlSetGTIDPurged(target) {
-		args = append(args, "--set-gtid-purged=OFF")
+	if mode := mysqlSetGTIDPurgedMode(target); mode != "" {
+		args = append(args, "--set-gtid-purged="+mode)
 	}
 	return args
 }
 
-func mysqlSetGTIDPurged(target drivers.Target) bool {
+func mysqlSetGTIDPurgedMode(target drivers.Target) string {
 	value := strings.TrimSpace(firstNonEmpty(
 		target.Options["set_gtid_purged"],
 		target.Options["dump_set_gtid_purged"],
 		target.Connection["set_gtid_purged"],
 	))
-	return !strings.EqualFold(value, "false") && value != "0"
+	switch strings.ToLower(value) {
+	case "", "false", "0", "off":
+		return "OFF"
+	case "omit", "unsupported", "none":
+		return ""
+	default:
+		return strings.ToUpper(value)
+	}
 }
 
 func mysqlArgs(target drivers.Target) []string {

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -25,10 +26,11 @@ func TestMySQLDriverConformanceBackupRestore(t *testing.T) {
 	requireCommand(t, "mysql")
 	requireCommand(t, "mysqldump")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
 	suffix := randomHex(t, 4)
+	bulkRows := mysqlBulkRows(t)
 	sourceDB := "kronos_src_" + suffix
 	restoreDB := "kronos_restore_" + suffix
 	restoreAddr := firstNonEmpty(strings.TrimSpace(os.Getenv("KRONOS_MYSQL_RESTORE_ADDR")), sourceAddr)
@@ -49,8 +51,8 @@ func TestMySQLDriverConformanceBackupRestore(t *testing.T) {
 	defer cleanupDatabase(t, context.Background(), sourceAdmin, sourceDB)
 	defer cleanupDatabase(t, context.Background(), restoreAdmin, restoreDB)
 
-	runMySQL(t, ctx, sourceAdmin, fmt.Sprintf("create database %s;", sourceDB))
-	runMySQL(t, ctx, sourceTarget, mysqlSeedSQL(suffix))
+	runMySQL(t, ctx, sourceAdmin, createDatabaseSQL(sourceDB))
+	runMySQL(t, ctx, sourceTarget, mysqlSeedSQL(suffix, bulkRows))
 
 	driver := NewDriver()
 	var backup drivers.MemoryRecordStream
@@ -71,7 +73,7 @@ func TestMySQLDriverConformanceBackupRestore(t *testing.T) {
 	}
 
 	cleanupDatabase(t, ctx, sourceAdmin, sourceDB)
-	runMySQL(t, ctx, restoreAdmin, fmt.Sprintf("create database %s;", restoreDB))
+	runMySQL(t, ctx, restoreAdmin, createDatabaseSQL(restoreDB))
 	var restore drivers.MemoryRecordStream
 	if err := restore.WriteRecord(drivers.ObjectRef{Name: restoreDB, Kind: databaseObjectKind}, records[0].Payload); err != nil {
 		t.Fatalf("WriteRecord(restore) error = %v", err)
@@ -86,11 +88,14 @@ func TestMySQLDriverConformanceBackupRestore(t *testing.T) {
 	if got := queryMySQLScalar(t, ctx, restoreTarget, "select name from users where id = 1;"); got != "Ada" {
 		t.Fatalf("restored id=1 name = %q, want Ada", got)
 	}
-	if got := queryMySQLScalar(t, ctx, restoreTarget, "select count(*) from bulk_items;"); got != "500" {
-		t.Fatalf("restored bulk count = %q, want 500", got)
+	wantBulkRows := strconv.Itoa(bulkRows)
+	if got := queryMySQLScalar(t, ctx, restoreTarget, "select count(*) from bulk_items;"); got != wantBulkRows {
+		t.Fatalf("restored bulk count = %q, want %s", got, wantBulkRows)
 	}
-	if got := queryMySQLScalar(t, ctx, restoreTarget, "select concat(sum(id), ':', sum(cast(json_unquote(json_extract(payload, '$.rank')) as unsigned))) from bulk_items;"); got != "125250:125250" {
-		t.Fatalf("restored bulk checksum = %q, want 125250:125250", got)
+	wantChecksum := strconv.Itoa((bulkRows * (bulkRows + 1)) / 2)
+	wantBulkChecksum := wantChecksum + ":" + wantChecksum
+	if got := queryMySQLScalar(t, ctx, restoreTarget, "select concat(sum(id), ':', sum(cast(json_unquote(json_extract(payload, '$.rank')) as unsigned))) from bulk_items;"); got != wantBulkChecksum {
+		t.Fatalf("restored bulk checksum = %q, want %s", got, wantBulkChecksum)
 	}
 	indexSQL := fmt.Sprintf("select count(*) from information_schema.statistics where table_schema = '%s' and table_name = 'bulk_items' and index_name = 'bulk_items_label_idx';", restoreDB)
 	if got := queryMySQLScalar(t, ctx, restoreTarget, indexSQL); got != "1" {
@@ -98,7 +103,11 @@ func TestMySQLDriverConformanceBackupRestore(t *testing.T) {
 	}
 }
 
-func mysqlSeedSQL(suffix string) string {
+func createDatabaseSQL(database string) string {
+	return fmt.Sprintf("create database %s character set utf8mb4 collate utf8mb4_unicode_ci;", database)
+}
+
+func mysqlSeedSQL(suffix string, bulkRows int) string {
 	var b strings.Builder
 	b.WriteString(`
 create table users(id integer primary key, name varchar(64) not null);
@@ -111,7 +120,7 @@ create table bulk_items(
 insert into users(id, name) values (1, 'Ada'), (2, 'Grace');
 insert into bulk_items(id, label, payload, created_at) values
 `)
-	for i := 1; i <= 500; i++ {
+	for i := 1; i <= bulkRows; i++ {
 		if i > 1 {
 			b.WriteString(",\n")
 		}
@@ -119,6 +128,20 @@ insert into bulk_items(id, label, payload, created_at) values
 	}
 	b.WriteString(";\ncreate index bulk_items_label_idx on bulk_items(label);\n")
 	return b.String()
+}
+
+func mysqlBulkRows(t *testing.T) int {
+	t.Helper()
+
+	value := strings.TrimSpace(os.Getenv("KRONOS_MYSQL_BULK_ROWS"))
+	if value == "" {
+		return 500
+	}
+	rows, err := strconv.Atoi(value)
+	if err != nil || rows < 1 {
+		t.Fatalf("KRONOS_MYSQL_BULK_ROWS = %q, want positive integer", value)
+	}
+	return rows
 }
 
 func mysqlTestTarget(addr string, database string, username string, password string) drivers.Target {

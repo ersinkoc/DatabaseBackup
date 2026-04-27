@@ -291,6 +291,71 @@ jobs:
           KRONOS_MYSQL_TEST_ADDR: 127.0.0.1:3307
           KRONOS_MYSQL_TEST_USER: root
           KRONOS_MYSQL_TEST_PASSWORD: mariadb
-          KRONOS_MYSQL_DUMP_SET_GTID_PURGED: "false"
+          KRONOS_MYSQL_DUMP_SET_GTID_PURGED: omit
           MARIADB_VERSION: "11.4"
+        run: go test -tags=integration ./internal/drivers/mysql
+
+  mysql-to-mariadb-restore-rehearsal:
+    name: mysql-to-mariadb-restore-rehearsal (8.4-to-11.4)
+    runs-on: ubuntu-latest
+    services:
+      mysql-source:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: mysql
+        ports:
+          - 13306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -pmysql"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      mariadb-target:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: mariadb
+        ports:
+          - 13307:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+          cache: true
+
+      - name: Create MySQL client wrappers
+        env:
+          MYSQL_VERSION: "8.4"
+        run: |
+          mkdir -p .tools/mysql-client
+          for command in mysql mysqldump; do
+            cat > ".tools/mysql-client/${command}" <<'SH'
+          #!/usr/bin/env sh
+          set -eu
+          command_name="$(basename "$0")"
+          exec docker run -i --rm --network host -e MYSQL_PWD="${MYSQL_PWD:-}" "mysql:${MYSQL_VERSION:?}" "$command_name" "$@"
+          SH
+            chmod +x ".tools/mysql-client/${command}"
+          done
+          echo "$PWD/.tools/mysql-client" >> "$GITHUB_PATH"
+
+      - name: MySQL to MariaDB restore rehearsal
+        env:
+          KRONOS_MYSQL_TEST_ADDR: 127.0.0.1:13306
+          KRONOS_MYSQL_TEST_USER: root
+          KRONOS_MYSQL_TEST_PASSWORD: mysql
+          KRONOS_MYSQL_RESTORE_ADDR: 127.0.0.1:13307
+          KRONOS_MYSQL_RESTORE_USER: root
+          KRONOS_MYSQL_RESTORE_PASSWORD: mariadb
+          KRONOS_MYSQL_DUMP_SET_GTID_PURGED: "off"
+          KRONOS_MYSQL_BULK_ROWS: "1500"
+          MYSQL_VERSION: "8.4"
         run: go test -tags=integration ./internal/drivers/mysql
