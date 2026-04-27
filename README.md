@@ -40,8 +40,9 @@ This repository currently has the Phase 0 foundation in place and active Phase
   scheduler ticks/background loop
 - driver scaffold: generic driver interfaces plus executable Redis/Valkey
   SCAN/DUMP/RESTORE support with ACL snapshot/restore records and JSON command
-  stream replay. PostgreSQL has a logical `pg_dump`/`psql` MVP; MySQL/MariaDB
-  and MongoDB remain roadmap drivers in this build.
+  stream replay. PostgreSQL has a logical `pg_dump`/`psql` MVP, and
+  MySQL/MariaDB has a `mysqldump`/`mysql` logical MVP. MongoDB remains a
+  roadmap driver in this build.
 - CLI: dispatcher, version, database repair,
   backup now/list/inspect/protect/unprotect/verification,
   target/storage add/list/inspect/update/remove, schedule add/list/inspect/pause/resume/remove,

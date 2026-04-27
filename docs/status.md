@@ -147,8 +147,10 @@ production suite. The largest remaining areas are:
   PostgreSQL 15-to-17 restore rehearsal. Remaining hardening is around
   full-cluster global-object restore rehearsals, operator-scale restore drills,
   and broader upgrade rehearsal evidence.
-- Additional database drivers such as MySQL and MongoDB. Current executable
-  driver coverage is Redis/Valkey plus the PostgreSQL logical MVP.
+- Additional database driver depth. Current executable driver coverage is
+  Redis/Valkey, the PostgreSQL logical MVP, and a MySQL/MariaDB
+  `mysqldump`/`mysql` logical MVP with unit coverage. MySQL/MariaDB still needs
+  real-service conformance, and MongoDB remains roadmap work.
 - Additional storage backends such as SFTP, Azure Blob, and Google Cloud
   Storage. Current executable backends are local filesystem and S3-compatible
   object storage.
@@ -161,13 +163,14 @@ production suite. The largest remaining areas are:
 
 ## Next Best Work
 
-1. Extend PostgreSQL hardening around full-cluster global-object restore
+1. Add MySQL/MariaDB real-service conformance and restore rehearsal coverage.
+2. Extend PostgreSQL hardening around full-cluster global-object restore
    rehearsals, operator-scale restore drills, and broader upgrade rehearsal
    evidence.
-2. Wire the WebUI to live API endpoints for dashboard state, jobs, backups, and
+3. Wire the WebUI to live API endpoints for dashboard state, jobs, backups, and
    agents.
-3. Add additional notification channels and hook execution surfaces.
-4. Run a signed-tag release rehearsal and archive checksum, signature, and
+4. Add additional notification channels and hook execution surfaces.
+5. Run a signed-tag release rehearsal and archive checksum, signature, and
    attestation verification evidence.
-5. Add cloud-specific deployment manifests for common managed Kubernetes
+6. Add cloud-specific deployment manifests for common managed Kubernetes
    environments.

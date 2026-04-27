@@ -98,8 +98,12 @@ backup should also capture PostgreSQL global role metadata through
 read those objects, and role passwords are intentionally excluded. PostgreSQL
 restore requires `--replace-existing` and `--yes`; the driver refuses
 non-dry-run plain SQL restores without `replace_existing=true` and runs `psql`
-in a single transaction. MySQL/MariaDB and MongoDB are still roadmap drivers and
-fail fast with an explicit unsupported-driver error when probed or executed.
+in a single transaction. MySQL/MariaDB has a logical backup/restore MVP that
+shells out to `mysqldump` for full backups and `mysql` for restores; install
+matching MySQL or MariaDB client tools on worker agents before using it. MySQL
+restore also requires explicit replace-existing intent. MongoDB is still a
+roadmap driver and fails fast with an explicit unsupported-driver error when
+probed or executed.
 
 ## 6. Run A Backup
 
