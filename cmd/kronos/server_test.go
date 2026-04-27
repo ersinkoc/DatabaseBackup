@@ -3083,6 +3083,18 @@ func TestServerTargetCRUD(t *testing.T) {
 		t.Fatalf("target secrets status=%d body=%q", resp.StatusCode, body.String())
 	}
 
+	req, err = http.NewRequest(http.MethodPut, server.URL+"/api/v1/targets/missing", strings.NewReader(`{"name":"redis-prod","driver":"redis","endpoint":"127.0.0.1:6380"}`))
+	if err != nil {
+		t.Fatalf("NewRequest(PUT missing target) error = %v", err)
+	}
+	resp, err = server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("PUT missing target error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("PUT missing target status = %d, want 404", resp.StatusCode)
+	}
 	req, err = http.NewRequest(http.MethodDelete, server.URL+"/api/v1/targets/target-1", nil)
 	if err != nil {
 		t.Fatalf("NewRequest(DELETE) error = %v", err)
@@ -3281,6 +3293,18 @@ func TestServerScheduleCRUD(t *testing.T) {
 	if resp.StatusCode != http.StatusOK || !strings.Contains(body.String(), `"name":"early"`) || !strings.Contains(body.String(), `"expression":"0 1 * * *"`) {
 		t.Fatalf("PUT schedule status=%d body=%q", resp.StatusCode, body.String())
 	}
+	req, err = http.NewRequest(http.MethodPut, server.URL+"/api/v1/schedules/missing", strings.NewReader(`{"name":"missing","target_id":"target-1","storage_id":"storage-1","backup_type":"full","expression":"0 1 * * *"}`))
+	if err != nil {
+		t.Fatalf("NewRequest(PUT missing schedule) error = %v", err)
+	}
+	resp, err = server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("PUT missing schedule error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("PUT missing schedule status = %d, want 404", resp.StatusCode)
+	}
 	resp, err = server.Client().Post(server.URL+"/api/v1/schedules/schedule-1/pause", "application/json", nil)
 	if err != nil {
 		t.Fatalf("POST schedule pause error = %v", err)
@@ -3304,6 +3328,22 @@ func TestServerScheduleCRUD(t *testing.T) {
 	resp.Body.Close()
 	if !strings.Contains(body.String(), `"paused":false`) {
 		t.Fatalf("schedule resume body = %q", body.String())
+	}
+	resp, err = server.Client().Post(server.URL+"/api/v1/schedules/missing/pause", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST missing schedule pause error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("POST missing schedule pause status = %d, want 404", resp.StatusCode)
+	}
+	resp, err = server.Client().Post(server.URL+"/api/v1/schedules/missing/resume", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST missing schedule resume error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("POST missing schedule resume status = %d, want 404", resp.StatusCode)
 	}
 	req, err = http.NewRequest(http.MethodDelete, server.URL+"/api/v1/schedules/schedule-1", nil)
 	if err != nil {
@@ -3412,6 +3452,18 @@ func TestServerStorageCRUD(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || !strings.Contains(body.String(), "new-secret") {
 		t.Fatalf("GET storage secrets status=%d body=%q", resp.StatusCode, body.String())
+	}
+	req, err = http.NewRequest(http.MethodPut, server.URL+"/api/v1/storages/missing", strings.NewReader(`{"name":"primary-local","kind":"local","uri":"file:///repo2"}`))
+	if err != nil {
+		t.Fatalf("NewRequest(PUT missing storage) error = %v", err)
+	}
+	resp, err = server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("PUT missing storage error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("PUT missing storage status = %d, want 404", resp.StatusCode)
 	}
 	req, err = http.NewRequest(http.MethodDelete, server.URL+"/api/v1/storages/storage-1", nil)
 	if err != nil {

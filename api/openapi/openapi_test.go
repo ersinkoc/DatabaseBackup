@@ -151,6 +151,21 @@ func TestOpenAPIDocumentsBackupProtectionNotFoundResponses(t *testing.T) {
 	}
 }
 
+func TestOpenAPIDocumentsInventoryNotFoundResponses(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("openapi.yaml")
+	if err != nil {
+		t.Fatalf("ReadFile(openapi.yaml) error = %v", err)
+	}
+	text := string(data)
+	for _, want := range []string{"Get target", "Update target", "Target not found", "Get storage", "Update storage", "Storage not found", "Get schedule", "Update schedule", "Pause schedule", "Resume schedule", "Schedule not found"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("openapi.yaml missing %q", want)
+		}
+	}
+}
+
 func collectRefs(value any) []string {
 	var refs []string
 	switch typed := value.(type) {

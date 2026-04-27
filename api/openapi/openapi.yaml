@@ -885,6 +885,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Target"
+        "404":
+          description: Target not found
     put:
       summary: Update target
       parameters:
@@ -902,6 +904,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Target"
+        "404":
+          description: Target not found
     delete:
       summary: Delete target
       parameters:
@@ -957,6 +961,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Storage"
+        "404":
+          description: Storage not found
     put:
       summary: Update storage
       parameters:
@@ -974,6 +980,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Storage"
+        "404":
+          description: Storage not found
     delete:
       summary: Delete storage
       parameters:
@@ -1020,6 +1028,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Schedule"
+        "404":
+          description: Schedule not found
     put:
       summary: Update schedule
       parameters:
@@ -1037,6 +1047,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Schedule"
+        "404":
+          description: Schedule not found
     delete:
       summary: Delete schedule
       parameters:
@@ -1058,6 +1070,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Schedule"
+        "404":
+          description: Schedule not found
   /api/v1/schedules/{id}/resume:
     post:
       summary: Resume schedule
@@ -1070,6 +1084,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Schedule"
+        "404":
+          description: Schedule not found
 components:
   securitySchemes:
     bearerAuth:
