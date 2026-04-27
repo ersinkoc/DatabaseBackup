@@ -1845,6 +1845,9 @@ func parseAuditListFilters(r *http.Request) (auditListFilters, error) {
 			return auditListFilters{}, fmt.Errorf("invalid until filter: %w", err)
 		}
 	}
+	if err := validateTimeRange(filters.Since, filters.Until); err != nil {
+		return auditListFilters{}, err
+	}
 	if query.Get("limit") != "" {
 		filters.Limit, err = strconv.Atoi(query.Get("limit"))
 		if err != nil || filters.Limit < 0 {
@@ -2616,6 +2619,9 @@ func parseJobListFilters(r *http.Request) (jobListFilters, error) {
 			return jobListFilters{}, fmt.Errorf("invalid until filter: %w", err)
 		}
 	}
+	if err := validateTimeRange(filters.Since, filters.Until); err != nil {
+		return jobListFilters{}, err
+	}
 	return filters, nil
 }
 
@@ -2855,6 +2861,9 @@ func parseBackupListFilters(r *http.Request) (backupListFilters, error) {
 			return backupListFilters{}, fmt.Errorf("invalid until filter: %w", err)
 		}
 	}
+	if err := validateTimeRange(filters.Since, filters.Until); err != nil {
+		return backupListFilters{}, err
+	}
 	if query.Get("protected") != "" {
 		filters.HasProtected = true
 		filters.Protected, err = strconv.ParseBool(query.Get("protected"))
@@ -2863,6 +2872,13 @@ func parseBackupListFilters(r *http.Request) (backupListFilters, error) {
 		}
 	}
 	return filters, nil
+}
+
+func validateTimeRange(since time.Time, until time.Time) error {
+	if !since.IsZero() && !until.IsZero() && since.After(until) {
+		return fmt.Errorf("since filter must be before or equal to until filter")
+	}
+	return nil
 }
 
 func parseBackupListTime(value string, now time.Time) (time.Time, error) {
