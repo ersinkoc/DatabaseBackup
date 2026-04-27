@@ -33,15 +33,18 @@ func TestPostgresDriverConformanceBackupRestore(t *testing.T) {
 	restoreSchema := "kronos_restore_" + suffix
 	failureSchema := "kronos_fail_" + suffix
 	roleName := "kronos_role_" + suffix
+	globalRestoreRoleName := "kronos_global_restore_" + suffix
 	restoreDSN := firstNonEmpty(strings.TrimSpace(os.Getenv("KRONOS_POSTGRES_RESTORE_DSN")), sourceDSN)
 	cleanupSchema(t, ctx, sourceDSN, sourceSchema)
 	cleanupSchema(t, ctx, restoreDSN, restoreSchema)
 	cleanupSchema(t, ctx, restoreDSN, failureSchema)
 	cleanupRole(t, ctx, sourceDSN, roleName)
+	cleanupRole(t, ctx, restoreDSN, globalRestoreRoleName)
 	defer cleanupSchema(t, context.Background(), sourceDSN, sourceSchema)
 	defer cleanupSchema(t, context.Background(), restoreDSN, restoreSchema)
 	defer cleanupSchema(t, context.Background(), restoreDSN, failureSchema)
 	defer cleanupRole(t, context.Background(), sourceDSN, roleName)
+	defer cleanupRole(t, context.Background(), restoreDSN, globalRestoreRoleName)
 
 	seedSQL := fmt.Sprintf(`
 create extension if not exists pgcrypto;
@@ -84,6 +87,22 @@ create index bulk_items_label_idx on %s.bulk_items(label);
 	}
 	if !strings.Contains(string(records[2].Payload), sourceSchema) || !strings.Contains(string(records[2].Payload), "Ada") {
 		t.Fatalf("backup records do not contain expected source data: %#v", records)
+	}
+	var globalRestore drivers.MemoryRecordStream
+	globalRestoreSQL := fmt.Sprintf("create role %s; comment on role %s is 'kronos global restore drill';", globalRestoreRoleName, globalRestoreRoleName)
+	if err := globalRestore.WriteRecord(drivers.ObjectRef{Name: "globals", Kind: globalsObjectKind}, []byte(globalRestoreSQL)); err != nil {
+		t.Fatalf("WriteRecord(globals restore) error = %v", err)
+	}
+	if err := driver.Restore(ctx, drivers.Target{Connection: map[string]string{"dsn": restoreDSN}}, &globalRestore, drivers.RestoreOptions{ReplaceExisting: true}); err != nil {
+		t.Fatalf("Restore(globals) error = %v", err)
+	}
+	restoredRole := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select exists(select 1 from pg_roles where rolname = '%s');", globalRestoreRoleName))
+	if restoredRole != "t" {
+		t.Fatalf("restored global role presence = %q, want t", restoredRole)
+	}
+	restoredRoleComment := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select coalesce(shobj_description((select oid from pg_roles where rolname = '%s'), 'pg_authid'), '');", globalRestoreRoleName))
+	if restoredRoleComment != "kronos global restore drill" {
+		t.Fatalf("restored global role comment = %q, want drill comment", restoredRoleComment)
 	}
 	runPSQL(t, ctx, sourceDSN, fmt.Sprintf("select lo_unlink(payload_oid) from %s.documents; drop schema %s cascade;", sourceSchema, sourceSchema))
 
