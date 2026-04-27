@@ -7,9 +7,11 @@ info:
     token is provided, endpoints enforce exact scopes plus resource:*,
     admin:*, or *. Clients may send X-Kronos-Request-ID for request
     correlation; the control plane echoes it on every response or generates one
-    when omitted. Control-plane API, health, readiness, and metrics responses
-    are sent with `Cache-Control: no-store`, and API/WebUI responses include
-    baseline browser security headers such as X-Content-Type-Options,
+    when omitted. Health, readiness, metrics, and overview endpoints support
+    GET and HEAD for probe-friendly status checks. Control-plane API, health,
+    readiness, and metrics responses are sent with `Cache-Control: no-store`,
+    and API/WebUI responses include baseline browser security headers such as
+    X-Content-Type-Options,
     X-Frame-Options, Referrer-Policy, Permissions-Policy, and
     Content-Security-Policy.
 servers:
@@ -25,6 +27,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
+    head:
+      summary: Health check headers
+      responses:
+        "200":
+          description: Server health without a response body
   /readyz:
     get:
       summary: Readiness check
@@ -41,6 +48,13 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReadinessResponse"
+    head:
+      summary: Readiness check headers
+      responses:
+        "200":
+          description: State stores are readable without a response body
+        "503":
+          description: One or more state stores are unavailable
   /metrics:
     get:
       summary: Prometheus metrics
@@ -80,6 +94,11 @@ paths:
             text/plain:
               schema:
                 type: string
+    head:
+      summary: Prometheus metrics headers
+      responses:
+        "200":
+          description: Metrics endpoint availability without a response body
   /api/v1/overview:
     get:
       summary: Operations overview
@@ -90,6 +109,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OverviewResponse"
+    head:
+      summary: Operations overview headers
+      responses:
+        "200":
+          description: Overview endpoint availability without a response body
   /api/v1/agents:
     get:
       summary: List agents

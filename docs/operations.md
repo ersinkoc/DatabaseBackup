@@ -112,7 +112,9 @@ from the control-plane store.
 For dashboard integrations, use `GET /api/v1/overview` to fetch a compact JSON
 summary of agent capacity, inventory counts, active job counts, backup totals,
 readiness checks, attention counters, and the latest jobs/backups without
-scraping Prometheus text output.
+scraping Prometheus text output. `HEAD /healthz`, `HEAD /readyz`,
+`HEAD /metrics`, and `HEAD /api/v1/overview` are also supported for load
+balancers and uptime checks that only need status and headers.
 
 The control plane sends conservative browser security headers on API and WebUI
 responses, including `X-Content-Type-Options`, `X-Frame-Options`,

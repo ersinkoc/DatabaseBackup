@@ -76,6 +76,21 @@ func TestOpenAPIDocumentsSecurityHeaders(t *testing.T) {
 	}
 }
 
+func TestOpenAPIDocumentsHeadProbes(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("openapi.yaml")
+	if err != nil {
+		t.Fatalf("ReadFile(openapi.yaml) error = %v", err)
+	}
+	text := string(data)
+	for _, want := range []string{"GET and HEAD", "Health check headers", "Readiness check headers", "Prometheus metrics headers", "Operations overview headers"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("openapi.yaml missing %q", want)
+		}
+	}
+}
+
 func TestOpenAPIDocumentsOverview(t *testing.T) {
 	t.Parallel()
 

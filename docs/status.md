@@ -53,11 +53,12 @@ flowchart LR
 - Dashboard-oriented operations overview API with inventory counts, active job
   state, backup totals, readiness state, attention counters, and latest activity
   slices.
-- Readiness, health, Prometheus metrics, operations docs, CLI docs, quickstart,
-  architecture docs, deployment topology guidance, restore drill guidance,
-  multi-platform release artifacts, checksums, provenance metadata, SBOM
-  metadata, container builds, GitHub release publishing, Kubernetes deployment
-  examples, and cloud secret integration guidance.
+- Readiness, health, Prometheus metrics with `GET`/`HEAD` probe support,
+  operations docs, CLI docs, quickstart, architecture docs, deployment topology
+  guidance, restore drill guidance, multi-platform release artifacts, checksums,
+  provenance metadata, SBOM metadata, container builds, GitHub release
+  publishing, Kubernetes deployment examples, and cloud secret integration
+  guidance.
 
 ## Recent Progress
 

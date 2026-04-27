@@ -660,9 +660,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 	authLimiter := newAuthRateLimiter(authRateLimitSettings(cfg))
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.Header().Set("Allow", http.MethodGet)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodGet, http.MethodHead) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -674,17 +672,13 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		fmt.Fprintf(w, `{"status":"ok","projects":%d}`, len(cfg.Projects))
 	})
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.Header().Set("Allow", http.MethodGet)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodGet, http.MethodHead) {
 			return
 		}
 		handleReadiness(w, r, stores)
 	})
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.Header().Set("Allow", http.MethodGet)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodGet, http.MethodHead) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "metrics:read") {
@@ -693,9 +687,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		handleMetrics(w, r, registry, stores, authLimiter, startedAt)
 	})
 	mux.HandleFunc("/api/v1/overview", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.Header().Set("Allow", http.MethodGet)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodGet, http.MethodHead) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "metrics:read") {
@@ -1278,6 +1270,17 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 	})
 	mux.Handle("/", webui.Handler())
 	return withSecurityHeaders(withControlPlaneCacheHeaders(withRequestID(mux)))
+}
+
+func allowMethods(w http.ResponseWriter, r *http.Request, methods ...string) bool {
+	for _, method := range methods {
+		if r.Method == method {
+			return true
+		}
+	}
+	w.Header().Set("Allow", strings.Join(methods, ", "))
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	return false
 }
 
 func writeJSON(w http.ResponseWriter, value any) {

@@ -212,6 +212,63 @@ func TestServerControlPlaneResponsesAreNotCached(t *testing.T) {
 	}
 }
 
+func TestServerControlPlaneHeadEndpoints(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(newServerHandler(nil))
+	defer server.Close()
+
+	for _, path := range []string{"/healthz", "/readyz", "/metrics", "/api/v1/overview"} {
+		req, err := http.NewRequest(http.MethodHead, server.URL+path, nil)
+		if err != nil {
+			t.Fatalf("NewRequest(%s) error = %v", path, err)
+		}
+		resp, err := server.Client().Do(req)
+		if err != nil {
+			t.Fatalf("HEAD %s error = %v", path, err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("HEAD %s status = %d, want 200", path, resp.StatusCode)
+		}
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("ReadAll(%s) error = %v", path, err)
+		}
+		if len(body) != 0 {
+			t.Fatalf("HEAD %s body length = %d, want 0", path, len(body))
+		}
+		if got := resp.Header.Get("Cache-Control"); got != "no-store" {
+			t.Fatalf("HEAD %s Cache-Control = %q, want no-store", path, got)
+		}
+	}
+}
+
+func TestServerControlPlaneReadOnlyAllowHeaders(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(newServerHandler(nil))
+	defer server.Close()
+
+	for _, path := range []string{"/healthz", "/readyz", "/metrics", "/api/v1/overview"} {
+		req, err := http.NewRequest(http.MethodPost, server.URL+path, nil)
+		if err != nil {
+			t.Fatalf("NewRequest(%s) error = %v", path, err)
+		}
+		resp, err := server.Client().Do(req)
+		if err != nil {
+			t.Fatalf("POST %s error = %v", path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusMethodNotAllowed {
+			t.Fatalf("POST %s status = %d, want 405", path, resp.StatusCode)
+		}
+		if got := resp.Header.Get("Allow"); got != "GET, HEAD" {
+			t.Fatalf("POST %s Allow = %q, want GET, HEAD", path, got)
+		}
+	}
+}
+
 func TestAuditMetadataUsesRequestContext(t *testing.T) {
 	t.Parallel()
 

@@ -243,7 +243,7 @@ classDiagram
 
 ## Control-Plane Request Path
 
-The control plane is built directly on `net/http`. Persistent mode opens `state.db`, creates typed stores, seeds resources from config, starts the scheduler loop, and serves `/healthz`, `/readyz`, `/metrics`, `/api/v1/*`, `/api/v1/overview`, and the embedded WebUI.
+The control plane is built directly on `net/http`. Persistent mode opens `state.db`, creates typed stores, seeds resources from config, starts the scheduler loop, and serves `/healthz`, `/readyz`, `/metrics`, `/api/v1/*`, `/api/v1/overview`, and the embedded WebUI. Health, readiness, metrics, and overview endpoints accept both `GET` and `HEAD` so probes can verify availability without transferring response bodies.
 
 ```mermaid
 sequenceDiagram

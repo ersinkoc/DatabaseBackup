@@ -57,8 +57,8 @@ This repository currently has the Phase 0 foundation in place and active Phase
   time windows
 - audit listing, tailing, and searching filters by actor, action, resource, and
   occurred-at windows
-- server: config-loading HTTP skeleton with `/healthz`, `/readyz`, `/metrics`, and
-  graceful shutdown
+- server: config-loading HTTP skeleton with `/healthz`, `/readyz`, `/metrics`,
+  probe-friendly `HEAD` handling, and graceful shutdown
 - local mode: starts an embedded control-plane server with local state and can
   run an embedded worker with `--work`
 - WebUI: embedded React/Tailwind operations dashboard served by the control
