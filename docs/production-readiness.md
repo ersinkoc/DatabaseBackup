@@ -12,9 +12,9 @@ operation.
 
 | Scope | Estimate | Notes |
 | --- | ---: | --- |
-| Implemented Redis/local/S3 path | 91% | Core pipeline, agent/server flow, restore planning, retention, audit, metrics, release scripts, Kubernetes examples, runbooks, a reusable production gate, and tagged worker/control-plane/Redis backup, restore, and retention apply E2E tests are in place. |
-| Broad multi-database product vision | 69% | The architecture is strong, but major drivers, storage backends, WebUI workflows, and multi-instance deployment patterns remain roadmap work. |
-| Current repository release hygiene | 89% | Tests, vet, format checks, OpenAPI checks, release artifacts, provenance, SBOM metadata, CI govulncheck, the production check script, and tagged backup/restore/retention E2E coverage are present. The `golang.org/x/crypto` advisories are fixed. |
+| Implemented Redis/local/S3 path | 92% | Core pipeline, agent/server flow, lost-agent recovery, restore planning, retention, audit, metrics, release scripts, Kubernetes examples, runbooks, a reusable production gate, and tagged worker/control-plane/Redis backup, restore, retention apply, and lost-agent recovery E2E tests are in place. |
+| Broad multi-database product vision | 70% | The architecture is strong, but major drivers, storage backends, WebUI workflows, and multi-instance deployment patterns remain roadmap work. |
+| Current repository release hygiene | 90% | Tests, vet, format checks, OpenAPI checks, release artifacts, provenance, SBOM metadata, CI govulncheck, the production check script, and tagged backup/restore/retention/recovery E2E coverage are present. The `golang.org/x/crypto` advisories are fixed. |
 
 ## Current Release Gate
 
@@ -47,14 +47,16 @@ executes `kronos version`.
 - Tagged E2E coverage exercises a control-plane HTTP server, worker agent,
   local repository storage, and Redis-compatible RESP target together for
   backup and restore. It also covers retention apply over committed backup
-  metadata, including dry-run behavior, deletion, and mutation audit recording:
+  metadata, including dry-run behavior, deletion, and mutation audit recording.
+  Lost-agent recovery is covered through heartbeat, claim, failed running job,
+  target unblock, and recovery audit behavior:
   `go test -tags=e2e ./cmd/kronos`.
 
 ## Blocking Work Before Calling The Whole Product Production-Ready
 
 1. Add at least one more first-class database driver, starting with PostgreSQL
    or MySQL, plus backup and restore conformance tests.
-2. Extend E2E coverage into failed-job recovery flows and more retention policy
+2. Extend E2E coverage into server restart recovery and more retention policy
    edge cases.
 3. Expand the WebUI from dashboard shell into live resource CRUD, job detail,
    backup detail, and restore workflows.
@@ -64,8 +66,8 @@ executes `kronos version`.
 
 ## Next Engineering Slices
 
-1. Add failed-job recovery E2E coverage for interrupted agents and restart
-   reconciliation.
+1. Add server restart recovery E2E coverage for active jobs reopened from
+   persisted state.
 2. PostgreSQL driver MVP with schema/data backup and restore smoke tests.
 3. WebUI live API wiring for overview, jobs, backups, agents, and readiness.
 4. Production deployment hardening for single-replica Kubernetes and external

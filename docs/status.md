@@ -110,7 +110,8 @@ backends; unsupported capabilities are surfaced early instead of falling
 through to ambiguous runtime behavior.
 
 Tagged E2E coverage is available for the implemented worker/control-plane/Redis
-backup and restore path, plus retention apply metadata pruning:
+backup and restore path, retention apply metadata pruning, and lost-agent
+recovery during job claim:
 
 ```bash
 .tools/go/bin/go test -tags=e2e ./cmd/kronos
@@ -141,8 +142,8 @@ are:
 
 1. Add another first-class database driver, starting with the smallest useful
    backup/restore slice and conformance tests.
-2. Add failed-job recovery E2E coverage for interrupted agents and restart
-   reconciliation.
+2. Add server restart recovery E2E coverage for active jobs reopened from
+   persisted state.
 3. Wire the WebUI to live API endpoints for dashboard state, jobs, backups, and
    agents.
 4. Add additional notification channels and hook execution surfaces.
