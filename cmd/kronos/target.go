@@ -10,6 +10,7 @@ import (
 
 	"github.com/kronos/kronos/internal/core"
 	"github.com/kronos/kronos/internal/drivers"
+	mysqldriver "github.com/kronos/kronos/internal/drivers/mysql"
 	postgresdriver "github.com/kronos/kronos/internal/drivers/postgres"
 	redisdriver "github.com/kronos/kronos/internal/drivers/redis"
 )
@@ -229,6 +230,9 @@ func runTargetTest(ctx context.Context, out io.Writer, args []string) error {
 		return fmt.Errorf("--endpoint is required")
 	}
 	registry := drivers.NewRegistry()
+	if err := registry.Register(mysqldriver.NewDriver()); err != nil {
+		return err
+	}
 	if err := registry.Register(postgresdriver.NewDriver()); err != nil {
 		return err
 	}

@@ -20,6 +20,7 @@ import (
 	kcompress "github.com/kronos/kronos/internal/compress"
 	kcrypto "github.com/kronos/kronos/internal/crypto"
 	"github.com/kronos/kronos/internal/drivers"
+	mysqldriver "github.com/kronos/kronos/internal/drivers/mysql"
 	postgresdriver "github.com/kronos/kronos/internal/drivers/postgres"
 	redisdriver "github.com/kronos/kronos/internal/drivers/redis"
 	"github.com/kronos/kronos/internal/obs"
@@ -174,6 +175,9 @@ func runAgentWorkerWithToken(ctx context.Context, httpClient *http.Client, serve
 		return fmt.Errorf("--key-id is required")
 	}
 	registry := drivers.NewRegistry()
+	if err := registry.Register(mysqldriver.NewDriver()); err != nil {
+		return err
+	}
 	if err := registry.Register(postgresdriver.NewDriver()); err != nil {
 		return err
 	}
