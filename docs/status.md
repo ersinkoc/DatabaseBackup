@@ -140,9 +140,10 @@ production suite. The largest remaining areas are:
   objects, explicit `replace_existing=true` guardrails, single-transaction
   `psql` execution, rollback behavior for failed restores, and optional
   `include_globals=true` capture of PostgreSQL role metadata through
-  `pg_dumpall --globals-only --no-role-passwords`. Remaining hardening is around
-  version compatibility, richer global-object restore drills, and larger restore
-  rehearsals.
+  `pg_dumpall --globals-only --no-role-passwords`, including a conformance
+  assertion that role password material is not emitted. Remaining hardening is
+  around version compatibility, richer global-object restore drills, and larger
+  restore rehearsals.
 - Additional database drivers such as MySQL and MongoDB. Current executable
   driver coverage is Redis/Valkey plus the PostgreSQL logical MVP.
 - Additional storage backends such as SFTP, Azure Blob, and Google Cloud

@@ -8,7 +8,8 @@ MVP is now present through `pg_dump` and `psql`, with worker/control-plane/local
 repository smoke E2E coverage and real-service PostgreSQL conformance running
 in CI. That conformance now covers extension-backed data, large objects, restore
 guardrails, rollback behavior for failed restores, and optional PostgreSQL
-global role metadata capture through `include_globals=true`. It still needs
+global role metadata capture through `include_globals=true` without leaking role
+password material. It still needs
 broader PostgreSQL operational hardening around upgrade/version matrices and
 larger restore drills before it should be treated as a fully production-grade
 PostgreSQL path. The full product vision
@@ -21,7 +22,7 @@ multi-instance control-plane operation is still roadmap work.
 | Scope | Estimate | Notes |
 | --- | ---: | --- |
 | Implemented Redis/local/S3 path | 93% | Core pipeline, agent/server flow, lost-agent recovery, server restart recovery, restore planning, retention, audit, metrics, release scripts, Kubernetes examples, runbooks, a reusable production gate, and tagged worker/control-plane/Redis backup, restore, retention apply, and recovery E2E tests are in place. |
-| Broad multi-database product vision | 81% | Redis is executable, PostgreSQL now has a plain SQL logical driver MVP, optional global role metadata capture, worker pipeline smoke E2E coverage, and CI real-service conformance coverage for extension-backed data, large objects, restore guardrails, and rollback behavior. MySQL, MongoDB, storage backends, WebUI workflows, and multi-instance deployment patterns remain roadmap work. |
+| Broad multi-database product vision | 81% | Redis is executable, PostgreSQL now has a plain SQL logical driver MVP, optional global role metadata capture covered in real-service conformance, worker pipeline smoke E2E coverage, and CI conformance coverage for extension-backed data, large objects, restore guardrails, and rollback behavior. MySQL, MongoDB, storage backends, WebUI workflows, and multi-instance deployment patterns remain roadmap work. |
 | Current repository release hygiene | 99% | Tests, vet, format checks, OpenAPI checks, release artifacts, provenance, SBOM metadata, GitHub build/SBOM attestations, keyless cosign signatures and verification, consumer release verification docs, CI govulncheck, release artifact smoke checks, PostgreSQL service conformance, the production check script, tagged backup/restore/retention/recovery E2E coverage, and Node 24-native GitHub Actions are present. The `golang.org/x/crypto` advisories are fixed. |
 
 ## Current Release Gate
@@ -45,9 +46,10 @@ executes `kronos version`.
   restores, with deterministic command-runner unit tests, tagged worker
   pipeline smoke E2E coverage, CI real-service conformance coverage,
   extension-backed data and large object checks, optional
-  `pg_dumpall --globals-only --no-role-passwords` role metadata capture,
-  `replace_existing` enforcement for non-dry-run restores, single-transaction
-  `psql` execution, and rollback verification for failed restores.
+  `pg_dumpall --globals-only --no-role-passwords` role metadata capture with a
+  real-service conformance assertion, `replace_existing` enforcement for
+  non-dry-run restores, single-transaction `psql` execution, and rollback
+  verification for failed restores.
 - Local and S3-compatible storage backends.
 - Persistent control plane state, scheduler state, jobs, backups, retention,
   notifications, users, tokens, and audit log.
