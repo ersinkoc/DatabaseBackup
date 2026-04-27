@@ -12,6 +12,7 @@ on:
         default: dev
 
 permissions:
+  attestations: write
   contents: write
   id-token: write
 
@@ -47,6 +48,25 @@ jobs:
         run: |
           ./scripts/verify-release.sh bin
           ./scripts/smoke-release.sh bin
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4.1.0
+        with:
+          subject-path: |
+            bin/kronos-linux-amd64
+            bin/kronos-linux-arm64
+            bin/kronos-darwin-amd64
+            bin/kronos-darwin-arm64
+
+      - name: Attest SBOM
+        uses: actions/attest@v4.1.0
+        with:
+          subject-path: |
+            bin/kronos-linux-amd64
+            bin/kronos-linux-arm64
+            bin/kronos-darwin-amd64
+            bin/kronos-darwin-arm64
+          sbom-path: bin/kronos-sbom.json
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v4.1.1
