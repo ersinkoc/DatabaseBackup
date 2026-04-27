@@ -417,6 +417,108 @@ jobs:
           MARIADB_VERSION: "11.4"
         run: go test -tags=integration ./internal/drivers/mysql
 
+  mongodb-conformance:
+    name: mongodb-conformance (7.0)
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongodb/mongodb-community-server:7.0-ubuntu2204
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand(\"ping\").ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+          cache: true
+
+      - name: Create MongoDB client wrappers
+        env:
+          MONGODB_IMAGE: mongodb/mongodb-community-server:7.0-ubuntu2204
+        run: |
+          mkdir -p .tools/mongodb-client
+          for command in mongosh mongodump mongorestore; do
+            cat > ".tools/mongodb-client/${command}" <<'SH'
+          #!/usr/bin/env sh
+          set -eu
+          command_name="$(basename "$0")"
+          exec docker run -i --rm --network host "${MONGODB_IMAGE:?}" "$command_name" "$@"
+          SH
+            chmod +x ".tools/mongodb-client/${command}"
+          done
+          echo "$PWD/.tools/mongodb-client" >> "$GITHUB_PATH"
+
+      - name: MongoDB conformance
+        env:
+          KRONOS_MONGODB_TEST_ADDR: 127.0.0.1:27017
+          MONGODB_IMAGE: mongodb/mongodb-community-server:7.0-ubuntu2204
+        run: go test -tags=integration ./internal/drivers/mongodb
+
+  mongodb-operator-scale-restore-drill:
+    name: mongodb-operator-scale-restore-drill (7.0)
+    runs-on: ubuntu-latest
+    services:
+      mongodb-source:
+        image: mongodb/mongodb-community-server:7.0-ubuntu2204
+        ports:
+          - 27018:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand(\"ping\").ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      mongodb-target:
+        image: mongodb/mongodb-community-server:7.0-ubuntu2204
+        ports:
+          - 27019:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand(\"ping\").ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+          cache: true
+
+      - name: Create MongoDB client wrappers
+        env:
+          MONGODB_IMAGE: mongodb/mongodb-community-server:7.0-ubuntu2204
+        run: |
+          mkdir -p .tools/mongodb-client
+          for command in mongosh mongodump mongorestore; do
+            cat > ".tools/mongodb-client/${command}" <<'SH'
+          #!/usr/bin/env sh
+          set -eu
+          command_name="$(basename "$0")"
+          exec docker run -i --rm --network host "${MONGODB_IMAGE:?}" "$command_name" "$@"
+          SH
+            chmod +x ".tools/mongodb-client/${command}"
+          done
+          echo "$PWD/.tools/mongodb-client" >> "$GITHUB_PATH"
+
+      - name: MongoDB operator-scale restore drill
+        env:
+          KRONOS_MONGODB_TEST_ADDR: 127.0.0.1:27018
+          KRONOS_MONGODB_RESTORE_ADDR: 127.0.0.1:27019
+          KRONOS_MONGODB_BULK_ROWS: "10000"
+          KRONOS_MONGODB_TEST_TIMEOUT_SECONDS: "180"
+          MONGODB_IMAGE: mongodb/mongodb-community-server:7.0-ubuntu2204
+        run: go test -tags=integration ./internal/drivers/mongodb
+
   mysql-to-mariadb-restore-rehearsal:
     name: mysql-to-mariadb-restore-rehearsal (8.4-to-11.4)
     runs-on: ubuntu-latest

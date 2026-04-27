@@ -155,8 +155,9 @@ broad multi-database production suite. The largest remaining areas are:
   8.4 and MariaDB 11.4 conformance for backup/restore of indexed JSON data,
   bidirectional MySQL/MariaDB restore rehearsals, and 10,000-row
   MySQL/MariaDB restore drills, and a MongoDB `mongodump`/`mongorestore`
-  archive MVP with unit coverage. MongoDB still needs real-service
-  conformance and restore rehearsal coverage.
+  archive MVP with unit coverage, MongoDB 7.0 real-service conformance, and a
+  10,000-document MongoDB restore drill. MongoDB still needs broader
+  version/recovery coverage and authenticated-target rehearsal.
 - Additional storage backends such as SFTP, Azure Blob, and Google Cloud
   Storage. Current executable backends are local filesystem and S3-compatible
   object storage.
@@ -169,7 +170,8 @@ broad multi-database production suite. The largest remaining areas are:
 
 ## Next Best Work
 
-1. Add MongoDB real-service conformance and restore rehearsal coverage.
+1. Add broader MongoDB version/recovery coverage, including authenticated
+   targets and larger archive restore drills.
 2. Extend PostgreSQL hardening around broader upgrade rehearsal evidence.
 3. Wire the WebUI to live API endpoints for dashboard state, jobs, backups, and
    agents.

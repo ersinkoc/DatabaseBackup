@@ -111,8 +111,9 @@ rehearsals for indexed JSON data, plus bidirectional MySQL/MariaDB restore
 rehearsals and 10,000-row MySQL/MariaDB restore drills. MongoDB has a logical
 backup/restore MVP that shells out to `mongodump` and `mongorestore` archive
 streams; install MongoDB Database Tools on worker agents before using it.
-MongoDB restores also require explicit replace-existing intent. Real-service
-MongoDB conformance is still pending.
+MongoDB restores also require explicit replace-existing intent. CI exercises
+this path against MongoDB 7.0 with real-service backup/restore conformance and
+a 10,000-document restore drill.
 
 ## 6. Run A Backup
 

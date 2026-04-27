@@ -263,6 +263,21 @@ groups:
    and 17 with matching client binaries, and also runs a PostgreSQL 15-to-17
    restore rehearsal against separate source and target service containers.
 
+   MongoDB conformance can be exercised against a reachable MongoDB service
+   when `mongosh`, `mongodump`, and `mongorestore` are installed:
+
+   ```bash
+   KRONOS_MONGODB_TEST_ADDR='127.0.0.1:27017' \
+     go test -tags=integration ./internal/drivers/mongodb
+   ```
+
+   Set `KRONOS_MONGODB_RESTORE_ADDR` when restore verification should target a
+   separate MongoDB service. MongoDB non-dry-run restores require explicit
+   replace-existing intent and replay through `mongorestore --archive --drop`
+   with namespace remapping when the source and target database names differ.
+   The main CI workflow runs MongoDB 7.0 conformance and a 10,000-document
+   restore drill against separate source and target service containers.
+
 2. Publish an immutable release from a signed tag when cutting a production
    version:
 
