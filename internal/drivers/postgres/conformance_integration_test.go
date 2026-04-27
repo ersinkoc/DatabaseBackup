@@ -35,16 +35,31 @@ func TestPostgresDriverConformanceBackupRestore(t *testing.T) {
 	roleName := "kronos_role_" + suffix
 	globalRestoreRoleName := "kronos_global_restore_" + suffix
 	restoreDSN := firstNonEmpty(strings.TrimSpace(os.Getenv("KRONOS_POSTGRES_RESTORE_DSN")), sourceDSN)
+	sourceAdminRole := queryScalar(t, ctx, sourceDSN, "select current_user;")
 	cleanupSchema(t, ctx, sourceDSN, sourceSchema)
 	cleanupSchema(t, ctx, restoreDSN, restoreSchema)
 	cleanupSchema(t, ctx, restoreDSN, failureSchema)
 	cleanupRole(t, ctx, sourceDSN, roleName)
 	cleanupRole(t, ctx, restoreDSN, globalRestoreRoleName)
+	if fullGlobalRestoreEnabled() && restoreDSN != sourceDSN {
+		cleanupSchema(t, ctx, restoreDSN, sourceSchema)
+		cleanupRole(t, ctx, restoreDSN, roleName)
+		if sourceAdminRole != "" {
+			cleanupRole(t, ctx, restoreDSN, sourceAdminRole)
+		}
+	}
 	defer cleanupSchema(t, context.Background(), sourceDSN, sourceSchema)
 	defer cleanupSchema(t, context.Background(), restoreDSN, restoreSchema)
 	defer cleanupSchema(t, context.Background(), restoreDSN, failureSchema)
 	defer cleanupRole(t, context.Background(), sourceDSN, roleName)
 	defer cleanupRole(t, context.Background(), restoreDSN, globalRestoreRoleName)
+	if fullGlobalRestoreEnabled() && restoreDSN != sourceDSN {
+		defer cleanupSchema(t, context.Background(), restoreDSN, sourceSchema)
+		defer cleanupRole(t, context.Background(), restoreDSN, roleName)
+		if sourceAdminRole != "" {
+			defer cleanupRole(t, context.Background(), restoreDSN, sourceAdminRole)
+		}
+	}
 
 	seedSQL := fmt.Sprintf(`
 create extension if not exists pgcrypto;
@@ -87,6 +102,31 @@ create index bulk_items_label_idx on %s.bulk_items(label);
 	}
 	if !strings.Contains(string(records[2].Payload), sourceSchema) || !strings.Contains(string(records[2].Payload), "Ada") {
 		t.Fatalf("backup records do not contain expected source data: %#v", records)
+	}
+	if fullGlobalRestoreEnabled() && restoreDSN != sourceDSN {
+		var fullRestore drivers.MemoryRecordStream
+		writeRecords(t, &fullRestore, records)
+		if err := driver.Restore(ctx, drivers.Target{Connection: map[string]string{"dsn": restoreDSN}}, &fullRestore, drivers.RestoreOptions{ReplaceExisting: true}); err != nil {
+			t.Fatalf("Restore(full cluster globals + database) error = %v", err)
+		}
+		restoredSourceRole := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select exists(select 1 from pg_roles where rolname = '%s');", roleName))
+		if restoredSourceRole != "t" {
+			t.Fatalf("full restore role presence = %q, want t", restoredSourceRole)
+		}
+		if sourceAdminRole != "" {
+			restoredAdminRole := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select exists(select 1 from pg_roles where rolname = '%s');", sourceAdminRole))
+			if restoredAdminRole != "t" {
+				t.Fatalf("full restore source admin role presence = %q, want t", restoredAdminRole)
+			}
+		}
+		fullRestoreCount := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select count(*) from %s.bulk_items;", sourceSchema))
+		if fullRestoreCount != "2500" {
+			t.Fatalf("full restore bulk row count = %q, want 2500", fullRestoreCount)
+		}
+		fullRestoreIndexPresent := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select to_regclass('%s.bulk_items_label_idx') is not null;", sourceSchema))
+		if fullRestoreIndexPresent != "t" {
+			t.Fatalf("full restore bulk index presence = %q, want t", fullRestoreIndexPresent)
+		}
 	}
 	var globalRestore drivers.MemoryRecordStream
 	globalRestoreSQL := fmt.Sprintf("create role %s; comment on role %s is 'kronos global restore drill';", globalRestoreRoleName, globalRestoreRoleName)
@@ -217,4 +257,29 @@ func queryScalar(t *testing.T, ctx context.Context, dsn string, sql string) stri
 		t.Fatalf("query %q error = %v output=%s", sql, err, strings.TrimSpace(string(out)))
 	}
 	return strings.TrimSpace(string(out))
+}
+
+func fullGlobalRestoreEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("KRONOS_POSTGRES_FULL_GLOBAL_RESTORE"))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func writeRecords(t *testing.T, stream *drivers.MemoryRecordStream, records []drivers.Record) {
+	t.Helper()
+
+	for _, record := range records {
+		if record.Done {
+			if err := stream.FinishObject(record.Object, record.Rows); err != nil {
+				t.Fatalf("FinishObject(%s) error = %v", record.Object.Name, err)
+			}
+			continue
+		}
+		if err := stream.WriteRecord(record.Object, record.Payload); err != nil {
+			t.Fatalf("WriteRecord(%s) error = %v", record.Object.Name, err)
+		}
+	}
 }
