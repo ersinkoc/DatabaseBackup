@@ -123,7 +123,10 @@ same-origin content security policy. `Strict-Transport-Security` is deliberately
 left to TLS-terminating deployments because local mode commonly serves plain
 HTTP on loopback. API, health/readiness, and metrics responses also use
 `Cache-Control: no-store` so token material, audit data, and operational state
-are not retained by shared caches.
+are not retained by shared caches. The embedded WebUI keeps `index.html` and
+SPA fallback responses revalidating with `Cache-Control: no-cache`, while
+fingerprinted assets under `/assets/` are served with a one-year immutable cache
+policy.
 
 ## Notifications
 

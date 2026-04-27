@@ -32,6 +32,7 @@ func Handler() http.Handler {
 		}
 		if file, err := static.Open(name); err == nil {
 			_ = file.Close()
+			setCacheHeaders(w, name)
 			files.ServeHTTP(w, r)
 			return
 		}
@@ -41,6 +42,16 @@ func Handler() http.Handler {
 		}
 		fallback := r.Clone(r.Context())
 		fallback.URL.Path = "/"
+		setCacheHeaders(w, "index.html")
 		files.ServeHTTP(w, fallback)
 	})
+}
+
+func setCacheHeaders(w http.ResponseWriter, name string) {
+	switch {
+	case name == "index.html":
+		w.Header().Set("Cache-Control", "no-cache")
+	case strings.HasPrefix(name, "assets/"):
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	}
 }

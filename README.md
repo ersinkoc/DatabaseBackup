@@ -62,7 +62,7 @@ This repository currently has the Phase 0 foundation in place and active Phase
 - local mode: starts an embedded control-plane server with local state and can
   run an embedded worker with `--work`
 - WebUI: embedded React/Tailwind operations dashboard served by the control
-  plane, with a Vite build pipeline
+  plane, with a Vite build pipeline and deployment-safe cache headers
 - agent/server: heartbeat endpoint, list/inspect APIs, in-memory agent
   registry, and heartbeat-only or worker-mode agent process
 - agent worker: control-plane HTTP client with resource sync, heartbeat, job

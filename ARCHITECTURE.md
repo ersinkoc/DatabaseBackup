@@ -527,7 +527,8 @@ Key points:
 - API tokens are stored as hashed verifiers; bearer secrets are shown once.
 - Token scopes are checked on protected endpoints.
 - API, health, readiness, and metrics responses are marked `Cache-Control:
-  no-store`; API and WebUI responses carry baseline browser security headers.
+  no-store`; WebUI HTML revalidates while fingerprinted assets are immutable;
+  API and WebUI responses carry baseline browser security headers.
 - Manifest signing keys and chunk encryption keys are separate.
 - Chunk-level verification decrypts, decompresses, and hashes payloads.
 - Administrative mutations can be recorded in a hash-chained audit log.
