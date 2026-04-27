@@ -110,7 +110,7 @@ backends; unsupported capabilities are surfaced early instead of falling
 through to ambiguous runtime behavior.
 
 Tagged E2E coverage is available for the implemented worker/control-plane/Redis
-backup path:
+backup and restore path:
 
 ```bash
 .tools/go/bin/go test -tags=e2e ./cmd/kronos
