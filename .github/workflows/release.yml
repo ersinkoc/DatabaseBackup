@@ -43,7 +43,9 @@ jobs:
           VERSION="$VERSION" COMMIT="${COMMIT::12}" BUILD_DATE="$BUILD_DATE" ./scripts/sbom.sh
 
       - name: Verify checksums
-        run: ./scripts/verify-release.sh bin
+        run: |
+          ./scripts/verify-release.sh bin
+          ./scripts/smoke-release.sh bin
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4

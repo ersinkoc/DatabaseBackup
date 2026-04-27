@@ -87,6 +87,7 @@ func TestReleaseWorkflowPublishesArtifacts(t *testing.T) {
 		"./scripts/provenance.sh",
 		"./scripts/sbom.sh",
 		"./scripts/verify-release.sh",
+		"./scripts/smoke-release.sh",
 		"actions/upload-artifact@v4",
 		"gh release create",
 	} {
