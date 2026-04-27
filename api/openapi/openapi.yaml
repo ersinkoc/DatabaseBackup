@@ -355,6 +355,8 @@ paths:
       responses:
         "204":
           description: Deleted
+        "404":
+          description: User not found
   /api/v1/users/{id}/grant:
     post:
       summary: Grant user role
@@ -713,6 +715,8 @@ paths:
       responses:
         "204":
           description: Deleted
+        "404":
+          description: Retention policy not found
   /api/v1/notifications:
     get:
       summary: List notification rules
@@ -789,6 +793,8 @@ paths:
       responses:
         "204":
           description: Deleted
+        "404":
+          description: Notification rule not found
   /api/v1/restore:
     post:
       summary: Enqueue a restore job
@@ -899,6 +905,8 @@ paths:
       responses:
         "204":
           description: Deleted
+        "404":
+          description: Target not found
   /api/v1/storages:
     get:
       summary: List storages
@@ -969,6 +977,8 @@ paths:
       responses:
         "204":
           description: Deleted
+        "404":
+          description: Storage not found
   /api/v1/schedules:
     get:
       summary: List schedules
@@ -1030,6 +1040,8 @@ paths:
       responses:
         "204":
           description: Deleted
+        "404":
+          description: Schedule not found
   /api/v1/schedules/{id}/pause:
     post:
       summary: Pause schedule

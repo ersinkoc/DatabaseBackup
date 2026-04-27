@@ -121,6 +121,21 @@ func TestOpenAPIDocumentsNotificationRules(t *testing.T) {
 	}
 }
 
+func TestOpenAPIDocumentsDeleteNotFoundResponses(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("openapi.yaml")
+	if err != nil {
+		t.Fatalf("ReadFile(openapi.yaml) error = %v", err)
+	}
+	text := string(data)
+	for _, want := range []string{"Delete user", "User not found", "Delete retention policy", "Retention policy not found", "Delete notification rule", "Notification rule not found", "Delete target", "Target not found", "Delete storage", "Storage not found", "Delete schedule", "Schedule not found"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("openapi.yaml missing %q", want)
+		}
+	}
+}
+
 func collectRefs(value any) []string {
 	var refs []string
 	switch typed := value.(type) {
