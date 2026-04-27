@@ -96,13 +96,23 @@ type Overview = {
 type Job = {
   id: string;
   operation?: string;
+  schedule_id?: string;
   target_id: string;
   storage_id: string;
+  agent_id?: string;
   type?: string;
   status: string;
   queued_at: string;
   started_at?: string;
   ended_at?: string;
+  parent_backup_id?: string;
+  restore_backup_id?: string;
+  restore_manifest_id?: string;
+  restore_manifest_ids?: string[];
+  restore_target_id?: string;
+  restore_at?: string;
+  restore_dry_run?: boolean;
+  restore_replace_existing?: boolean;
   error?: string;
 };
 
@@ -175,6 +185,8 @@ export function App() {
   const [storages, setStorages] = useState<Storage[]>([]);
   const [updatingBackupID, setUpdatingBackupID] = useState<string | null>(null);
   const [updatingJobID, setUpdatingJobID] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [loadingJobID, setLoadingJobID] = useState<string | null>(null);
   const [selectedBackup, setSelectedBackup] = useState<Backup | null>(null);
   const [loadingBackupID, setLoadingBackupID] = useState<string | null>(null);
 
@@ -286,6 +298,18 @@ export function App() {
       setDetailError(err instanceof Error ? err.message : "backup detail request failed");
     } finally {
       setLoadingBackupID(null);
+    }
+  }
+
+  async function inspectJob(job: Job) {
+    setLoadingJobID(job.id);
+    setDetailError(null);
+    try {
+      setSelectedJob(await requestJSON<Job>(`/api/v1/jobs/${encodeURIComponent(job.id)}`, apiToken));
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "job detail request failed");
+    } finally {
+      setLoadingJobID(null);
     }
   }
 
@@ -428,7 +452,18 @@ export function App() {
                               </span>
                             </td>
                             <td className="px-4 py-3">
-                              <JobActionButton job={job} updating={updatingJobID === job.id} onAction={updateJob} />
+                              <div className="flex items-center gap-2">
+                                <JobActionButton job={job} updating={updatingJobID === job.id} onAction={updateJob} />
+                                <Button
+                                  className="h-7 px-2 text-xs"
+                                  disabled={loadingJobID === job.id}
+                                  onClick={() => void inspectJob(job)}
+                                  type="button"
+                                  variant="ghost"
+                                >
+                                  {loadingJobID === job.id ? "Loading" : "Details"}
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -517,6 +552,7 @@ export function App() {
                 </div>
               </section>
 
+              <JobDetail job={selectedJob} />
               <BackupDetail backup={selectedBackup} />
             </aside>
           </div>
@@ -549,8 +585,10 @@ function Metric({
 function HealthRow({ label, value, tone }: { label: string; value: string; tone: keyof typeof healthTone }) {
   return (
     <div className="flex h-10 items-center justify-between gap-4 rounded-md bg-surface px-3 text-sm">
-      <span className="text-muted">{label}</span>
-      <span className={`font-semibold ${healthTone[tone]}`}>{value}</span>
+      <span className="shrink-0 text-muted">{label}</span>
+      <span className={`min-w-0 truncate text-right font-semibold ${healthTone[tone]}`} title={value}>
+        {value}
+      </span>
     </div>
   );
 }
@@ -587,6 +625,40 @@ function JobActionButton({ job, updating, onAction }: { job: Job; updating: bool
     );
   }
   return <span className="text-xs text-muted">-</span>;
+}
+
+function JobDetail({ job }: { job: Job | null }) {
+  if (!job) {
+    return null;
+  }
+  return (
+    <section className="rounded-md border border-line bg-panel p-4">
+      <h2 className="text-base font-semibold">Job detail</h2>
+      <div className="mt-4 grid gap-3">
+        <HealthRow label="ID" value={job.id} tone="bronze" />
+        <HealthRow label="Status" value={job.status || "-"} tone={job.status === "succeeded" ? "success" : job.status === "failed" ? "warning" : "indigo"} />
+        <HealthRow label="Operation" value={job.operation || job.type || "-"} tone="indigo" />
+        <HealthRow label="Target" value={job.target_id || "-"} tone="bronze" />
+        <HealthRow label="Storage" value={job.storage_id || "-"} tone="indigo" />
+        <HealthRow label="Agent" value={job.agent_id || "-"} tone="bronze" />
+        <HealthRow label="Queued" value={formatDateTime(job.queued_at) ?? "-"} tone="warning" />
+        <HealthRow label="Started" value={formatDateTime(job.started_at) ?? "-"} tone="indigo" />
+        <HealthRow label="Ended" value={formatDateTime(job.ended_at) ?? "-"} tone="success" />
+        {job.schedule_id ? <HealthRow label="Schedule" value={job.schedule_id} tone="bronze" /> : null}
+        {job.parent_backup_id ? <HealthRow label="Parent backup" value={job.parent_backup_id} tone="bronze" /> : null}
+        {job.restore_backup_id ? <HealthRow label="Restore backup" value={job.restore_backup_id} tone="bronze" /> : null}
+        {job.restore_target_id ? <HealthRow label="Restore target" value={job.restore_target_id} tone="bronze" /> : null}
+        {job.restore_manifest_id ? <HealthRow label="Restore manifest" value={job.restore_manifest_id} tone="bronze" /> : null}
+        {job.restore_at ? <HealthRow label="Restore at" value={formatDateTime(job.restore_at) ?? job.restore_at} tone="indigo" /> : null}
+        {job.restore_manifest_ids && job.restore_manifest_ids.length > 0 ? (
+          <HealthRow label="Manifests" value={job.restore_manifest_ids.join(", ")} tone="bronze" />
+        ) : null}
+        <HealthRow label="Dry run" value={job.restore_dry_run ? "yes" : "no"} tone="indigo" />
+        <HealthRow label="Replace" value={job.restore_replace_existing ? "yes" : "no"} tone="warning" />
+        {job.error ? <HealthRow label="Error" value={job.error} tone="warning" /> : null}
+      </div>
+    </section>
+  );
 }
 
 function BackupDetail({ backup }: { backup: Backup | null }) {

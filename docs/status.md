@@ -162,9 +162,9 @@ broad multi-database production suite. The largest remaining areas are:
   Storage. Current executable backends are local filesystem and S3-compatible
   object storage.
 - Deeper WebUI interaction beyond the current authenticated live
-  overview/jobs/backups/inventory dashboard plus backup detail, job
-  cancel/retry, and backup protection actions, such as resource CRUD, job
-  detail, richer backup drill actions, and restore workflows.
+  overview/jobs/backups/inventory dashboard plus job/backup detail, job
+  cancel/retry, and backup protection actions, such as resource CRUD, richer
+  backup drill actions, and restore workflows.
 - Richer notification channels and hook execution surfaces from the product
   plan.
 - Broader production hardening around auth integrations and multi-instance
@@ -175,8 +175,8 @@ broad multi-database production suite. The largest remaining areas are:
 1. Add broader MongoDB version/recovery coverage, including authenticated
    targets and larger archive restore drills.
 2. Extend PostgreSQL hardening around broader upgrade rehearsal evidence.
-3. Expand the WebUI beyond the live overview dashboard into resource CRUD, job
-   detail, backup detail, and restore workflows.
+3. Expand the WebUI beyond the live overview dashboard into resource CRUD,
+   richer backup drill actions, and restore workflows.
 4. Add additional notification channels and hook execution surfaces.
 5. Run a signed-tag release rehearsal and archive checksum, signature, and
    attestation verification evidence.
