@@ -160,6 +160,64 @@ func TestE2ERetentionApplyPrunesBackupMetadata(t *testing.T) {
 	t.Fatalf("retention.applied audit event not found in %#v", events)
 }
 
+func TestE2EClaimFailsLostAgentJobAndUnblocksTarget(t *testing.T) {
+	now := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
+	registry := control.NewAgentRegistry(func() time.Time { return now }, time.Minute)
+	stores := newE2EAPIStores(t)
+	for _, job := range []core.Job{
+		{
+			ID:        "running-lost",
+			AgentID:   "agent-lost",
+			TargetID:  "target-redis",
+			StorageID: "storage-local",
+			Type:      core.BackupTypeFull,
+			Status:    core.JobStatusRunning,
+			QueuedAt:  now.Add(-3 * time.Minute),
+			StartedAt: now.Add(-2 * time.Minute),
+		},
+		{
+			ID:        "queued-next",
+			TargetID:  "target-redis",
+			StorageID: "storage-local",
+			Type:      core.BackupTypeFull,
+			Status:    core.JobStatusQueued,
+			QueuedAt:  now.Add(-1 * time.Minute),
+		},
+	} {
+		if err := stores.jobs.Save(job); err != nil {
+			t.Fatalf("Save(job %s) error = %v", job.ID, err)
+		}
+	}
+	server := httptest.NewServer(newServerHandlerWithStores(nil, registry, stores))
+	defer server.Close()
+
+	postE2EHeartbeat(t, server, control.AgentHeartbeat{ID: "agent-lost", Capacity: 1, Now: now.Add(-2 * time.Minute)})
+	postE2EHeartbeat(t, server, control.AgentHeartbeat{ID: "agent-ok", Capacity: 1, Now: now})
+
+	claimed := claimE2EJob(t, server, "agent-ok")
+	if claimed.Job == nil || claimed.Job.ID != "queued-next" || claimed.Job.Status != core.JobStatusRunning || claimed.Job.AgentID != "agent-ok" {
+		t.Fatalf("claimed job = %#v", claimed.Job)
+	}
+	lost, ok, err := stores.jobs.Get("running-lost")
+	if err != nil || !ok || lost.Status != core.JobStatusFailed || lost.Error != "agent_lost" || lost.EndedAt.IsZero() {
+		t.Fatalf("Get(running-lost) = %#v ok=%v err=%v", lost, ok, err)
+	}
+	next, ok, err := stores.jobs.Get("queued-next")
+	if err != nil || !ok || next.Status != core.JobStatusRunning || next.AgentID != "agent-ok" {
+		t.Fatalf("Get(queued-next) = %#v ok=%v err=%v", next, ok, err)
+	}
+	events, err := stores.audit.List(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("List(audit) error = %v", err)
+	}
+	if len(events) != 2 || events[0].Action != "agent_lost.jobs_failed" || events[1].Action != "job.claimed" {
+		t.Fatalf("agent recovery audit events = %#v", events)
+	}
+	if fmt.Sprint(events[0].Metadata["job_count"]) != "1" {
+		t.Fatalf("agent_lost.jobs_failed metadata = %#v", events[0].Metadata)
+	}
+}
+
 func enqueueE2EBackup(t *testing.T, server *httptest.Server, targetID, storageID core.ID) core.Job {
 	t.Helper()
 
@@ -204,6 +262,48 @@ func enqueueE2ERestore(t *testing.T, server *httptest.Server, backupID, targetID
 		t.Fatalf("restore response = %#v", response)
 	}
 	return response.Job
+}
+
+func postE2EHeartbeat(t *testing.T, server *httptest.Server, heartbeat control.AgentHeartbeat) {
+	t.Helper()
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(heartbeat); err != nil {
+		t.Fatalf("Encode(heartbeat) error = %v", err)
+	}
+	resp, err := server.Client().Post(server.URL+"/api/v1/agents/heartbeat", "application/json", &body)
+	if err != nil {
+		t.Fatalf("POST /api/v1/agents/heartbeat error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(resp.Body)
+		t.Fatalf("POST /api/v1/agents/heartbeat status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+}
+
+func claimE2EJob(t *testing.T, server *httptest.Server, agentID string) claimJobResponse {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/api/v1/jobs/claim", nil)
+	if err != nil {
+		t.Fatalf("NewRequest(claim) error = %v", err)
+	}
+	req.Header.Set("X-Kronos-Agent-ID", agentID)
+	resp, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("POST /api/v1/jobs/claim error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("POST /api/v1/jobs/claim status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var response claimJobResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		t.Fatalf("Decode(claim response) error = %v", err)
+	}
+	return response
 }
 
 func applyE2ERetention(t *testing.T, server *httptest.Server, dryRun bool) retentionApplyResponse {
