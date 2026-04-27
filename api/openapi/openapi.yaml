@@ -580,6 +580,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Job"
+        "400":
+          description: Invalid backup request
   /api/v1/backups/{id}:
     get:
       summary: Inspect a backup
@@ -638,6 +640,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RetentionPlan"
+        "400":
+          description: Invalid retention plan request
   /api/v1/retention/apply:
     post:
       summary: Apply retention decisions to backup metadata
@@ -654,6 +658,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RetentionApplyResponse"
+        "400":
+          description: Invalid retention apply request
   /api/v1/retention/policies:
     get:
       summary: List retention policies
@@ -679,6 +685,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RetentionPolicy"
+        "400":
+          description: Invalid retention policy
   /api/v1/retention/policies/{id}:
     get:
       summary: Get retention policy
@@ -710,6 +718,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RetentionPolicy"
+        "400":
+          description: Invalid retention policy
         "404":
           description: Retention policy not found
     delete:
@@ -869,6 +879,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Target"
+        "400":
+          description: Invalid target
   /api/v1/targets/{id}:
     get:
       summary: Get target
@@ -904,6 +916,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Target"
+        "400":
+          description: Invalid target
         "404":
           description: Target not found
     delete:
@@ -945,6 +959,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Storage"
+        "400":
+          description: Invalid storage
   /api/v1/storages/{id}:
     get:
       summary: Get storage
@@ -980,6 +996,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Storage"
+        "400":
+          description: Invalid storage
         "404":
           description: Storage not found
     delete:
@@ -1016,6 +1034,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Schedule"
+        "400":
+          description: Invalid schedule
   /api/v1/schedules/{id}:
     get:
       summary: Get schedule
@@ -1047,6 +1067,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Schedule"
+        "400":
+          description: Invalid schedule
         "404":
           description: Schedule not found
     delete:
