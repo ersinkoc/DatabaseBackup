@@ -93,6 +93,73 @@ func TestE2EWorkerRestoresRedisThroughControlPlane(t *testing.T) {
 	}
 }
 
+func TestE2ERetentionApplyPrunesBackupMetadata(t *testing.T) {
+	stores := newE2EAPIStores(t)
+	server := httptest.NewServer(newServerHandlerWithStores(nil, nil, stores))
+	defer server.Close()
+
+	now := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
+	backups := []core.Backup{
+		{
+			ID:         "backup-old",
+			TargetID:   "target-redis",
+			StorageID:  "storage-local",
+			JobID:      "job-old",
+			Type:       core.BackupTypeFull,
+			ManifestID: "manifest-old",
+			StartedAt:  now.Add(-3 * time.Hour),
+			EndedAt:    now.Add(-2 * time.Hour),
+		},
+		{
+			ID:         "backup-new",
+			TargetID:   "target-redis",
+			StorageID:  "storage-local",
+			JobID:      "job-new",
+			Type:       core.BackupTypeFull,
+			ManifestID: "manifest-new",
+			StartedAt:  now.Add(-1 * time.Hour),
+			EndedAt:    now,
+		},
+	}
+	for _, backup := range backups {
+		if err := stores.backups.Save(backup); err != nil {
+			t.Fatalf("Save(backup %s) error = %v", backup.ID, err)
+		}
+	}
+
+	dryRun := applyE2ERetention(t, server, true)
+	if !dryRun.DryRun {
+		t.Fatalf("dry-run response = %#v", dryRun)
+	}
+	assertE2EDeletedBackups(t, dryRun.Deleted, "backup-old")
+	if _, ok, err := stores.backups.Get("backup-old"); err != nil || !ok {
+		t.Fatalf("dry-run backup-old exists=%v error=%v", ok, err)
+	}
+
+	applied := applyE2ERetention(t, server, false)
+	if applied.DryRun {
+		t.Fatalf("apply response = %#v", applied)
+	}
+	assertE2EDeletedBackups(t, applied.Deleted, "backup-old")
+	if _, ok, err := stores.backups.Get("backup-old"); err != nil || ok {
+		t.Fatalf("backup-old exists=%v error=%v, want deleted", ok, err)
+	}
+	if _, ok, err := stores.backups.Get("backup-new"); err != nil || !ok {
+		t.Fatalf("backup-new exists=%v error=%v, want kept", ok, err)
+	}
+
+	events, err := stores.audit.List(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("List(audit) error = %v", err)
+	}
+	for _, event := range events {
+		if event.Action == "retention.applied" {
+			return
+		}
+	}
+	t.Fatalf("retention.applied audit event not found in %#v", events)
+}
+
 func enqueueE2EBackup(t *testing.T, server *httptest.Server, targetID, storageID core.ID) core.Job {
 	t.Helper()
 
@@ -137,6 +204,34 @@ func enqueueE2ERestore(t *testing.T, server *httptest.Server, backupID, targetID
 		t.Fatalf("restore response = %#v", response)
 	}
 	return response.Job
+}
+
+func applyE2ERetention(t *testing.T, server *httptest.Server, dryRun bool) retentionApplyResponse {
+	t.Helper()
+
+	payload := fmt.Sprintf(`{"dry_run":%t,"now":"2026-04-25T12:00:00Z","policy":{"rules":[{"kind":"count","params":{"n":1}}]}}`, dryRun)
+	resp, err := server.Client().Post(server.URL+"/api/v1/retention/apply", "application/json", strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("POST /api/v1/retention/apply error = %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("POST /api/v1/retention/apply status=%d body=%s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var response retentionApplyResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		t.Fatalf("Decode(retention apply response) error = %v", err)
+	}
+	return response
+}
+
+func assertE2EDeletedBackups(t *testing.T, got []core.ID, want core.ID) {
+	t.Helper()
+
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("deleted backups = %#v, want [%s]", got, want)
+	}
 }
 
 func waitForE2EBackup(t *testing.T, backups *control.BackupStore, jobs *control.JobStore, done <-chan error, jobID core.ID) core.Backup {
@@ -200,15 +295,7 @@ func waitForE2EJobStatus(t *testing.T, jobs *control.JobStore, done <-chan error
 func newE2EControlPlaneStores(t *testing.T, redisEndpoint string, repoDir string) apiStores {
 	t.Helper()
 
-	db, err := kvstore.Open(filepath.Join(t.TempDir(), "state.db"))
-	if err != nil {
-		t.Fatalf("Open() error = %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	stores, err := newAPIStores(db)
-	if err != nil {
-		t.Fatalf("newAPIStores() error = %v", err)
-	}
+	stores := newE2EAPIStores(t)
 	if err := stores.targets.Save(core.Target{
 		ID:        "target-redis",
 		Name:      "redis-e2e",
@@ -228,6 +315,21 @@ func newE2EControlPlaneStores(t *testing.T, redisEndpoint string, repoDir string
 		UpdatedAt: time.Now().UTC(),
 	}); err != nil {
 		t.Fatalf("Save(storage) error = %v", err)
+	}
+	return stores
+}
+
+func newE2EAPIStores(t *testing.T) apiStores {
+	t.Helper()
+
+	db, err := kvstore.Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	stores, err := newAPIStores(db)
+	if err != nil {
+		t.Fatalf("newAPIStores() error = %v", err)
 	}
 	return stores
 }
