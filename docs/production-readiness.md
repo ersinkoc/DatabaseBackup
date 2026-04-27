@@ -19,16 +19,17 @@ across MongoDB, SFTP, Azure Blob, Google Cloud Storage, deeper WebUI workflows,
 and multi-instance control-plane operation is still roadmap work. MySQL/MariaDB
 now has a `mysqldump`/`mysql` logical MVP with deterministic unit coverage and
 real-service MySQL 8.4 plus MariaDB 11.4 conformance for backup/restore of
-indexed JSON data. Larger operator-scale MySQL/MariaDB drills remain before
-that path should be treated as fully production-grade.
+indexed JSON data. CI also restores a MySQL 8.4 dump into MariaDB 11.4 with a
+larger indexed JSON rehearsal. Larger operator-scale MySQL/MariaDB drills
+remain before that path should be treated as fully production-grade.
 
 ## Readiness Estimate
 
 | Scope | Estimate | Notes |
 | --- | ---: | --- |
 | Implemented Redis/local/S3 path | 93% | Core pipeline, agent/server flow, lost-agent recovery, server restart recovery, restore planning, retention, audit, metrics, release scripts, Kubernetes examples, runbooks, a reusable production gate, and tagged worker/control-plane/Redis backup, restore, retention apply, and recovery E2E tests are in place. |
-| Broad multi-database product vision | 88% | Redis is executable, PostgreSQL now has a plain SQL logical driver MVP, optional global role metadata capture and focused global restore coverage in real-service conformance, worker pipeline smoke E2E coverage, CI conformance coverage across PostgreSQL 15, 16, and 17, and a PostgreSQL 15-to-17 restore rehearsal. MySQL/MariaDB now has a `mysqldump`/`mysql` logical MVP with unit coverage plus real-service MySQL 8.4 and MariaDB 11.4 conformance, while MongoDB, storage backends, WebUI workflows, and multi-instance deployment patterns remain roadmap work. |
-| Current repository release hygiene | 99% | Tests, vet, format checks, OpenAPI checks, release artifacts, provenance, SBOM metadata, GitHub build/SBOM attestations, keyless cosign signatures and verification, consumer release verification docs, CI govulncheck, release artifact smoke checks, PostgreSQL, MySQL, and MariaDB service conformance, the production check script, tagged backup/restore/retention/recovery E2E coverage, and Node 24-native GitHub Actions are present. The `golang.org/x/crypto` advisories are fixed. |
+| Broad multi-database product vision | 89% | Redis is executable, PostgreSQL now has a plain SQL logical driver MVP, optional global role metadata capture and focused global restore coverage in real-service conformance, worker pipeline smoke E2E coverage, CI conformance coverage across PostgreSQL 15, 16, and 17, and a PostgreSQL 15-to-17 restore rehearsal. MySQL/MariaDB now has a `mysqldump`/`mysql` logical MVP with unit coverage, real-service MySQL 8.4 and MariaDB 11.4 conformance, and MySQL-to-MariaDB restore rehearsal coverage, while MongoDB, storage backends, WebUI workflows, and multi-instance deployment patterns remain roadmap work. |
+| Current repository release hygiene | 99% | Tests, vet, format checks, OpenAPI checks, release artifacts, provenance, SBOM metadata, GitHub build/SBOM attestations, keyless cosign signatures and verification, consumer release verification docs, CI govulncheck, release artifact smoke checks, PostgreSQL, MySQL, MariaDB, and MySQL-to-MariaDB restore rehearsal conformance, the production check script, tagged backup/restore/retention/recovery E2E coverage, and Node 24-native GitHub Actions are present. The `golang.org/x/crypto` advisories are fixed. |
 
 ## Current Release Gate
 
@@ -65,7 +66,8 @@ executes `kronos version`.
   paths. CI now runs real-service MySQL 8.4 and MariaDB 11.4 conformance that
   creates a source database, backs it up with `mysqldump` or `mariadb-dump`,
   restores into a separate database, and verifies indexed JSON row counts and
-  checksums.
+  checksums. A separate MySQL 8.4 to MariaDB 11.4 restore rehearsal verifies a
+  larger 1,500-row indexed JSON dataset across engines.
 - Local and S3-compatible storage backends.
 - Persistent control plane state, scheduler state, jobs, backups, retention,
   notifications, users, tokens, and audit log.
@@ -77,9 +79,10 @@ executes `kronos version`.
   cosign release signatures and verification, and Kubernetes examples.
 - CI runs formatting, vet, staticcheck, govulncheck, race tests, PostgreSQL
   15/16/17 service conformance, PostgreSQL 15-to-17 restore rehearsal, MySQL
-  8.4 and MariaDB 11.4 service conformance, release artifact verification,
-  container builds, completion syntax checks, and the production-readiness
-  gate. Release artifacts are also smoke-tested by
+  8.4 and MariaDB 11.4 service conformance, MySQL-to-MariaDB restore
+  rehearsal, release artifact verification, container builds, completion
+  syntax checks, and the production-readiness gate. Release artifacts are also
+  smoke-tested by
   executing the host binary and validating generated shell completion.
 - Tagged E2E coverage exercises a control-plane HTTP server, worker agent,
   local repository storage, and Redis-compatible RESP target together for
@@ -95,8 +98,8 @@ executes `kronos version`.
 
 ## Blocking Work Before Calling The Whole Product Production-Ready
 
-1. Add larger MySQL/MariaDB restore drill coverage and cross-version restore
-   rehearsal evidence.
+1. Add reverse MariaDB-to-MySQL restore rehearsal and larger MySQL/MariaDB
+   restore drill coverage.
 2. Harden PostgreSQL operational behavior around full-cluster global-object
    restore rehearsals, operator-scale restore drills, and broader upgrade
    rehearsal evidence.
@@ -111,8 +114,8 @@ executes `kronos version`.
 
 ## Next Engineering Slices
 
-1. Add larger MySQL/MariaDB restore drill coverage and cross-version restore
-   rehearsal evidence.
+1. Add reverse MariaDB-to-MySQL restore rehearsal and larger MySQL/MariaDB
+   restore drill coverage.
 2. Extend PostgreSQL hardening around full-cluster global-object restore
    rehearsals, operator-scale restore drills, and broader upgrade rehearsal
    evidence.
