@@ -181,6 +181,69 @@ func TestOpenAPIDocumentsInvalidWriteResponses(t *testing.T) {
 	}
 }
 
+func TestOpenAPIWriteOperationsDocumentBadRequests(t *testing.T) {
+	t.Parallel()
+
+	doc := readOpenAPIDoc(t)
+	for _, operation := range []struct {
+		path   string
+		method string
+	}{
+		{path: "/api/v1/backups/now", method: "post"},
+		{path: "/api/v1/retention/plan", method: "post"},
+		{path: "/api/v1/retention/apply", method: "post"},
+		{path: "/api/v1/retention/policies", method: "post"},
+		{path: "/api/v1/retention/policies/{id}", method: "put"},
+		{path: "/api/v1/targets", method: "post"},
+		{path: "/api/v1/targets/{id}", method: "put"},
+		{path: "/api/v1/storages", method: "post"},
+		{path: "/api/v1/storages/{id}", method: "put"},
+		{path: "/api/v1/schedules", method: "post"},
+		{path: "/api/v1/schedules/{id}", method: "put"},
+	} {
+		responses := openAPIResponses(t, doc, operation.path, operation.method)
+		if _, ok := responses["400"]; !ok {
+			t.Fatalf("%s %s missing 400 response", operation.method, operation.path)
+		}
+	}
+}
+
+func readOpenAPIDoc(t *testing.T) map[string]any {
+	t.Helper()
+
+	data, err := os.ReadFile("openapi.yaml")
+	if err != nil {
+		t.Fatalf("ReadFile(openapi.yaml) error = %v", err)
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("Unmarshal(openapi.yaml) error = %v", err)
+	}
+	return doc
+}
+
+func openAPIResponses(t *testing.T, doc map[string]any, path, method string) map[string]any {
+	t.Helper()
+
+	paths, ok := doc["paths"].(map[string]any)
+	if !ok {
+		t.Fatal("paths missing")
+	}
+	pathItem, ok := paths[path].(map[string]any)
+	if !ok {
+		t.Fatalf("path %q missing", path)
+	}
+	operation, ok := pathItem[method].(map[string]any)
+	if !ok {
+		t.Fatalf("%s %s operation missing", method, path)
+	}
+	responses, ok := operation["responses"].(map[string]any)
+	if !ok {
+		t.Fatalf("%s %s responses missing", method, path)
+	}
+	return responses
+}
+
 func collectRefs(value any) []string {
 	var refs []string
 	switch typed := value.(type) {
