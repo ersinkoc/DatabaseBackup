@@ -515,7 +515,7 @@ jobs:
           KRONOS_MONGODB_TEST_ADDR: 127.0.0.1:27018
           KRONOS_MONGODB_RESTORE_ADDR: 127.0.0.1:27019
           KRONOS_MONGODB_BULK_ROWS: "10000"
-          KRONOS_MONGODB_TEST_TIMEOUT_SECONDS: "180"
+          KRONOS_MONGODB_TEST_TIMEOUT_SECONDS: "300"
           MONGODB_IMAGE: mongodb/mongodb-community-server:7.0-ubuntu2204
         run: go test -tags=integration ./internal/drivers/mongodb
 

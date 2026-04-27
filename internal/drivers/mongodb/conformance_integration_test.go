@@ -100,26 +100,29 @@ func TestMongoDBDriverConformanceBackupRestore(t *testing.T) {
 }
 
 func mongoSeedScript(suffix string, bulkRows int) string {
-	var b strings.Builder
-	b.WriteString(`
+	return fmt.Sprintf(`
 db.users.insertMany([
   {id: 1, name: "Ada"},
   {id: 2, name: "Grace"}
 ]);
-const bulk = [
-`)
-	for i := 1; i <= bulkRows; i++ {
-		if i > 1 {
-			b.WriteString(",\n")
-		}
-		fmt.Fprintf(&b, `  {id: %d, label: "item-%d", payload: {rank: %d, bucket: %d, tag: "kronos-%s"}, created_at: new Date("2026-04-27T00:00:00Z")}`, i, i, i, i%17, suffix)
-	}
-	b.WriteString(`
-];
-db.bulk_items.insertMany(bulk);
+const suffix = %q;
+const totalRows = %d;
+const batchSize = 500;
+for (let start = 1; start <= totalRows; start += batchSize) {
+  const docs = [];
+  const end = Math.min(totalRows, start + batchSize - 1);
+  for (let id = start; id <= end; id++) {
+    docs.push({
+      id,
+      label: "item-" + id,
+      payload: {rank: id, bucket: id %% 17, tag: "kronos-" + suffix},
+      created_at: new Date("2026-04-27T00:00:00Z")
+    });
+  }
+  db.bulk_items.insertMany(docs, {ordered: false});
+}
 db.bulk_items.createIndex({label: 1}, {name: "bulk_items_label_idx"});
-`)
-	return b.String()
+`, suffix, bulkRows)
 }
 
 func mongoBulkRows(t *testing.T) int {
