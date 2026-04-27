@@ -241,6 +241,17 @@ groups:
    pipeline needs exact stamped values. Set `RELEASE_TARGETS="linux/amd64"` to
    restrict the target matrix.
 
+   PostgreSQL conformance can be exercised against a reachable database when
+   `pg_dump` and `psql` are installed:
+
+   ```bash
+   KRONOS_POSTGRES_TEST_DSN='postgres://user:pass@127.0.0.1:5432/postgres?sslmode=disable' \
+     go test -tags=integration ./internal/drivers/postgres
+   ```
+
+   Set `KRONOS_POSTGRES_RESTORE_DSN` when restore verification should target a
+   different database than the source.
+
 2. Publish an immutable release from a signed tag when cutting a production
    version:
 
