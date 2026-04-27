@@ -48,9 +48,14 @@ create extension if not exists pgcrypto;
 create schema %s;
 create table %s.users(id integer primary key, name text not null);
 create table %s.documents(id integer primary key, public_id uuid not null default gen_random_uuid(), payload_oid oid not null);
+create table %s.bulk_items(id integer primary key, label text not null, payload jsonb not null, created_at timestamptz not null default now());
 insert into %s.users(id, name) values (1, 'Ada'), (2, 'Grace');
 insert into %s.documents(id, payload_oid) values (1, lo_from_bytea(0, convert_to('kronos-large-object-%s', 'UTF8')));
-`, sourceSchema, sourceSchema, sourceSchema, sourceSchema, sourceSchema, suffix)
+insert into %s.bulk_items(id, label, payload, created_at)
+select g, 'item-' || g, jsonb_build_object('rank', g, 'bucket', g %% 17, 'tag', 'kronos-%s'), '2026-04-27T00:00:00Z'::timestamptz + (g || ' seconds')::interval
+from generate_series(1, 2500) as g;
+create index bulk_items_label_idx on %s.bulk_items(label);
+`, sourceSchema, sourceSchema, sourceSchema, sourceSchema, sourceSchema, sourceSchema, suffix, sourceSchema, suffix, sourceSchema)
 	runPSQL(t, ctx, sourceDSN, seedSQL)
 	runPSQL(t, ctx, sourceDSN, fmt.Sprintf("create role %s login password 'kronos-secret-%s';", roleName, suffix))
 
@@ -106,6 +111,18 @@ insert into %s.documents(id, payload_oid) values (1, lo_from_bytea(0, convert_to
 	publicID := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select public_id::text <> '' from %s.documents where id = 1;", restoreSchema))
 	if publicID != "t" {
 		t.Fatalf("restored extension-backed uuid presence = %q, want t", publicID)
+	}
+	bulkCount := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select count(*) from %s.bulk_items;", restoreSchema))
+	if bulkCount != "2500" {
+		t.Fatalf("restored bulk row count = %q, want 2500", bulkCount)
+	}
+	bulkChecksum := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select sum(id)::text || ':' || sum((payload->>'rank')::integer)::text from %s.bulk_items;", restoreSchema))
+	if bulkChecksum != "3126250:3126250" {
+		t.Fatalf("restored bulk checksum = %q, want 3126250:3126250", bulkChecksum)
+	}
+	bulkIndexPresent := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select to_regclass('%s.bulk_items_label_idx') is not null;", restoreSchema))
+	if bulkIndexPresent != "t" {
+		t.Fatalf("restored bulk index presence = %q, want t", bulkIndexPresent)
 	}
 
 	var failedRestore drivers.MemoryRecordStream
