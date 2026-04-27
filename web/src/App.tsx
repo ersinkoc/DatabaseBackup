@@ -168,6 +168,36 @@ type StorageListResponse = {
   storages?: Storage[];
 };
 
+type Schedule = {
+  id: string;
+  name: string;
+  target_id: string;
+  storage_id: string;
+  backup_type: string;
+  expression: string;
+  retention_policy_id?: string;
+  paused: boolean;
+  labels?: Record<string, string>;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type RetentionPolicy = {
+  id: string;
+  name: string;
+  rules: Array<{ kind: string; params?: Record<string, unknown> }>;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type ScheduleListResponse = {
+  schedules?: Schedule[];
+};
+
+type RetentionPolicyListResponse = {
+  policies?: RetentionPolicy[];
+};
+
 function AppLogo() {
   return (
     <div className="flex h-12 items-center gap-3 px-4">
@@ -201,6 +231,12 @@ export function App() {
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(null);
   const [selectedStorage, setSelectedStorage] = useState<Storage | null>(null);
   const [loadingInventoryID, setLoadingInventoryID] = useState<string | null>(null);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [retentionPolicies, setRetentionPolicies] = useState<RetentionPolicy[]>([]);
+  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
+  const [selectedRetentionPolicy, setSelectedRetentionPolicy] = useState<RetentionPolicy | null>(null);
+  const [loadingAutomationID, setLoadingAutomationID] = useState<string | null>(null);
+  const [updatingScheduleID, setUpdatingScheduleID] = useState<string | null>(null);
 
   async function loadOverview({ refresh = false }: { refresh?: boolean } = {}) {
     if (refresh) {
@@ -213,11 +249,13 @@ export function App() {
     try {
       const nextOverview = await requestJSON<Overview>("/api/v1/overview", apiToken);
       setOverview(nextOverview);
-      const [jobResult, backupResult, targetResult, storageResult] = await Promise.allSettled([
+      const [jobResult, backupResult, targetResult, storageResult, scheduleResult, retentionPolicyResult] = await Promise.allSettled([
         requestJSON<JobListResponse>("/api/v1/jobs", apiToken),
         requestJSON<BackupListResponse>("/api/v1/backups", apiToken),
         requestJSON<TargetListResponse>("/api/v1/targets", apiToken),
         requestJSON<StorageListResponse>("/api/v1/storages", apiToken),
+        requestJSON<ScheduleListResponse>("/api/v1/schedules", apiToken),
+        requestJSON<RetentionPolicyListResponse>("/api/v1/retention/policies", apiToken),
       ]);
       if (jobResult.status === "fulfilled") {
         setJobs(sortJobs(jobResult.value.jobs ?? []).slice(0, 8));
@@ -239,7 +277,17 @@ export function App() {
       } else {
         setStorages([]);
       }
-      const failedDetails = [jobResult, backupResult, targetResult, storageResult].filter((result) => result.status === "rejected").length;
+      if (scheduleResult.status === "fulfilled") {
+        setSchedules((scheduleResult.value.schedules ?? []).slice(0, 8));
+      } else {
+        setSchedules([]);
+      }
+      if (retentionPolicyResult.status === "fulfilled") {
+        setRetentionPolicies((retentionPolicyResult.value.policies ?? []).slice(0, 8));
+      } else {
+        setRetentionPolicies([]);
+      }
+      const failedDetails = [jobResult, backupResult, targetResult, storageResult, scheduleResult, retentionPolicyResult].filter((result) => result.status === "rejected").length;
       if (failedDetails > 0) {
         setDetailError("Some detail endpoints require additional read scopes");
       }
@@ -348,6 +396,62 @@ export function App() {
       setDetailError(err instanceof Error ? err.message : "storage detail request failed");
     } finally {
       setLoadingInventoryID(null);
+    }
+  }
+
+  async function inspectSchedule(schedule: Schedule) {
+    setLoadingAutomationID(schedule.id);
+    setDetailError(null);
+    try {
+      setSelectedSchedule(await requestJSON<Schedule>(`/api/v1/schedules/${encodeURIComponent(schedule.id)}`, apiToken));
+      setSelectedRetentionPolicy(null);
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "schedule detail request failed");
+    } finally {
+      setLoadingAutomationID(null);
+    }
+  }
+
+  async function inspectRetentionPolicy(policy: RetentionPolicy) {
+    setLoadingAutomationID(policy.id);
+    setDetailError(null);
+    try {
+      setSelectedRetentionPolicy(await requestJSON<RetentionPolicy>(`/api/v1/retention/policies/${encodeURIComponent(policy.id)}`, apiToken));
+      setSelectedSchedule(null);
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "retention policy detail request failed");
+    } finally {
+      setLoadingAutomationID(null);
+    }
+  }
+
+  async function toggleSchedulePause(schedule: Schedule) {
+    setUpdatingScheduleID(schedule.id);
+    setDetailError(null);
+    try {
+      const action = schedule.paused ? "resume" : "pause";
+      const updated = await requestJSON<Schedule>(`/api/v1/schedules/${encodeURIComponent(schedule.id)}/${action}`, apiToken, {
+        method: "POST",
+      });
+      setSchedules((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setSelectedSchedule((current) => (current?.id === updated.id ? updated : current));
+      setOverview((current) => {
+        if (!current || schedule.paused === updated.paused) {
+          return current;
+        }
+        const delta = updated.paused ? 1 : -1;
+        return {
+          ...current,
+          inventory: {
+            ...current.inventory,
+            schedules_paused: Math.max(0, current.inventory.schedules_paused + delta),
+          },
+        };
+      });
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "schedule update failed");
+    } finally {
+      setUpdatingScheduleID(null);
     }
   }
 
@@ -556,6 +660,32 @@ export function App() {
               </section>
 
               <section className="rounded-md border border-line bg-panel p-4">
+                <h2 className="text-base font-semibold">Automation</h2>
+                <div className="mt-4 grid gap-3">
+                  <InventoryGroup
+                    empty={loading ? "Loading schedules" : "No schedules"}
+                    items={schedules.map((schedule) => ({
+                      key: schedule.id,
+                      label: schedule.name || schedule.id,
+                      value: schedule.paused ? "paused" : schedule.backup_type || "schedule",
+                      loading: loadingAutomationID === schedule.id,
+                      onInspect: () => void inspectSchedule(schedule),
+                    }))}
+                  />
+                  <InventoryGroup
+                    empty={loading ? "Loading retention" : "No retention policies"}
+                    items={retentionPolicies.map((policy) => ({
+                      key: policy.id,
+                      label: policy.name || policy.id,
+                      value: `${policy.rules?.length ?? 0} rules`,
+                      loading: loadingAutomationID === policy.id,
+                      onInspect: () => void inspectRetentionPolicy(policy),
+                    }))}
+                  />
+                </div>
+              </section>
+
+              <section className="rounded-md border border-line bg-panel p-4">
                 <h2 className="text-base font-semibold">Latest backups</h2>
                 <div className="mt-4 grid gap-3">
                   {latestBackups.length > 0 ? (
@@ -596,6 +726,8 @@ export function App() {
 
               <TargetDetail target={selectedTarget} />
               <StorageDetail storage={selectedStorage} />
+              <ScheduleDetail schedule={selectedSchedule} updating={updatingScheduleID === selectedSchedule?.id} onToggle={toggleSchedulePause} />
+              <RetentionPolicyDetail policy={selectedRetentionPolicy} />
               <JobDetail job={selectedJob} />
               <BackupDetail backup={selectedBackup} />
             </aside>
@@ -722,6 +854,61 @@ function StorageDetail({ storage }: { storage: Storage | null }) {
         <HealthRow label="Labels" value={formatRecord(storage.labels)} tone="indigo" />
         <HealthRow label="Created" value={formatDateTime(storage.created_at) ?? "-"} tone="bronze" />
         <HealthRow label="Updated" value={formatDateTime(storage.updated_at) ?? "-"} tone="indigo" />
+      </div>
+    </section>
+  );
+}
+
+function ScheduleDetail({
+  schedule,
+  updating,
+  onToggle,
+}: {
+  schedule: Schedule | null;
+  updating: boolean;
+  onToggle: (schedule: Schedule) => Promise<void>;
+}) {
+  if (!schedule) {
+    return null;
+  }
+  return (
+    <section className="rounded-md border border-line bg-panel p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">Schedule detail</h2>
+        <Button className="h-7 px-2 text-xs" disabled={updating} onClick={() => void onToggle(schedule)} type="button" variant={schedule.paused ? "secondary" : "ghost"}>
+          {updating ? "Saving" : schedule.paused ? "Resume" : "Pause"}
+        </Button>
+      </div>
+      <div className="mt-4 grid gap-3">
+        <HealthRow label="ID" value={schedule.id} tone="bronze" />
+        <HealthRow label="Name" value={schedule.name || "-"} tone="indigo" />
+        <HealthRow label="Status" value={schedule.paused ? "paused" : "active"} tone={schedule.paused ? "warning" : "success"} />
+        <HealthRow label="Type" value={schedule.backup_type || "-"} tone="bronze" />
+        <HealthRow label="Expression" value={schedule.expression || "-"} tone="indigo" />
+        <HealthRow label="Target" value={schedule.target_id || "-"} tone="bronze" />
+        <HealthRow label="Storage" value={schedule.storage_id || "-"} tone="indigo" />
+        <HealthRow label="Retention" value={schedule.retention_policy_id || "-"} tone="bronze" />
+        <HealthRow label="Labels" value={formatRecord(schedule.labels)} tone="indigo" />
+        <HealthRow label="Created" value={formatDateTime(schedule.created_at) ?? "-"} tone="bronze" />
+        <HealthRow label="Updated" value={formatDateTime(schedule.updated_at) ?? "-"} tone="indigo" />
+      </div>
+    </section>
+  );
+}
+
+function RetentionPolicyDetail({ policy }: { policy: RetentionPolicy | null }) {
+  if (!policy) {
+    return null;
+  }
+  return (
+    <section className="rounded-md border border-line bg-panel p-4">
+      <h2 className="text-base font-semibold">Retention detail</h2>
+      <div className="mt-4 grid gap-3">
+        <HealthRow label="ID" value={policy.id} tone="bronze" />
+        <HealthRow label="Name" value={policy.name || "-"} tone="indigo" />
+        <HealthRow label="Rules" value={formatRules(policy.rules)} tone="warning" />
+        <HealthRow label="Created" value={formatDateTime(policy.created_at) ?? "-"} tone="bronze" />
+        <HealthRow label="Updated" value={formatDateTime(policy.updated_at) ?? "-"} tone="indigo" />
       </div>
     </section>
   );
@@ -857,6 +1044,18 @@ function formatRecord(value: Record<string, unknown> | undefined) {
   }
   return Object.entries(value)
     .map(([key, entry]) => `${key}=${String(entry)}`)
+    .join(", ");
+}
+
+function formatRules(rules: RetentionPolicy["rules"] | undefined) {
+  if (!rules || rules.length === 0) {
+    return "-";
+  }
+  return rules
+    .map((rule) => {
+      const params = formatRecord(rule.params);
+      return params === "-" ? rule.kind : `${rule.kind}(${params})`;
+    })
     .join(", ");
 }
 

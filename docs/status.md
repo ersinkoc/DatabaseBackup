@@ -162,9 +162,10 @@ broad multi-database production suite. The largest remaining areas are:
   Storage. Current executable backends are local filesystem and S3-compatible
   object storage.
 - Deeper WebUI interaction beyond the current authenticated live
-  overview/jobs/backups/inventory dashboard plus target/storage/job/backup
-  detail, job cancel/retry, and backup protection actions, such as resource
-  CRUD, richer backup drill actions, and restore workflows.
+  overview/jobs/backups/inventory dashboard plus
+  target/storage/schedule/retention/job/backup detail, schedule pause/resume,
+  job cancel/retry, and backup protection actions, such as resource CRUD,
+  richer backup drill actions, and restore workflows.
 - Richer notification channels and hook execution surfaces from the product
   plan.
 - Broader production hardening around auth integrations and multi-instance
