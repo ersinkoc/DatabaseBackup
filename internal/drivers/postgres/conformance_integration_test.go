@@ -30,17 +30,23 @@ func TestPostgresDriverConformanceBackupRestore(t *testing.T) {
 	suffix := randomHex(t, 4)
 	sourceSchema := "kronos_src_" + suffix
 	restoreSchema := "kronos_restore_" + suffix
+	failureSchema := "kronos_fail_" + suffix
 	restoreDSN := firstNonEmpty(strings.TrimSpace(os.Getenv("KRONOS_POSTGRES_RESTORE_DSN")), sourceDSN)
 	cleanupSchema(t, ctx, sourceDSN, sourceSchema)
 	cleanupSchema(t, ctx, restoreDSN, restoreSchema)
+	cleanupSchema(t, ctx, restoreDSN, failureSchema)
 	defer cleanupSchema(t, context.Background(), sourceDSN, sourceSchema)
 	defer cleanupSchema(t, context.Background(), restoreDSN, restoreSchema)
+	defer cleanupSchema(t, context.Background(), restoreDSN, failureSchema)
 
 	seedSQL := fmt.Sprintf(`
+create extension if not exists pgcrypto;
 create schema %s;
 create table %s.users(id integer primary key, name text not null);
+create table %s.documents(id integer primary key, public_id uuid not null default gen_random_uuid(), payload_oid oid not null);
 insert into %s.users(id, name) values (1, 'Ada'), (2, 'Grace');
-`, sourceSchema, sourceSchema, sourceSchema)
+insert into %s.documents(id, payload_oid) values (1, lo_from_bytea(0, convert_to('kronos-large-object-%s', 'UTF8')));
+`, sourceSchema, sourceSchema, sourceSchema, sourceSchema, sourceSchema, suffix)
 	runPSQL(t, ctx, sourceDSN, seedSQL)
 
 	driver := NewDriver()
@@ -70,6 +76,31 @@ insert into %s.users(id, name) values (1, 'Ada'), (2, 'Grace');
 	name := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select name from %s.users where id = 1;", restoreSchema))
 	if name != "Ada" {
 		t.Fatalf("restored id=1 name = %q, want Ada", name)
+	}
+	largeObject := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select convert_from(lo_get(payload_oid), 'UTF8') from %s.documents where id = 1;", restoreSchema))
+	if largeObject != "kronos-large-object-"+suffix {
+		t.Fatalf("restored large object = %q, want %q", largeObject, "kronos-large-object-"+suffix)
+	}
+	publicID := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select public_id::text <> '' from %s.documents where id = 1;", restoreSchema))
+	if publicID != "t" {
+		t.Fatalf("restored extension-backed uuid presence = %q, want t", publicID)
+	}
+
+	var failedRestore drivers.MemoryRecordStream
+	failingSQL := fmt.Sprintf(`
+create schema %s;
+create table %s.created_before_error(id integer primary key);
+select kronos_missing_restore_function();
+`, failureSchema, failureSchema)
+	if err := failedRestore.WriteRecord(drivers.ObjectRef{Name: failureSchema, Kind: databaseObjectKind}, []byte(failingSQL)); err != nil {
+		t.Fatalf("WriteRecord(failed restore) error = %v", err)
+	}
+	if err := driver.Restore(ctx, drivers.Target{Connection: map[string]string{"dsn": restoreDSN}}, &failedRestore, drivers.RestoreOptions{ReplaceExisting: true}); err == nil {
+		t.Fatal("Restore(failing SQL) error = nil, want error")
+	}
+	rolledBack := queryScalar(t, ctx, restoreDSN, fmt.Sprintf("select to_regclass('%s.created_before_error') is null;", failureSchema))
+	if rolledBack != "t" {
+		t.Fatalf("failing restore rollback = %q, want t", rolledBack)
 	}
 }
 
