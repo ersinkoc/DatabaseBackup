@@ -126,6 +126,27 @@ func TestReleaseScriptsIncludeProvenance(t *testing.T) {
 	}
 }
 
+func TestReleaseVerificationDocumentsSupplyChainChecks(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile("release-verification.md")
+	if err != nil {
+		t.Fatalf("ReadFile(release-verification.md) error = %v", err)
+	}
+	text := string(data)
+	for _, want := range []string{
+		"./scripts/verify-release.sh",
+		"./scripts/verify-signatures.sh",
+		"gh attestation verify",
+		"--signer-workflow .github/workflows/release.yml",
+		"Do not promote a release",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("release-verification.md missing %q", want)
+		}
+	}
+}
+
 func markdownFiles(t *testing.T, root string) []string {
 	t.Helper()
 

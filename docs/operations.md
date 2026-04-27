@@ -30,6 +30,8 @@ least one manifest can be verified:
 ```
 
 For full rehearsal steps, use the [Restore Drills](restore-drills.md) checklist.
+For downloaded release verification, use
+[Release Verification](release-verification.md).
 
 For public or shared control planes, set token verification throttling in
 `kronos.yaml` to match your expected automation volume:
@@ -280,7 +282,9 @@ groups:
    ```
 
    GitHub-hosted build and SBOM attestations are emitted by the release
-   workflow and can be inspected from the release workflow run summary.
+   workflow and can be inspected from the release workflow run summary. Use the
+   [Release Verification](release-verification.md) checklist before promoting
+   downloaded artifacts into production.
 
 3. Drain new work by pausing schedules that should not run during the upgrade:
 
