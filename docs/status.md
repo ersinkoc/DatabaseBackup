@@ -111,7 +111,8 @@ through to ambiguous runtime behavior.
 
 Tagged E2E coverage is available for the implemented worker/control-plane/Redis
 backup and restore path, retention apply metadata pruning, and lost-agent
-recovery during job claim:
+recovery during job claim. The same tagged suite also covers server restart
+recovery for active jobs reopened from persisted state:
 
 ```bash
 .tools/go/bin/go test -tags=e2e ./cmd/kronos
@@ -142,11 +143,10 @@ are:
 
 1. Add another first-class database driver, starting with the smallest useful
    backup/restore slice and conformance tests.
-2. Add server restart recovery E2E coverage for active jobs reopened from
-   persisted state.
-3. Wire the WebUI to live API endpoints for dashboard state, jobs, backups, and
+2. Wire the WebUI to live API endpoints for dashboard state, jobs, backups, and
    agents.
-4. Add additional notification channels and hook execution surfaces.
-5. Sign release provenance and SBOM metadata with keyless CI identity.
+3. Add additional notification channels and hook execution surfaces.
+4. Sign release provenance and SBOM metadata with keyless CI identity.
+5. Add release artifact smoke tests that execute the built archive contents.
 6. Add cloud-specific deployment manifests for common managed Kubernetes
    environments.
