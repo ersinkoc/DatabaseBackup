@@ -12,9 +12,9 @@ operation.
 
 | Scope | Estimate | Notes |
 | --- | ---: | --- |
-| Implemented Redis/local/S3 path | 87% | Core pipeline, agent/server flow, restore planning, retention, audit, metrics, release scripts, Kubernetes examples, runbooks, and a reusable production gate are in place. |
-| Broad multi-database product vision | 66% | The architecture is strong, but major drivers, storage backends, WebUI workflows, and multi-instance deployment patterns remain roadmap work. |
-| Current repository release hygiene | 86% | Tests, vet, format checks, OpenAPI checks, release artifacts, provenance, SBOM metadata, CI govulncheck, and the production check script are present. The `golang.org/x/crypto` advisory remediation has been pushed; confirm Dependabot closes the alerts after rescan before a real release. |
+| Implemented Redis/local/S3 path | 89% | Core pipeline, agent/server flow, restore planning, retention, audit, metrics, release scripts, Kubernetes examples, runbooks, a reusable production gate, and a tagged worker/control-plane/Redis backup E2E test are in place. |
+| Broad multi-database product vision | 67% | The architecture is strong, but major drivers, storage backends, WebUI workflows, and multi-instance deployment patterns remain roadmap work. |
+| Current repository release hygiene | 87% | Tests, vet, format checks, OpenAPI checks, release artifacts, provenance, SBOM metadata, CI govulncheck, the production check script, and tagged E2E coverage are present. The `golang.org/x/crypto` advisories are fixed. |
 
 ## Current Release Gate
 
@@ -44,28 +44,25 @@ executes `kronos version`.
 - CI runs formatting, vet, staticcheck, govulncheck, race tests, release
   artifact verification, container builds, completion syntax checks, and the
   production-readiness gate.
+- Tagged E2E coverage exercises a control-plane HTTP server, worker agent,
+  local repository storage, and Redis-compatible RESP target together:
+  `go test -tags=e2e ./cmd/kronos`.
 
 ## Blocking Work Before Calling The Whole Product Production-Ready
 
-1. Confirm GitHub Dependabot closes the pushed `golang.org/x/crypto`
-   remediation after its next security scan.
-2. Add at least one more first-class database driver, starting with PostgreSQL
+1. Add at least one more first-class database driver, starting with PostgreSQL
    or MySQL, plus backup and restore conformance tests.
-3. Add end-to-end tests that run server, worker agent, storage backend, and
-   target driver together.
-4. Expand the WebUI from dashboard shell into live resource CRUD, job detail,
+2. Extend E2E coverage from backup-only into restore and retention apply flows.
+3. Expand the WebUI from dashboard shell into live resource CRUD, job detail,
    backup detail, and restore workflows.
-5. Decide the supported multi-instance story for control-plane state, or
+4. Decide the supported multi-instance story for control-plane state, or
    document single-replica constraints as a hard production boundary.
-6. Sign or attest release provenance and SBOM metadata in CI.
+5. Sign or attest release provenance and SBOM metadata in CI.
 
 ## Next Engineering Slices
 
-1. Watch the Dependabot rescan, then keep `govulncheck` and the production gate
-   green on every push.
-2. End-to-end Redis backup/restore scenario that starts a control plane and
-   worker agent in the same test.
-3. PostgreSQL driver MVP with schema/data backup and restore smoke tests.
-4. WebUI live API wiring for overview, jobs, backups, agents, and readiness.
-5. Production deployment hardening for single-replica Kubernetes and external
+1. Add E2E restore coverage for a previously committed Redis backup.
+2. PostgreSQL driver MVP with schema/data backup and restore smoke tests.
+3. WebUI live API wiring for overview, jobs, backups, agents, and readiness.
+4. Production deployment hardening for single-replica Kubernetes and external
    secret management.

@@ -109,6 +109,13 @@ intentional fail-fast boundaries for roadmap database drivers and storage
 backends; unsupported capabilities are surfaced early instead of falling
 through to ambiguous runtime behavior.
 
+Tagged E2E coverage is available for the implemented worker/control-plane/Redis
+backup path:
+
+```bash
+.tools/go/bin/go test -tags=e2e ./cmd/kronos
+```
+
 ## Known Gaps
 
 See [Production Readiness](production-readiness.md) for the current release
