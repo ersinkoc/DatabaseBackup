@@ -59,6 +59,7 @@ insert into %s.documents(id, payload_oid) values (1, lo_from_bytea(0, convert_to
 	if len(records) == 0 || !strings.Contains(string(records[0].Payload), sourceSchema) || !strings.Contains(string(records[0].Payload), "Ada") {
 		t.Fatalf("backup records do not contain expected source data: %#v", records)
 	}
+	runPSQL(t, ctx, sourceDSN, fmt.Sprintf("select lo_unlink(payload_oid) from %s.documents; drop schema %s cascade;", sourceSchema, sourceSchema))
 
 	var restore drivers.MemoryRecordStream
 	rewrite := strings.ReplaceAll(string(records[0].Payload), sourceSchema, restoreSchema)
