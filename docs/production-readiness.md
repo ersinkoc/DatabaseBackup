@@ -12,9 +12,9 @@ operation.
 
 | Scope | Estimate | Notes |
 | --- | ---: | --- |
-| Implemented Redis/local/S3 path | 85% | Core pipeline, agent/server flow, restore planning, retention, audit, metrics, release scripts, Kubernetes examples, and runbooks are in place. |
-| Broad multi-database product vision | 65% | The architecture is strong, but major drivers, storage backends, WebUI workflows, and multi-instance deployment patterns remain roadmap work. |
-| Current repository release hygiene | 80% | Tests, vet, format checks, OpenAPI checks, release artifacts, provenance, SBOM metadata, and the production check script are present. Dependency vulnerability review still needs to be cleared before a real release. |
+| Implemented Redis/local/S3 path | 87% | Core pipeline, agent/server flow, restore planning, retention, audit, metrics, release scripts, Kubernetes examples, runbooks, and a reusable production gate are in place. |
+| Broad multi-database product vision | 66% | The architecture is strong, but major drivers, storage backends, WebUI workflows, and multi-instance deployment patterns remain roadmap work. |
+| Current repository release hygiene | 86% | Tests, vet, format checks, OpenAPI checks, release artifacts, provenance, SBOM metadata, CI govulncheck, and the production check script are present. The `golang.org/x/crypto` advisory remediation has been pushed; confirm Dependabot closes the alerts after rescan before a real release. |
 
 ## Current Release Gate
 
@@ -41,11 +41,14 @@ executes `kronos version`.
 - Health, readiness, metrics, OpenAPI, operations docs, deployment topology
   docs, restore drill docs, release scripts, provenance metadata, SBOM
   metadata, and Kubernetes examples.
+- CI runs formatting, vet, staticcheck, govulncheck, race tests, release
+  artifact verification, container builds, completion syntax checks, and the
+  production-readiness gate.
 
 ## Blocking Work Before Calling The Whole Product Production-Ready
 
-1. Clear dependency security alerts reported by GitHub Dependabot before
-   cutting a release.
+1. Confirm GitHub Dependabot closes the pushed `golang.org/x/crypto`
+   remediation after its next security scan.
 2. Add at least one more first-class database driver, starting with PostgreSQL
    or MySQL, plus backup and restore conformance tests.
 3. Add end-to-end tests that run server, worker agent, storage backend, and
@@ -58,7 +61,8 @@ executes `kronos version`.
 
 ## Next Engineering Slices
 
-1. Dependency security cleanup and vulnerability gate.
+1. Watch the Dependabot rescan, then keep `govulncheck` and the production gate
+   green on every push.
 2. End-to-end Redis backup/restore scenario that starts a control plane and
    worker agent in the same test.
 3. PostgreSQL driver MVP with schema/data backup and restore smoke tests.
