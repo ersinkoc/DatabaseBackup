@@ -43,6 +43,9 @@ jobs:
       - name: Test
         run: go test -race ./...
 
+      - name: Production readiness gate
+        run: ./scripts/production-check.sh
+
       - name: Build
         run: go build -trimpath -o bin/kronos ./cmd/kronos
 
@@ -53,6 +56,7 @@ jobs:
           sh -n scripts/provenance.sh
           sh -n scripts/sbom.sh
           sh -n scripts/verify-release.sh
+          sh -n scripts/production-check.sh
 
       - name: Build release artifact
         run: |
