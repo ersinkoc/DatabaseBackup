@@ -133,6 +133,12 @@ SPA fallback responses revalidating with `Cache-Control: no-cache`, while
 fingerprinted assets under `/assets/` are served with a one-year immutable cache
 policy.
 
+When token authorization is enabled, the WebUI uses the same bearer-token model
+as the CLI and attaches a saved token to same-origin API requests. Treat the
+browser as an operator workstation: serve the WebUI only over trusted loopback or
+TLS-terminated origins, use scoped tokens for day-to-day dashboard access, and
+clear the saved token before handing the workstation to another operator.
+
 ## Notifications
 
 Kronos can post webhook notifications when jobs reach a terminal state. Configure

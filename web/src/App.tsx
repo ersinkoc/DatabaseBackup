@@ -46,6 +46,8 @@ const healthTone = {
   indigo: "text-indigo-light",
 };
 
+const tokenStorageKey = "kronos.apiToken";
+
 type Overview = {
   generated_at: string;
   agents: {
@@ -130,6 +132,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [apiToken, setAPIToken] = useState(() => localStorage.getItem(tokenStorageKey) ?? "");
+  const [draftToken, setDraftToken] = useState(apiToken);
 
   async function loadOverview({ refresh = false }: { refresh?: boolean } = {}) {
     if (refresh) {
@@ -139,10 +143,17 @@ export function App() {
     }
     setError(null);
     try {
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (apiToken.trim() !== "") {
+        headers.Authorization = `Bearer ${apiToken.trim()}`;
+      }
       const response = await fetch("/api/v1/overview", {
-        headers: { Accept: "application/json" },
+        headers,
       });
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error("API token required");
+        }
         throw new Error(`overview request failed with ${response.status}`);
       }
       setOverview((await response.json()) as Overview);
@@ -156,7 +167,7 @@ export function App() {
 
   useEffect(() => {
     void loadOverview();
-  }, []);
+  }, [apiToken]);
 
   const generatedAt = useMemo(() => formatDateTime(overview?.generated_at), [overview?.generated_at]);
   const attentionTotal = overview ? sumValues(overview.attention) : 0;
@@ -181,6 +192,47 @@ export function App() {
               </button>
             ))}
           </nav>
+          <form
+            className="mx-3 mt-3 grid gap-2 border-t border-line pt-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const nextToken = draftToken.trim();
+              if (nextToken === "") {
+                localStorage.removeItem(tokenStorageKey);
+              } else {
+                localStorage.setItem(tokenStorageKey, nextToken);
+              }
+              setAPIToken(nextToken);
+            }}
+          >
+            <label className="text-xs font-semibold uppercase text-muted" htmlFor="api-token">
+              API token
+            </label>
+            <input
+              id="api-token"
+              className="h-9 rounded-md border border-line bg-surface px-3 text-sm text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+              placeholder="Bearer token"
+              type="password"
+              value={draftToken}
+              onChange={(event) => setDraftToken(event.target.value)}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="secondary" type="submit" icon={<KeyRound className="h-4 w-4" />}>
+                Save
+              </Button>
+              <Button
+                variant="ghost"
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem(tokenStorageKey);
+                  setDraftToken("");
+                  setAPIToken("");
+                }}
+              >
+                Clear
+              </Button>
+            </div>
+          </form>
         </aside>
 
         <section className="min-w-0">

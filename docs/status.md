@@ -161,8 +161,9 @@ broad multi-database production suite. The largest remaining areas are:
 - Additional storage backends such as SFTP, Azure Blob, and Google Cloud
   Storage. Current executable backends are local filesystem and S3-compatible
   object storage.
-- Deeper WebUI interaction beyond the current live overview dashboard, such as
-  resource CRUD, job detail, backup detail, and restore workflows.
+- Deeper WebUI interaction beyond the current authenticated live overview
+  dashboard, such as resource CRUD, job detail, backup detail, and restore
+  workflows.
 - Richer notification channels and hook execution surfaces from the product
   plan.
 - Broader production hardening around auth integrations and multi-instance
