@@ -169,6 +169,7 @@ export function App() {
   const [backups, setBackups] = useState<Backup[]>([]);
   const [targets, setTargets] = useState<Target[]>([]);
   const [storages, setStorages] = useState<Storage[]>([]);
+  const [updatingBackupID, setUpdatingBackupID] = useState<string | null>(null);
 
   async function loadOverview({ refresh = false }: { refresh?: boolean } = {}) {
     if (refresh) {
@@ -216,6 +217,40 @@ export function App() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  }
+
+  async function toggleBackupProtection(backup: Backup) {
+    setUpdatingBackupID(backup.id);
+    setDetailError(null);
+    try {
+      const action = backup.protected ? "unprotect" : "protect";
+      const updated = await requestJSON<Backup>(`/api/v1/backups/${encodeURIComponent(backup.id)}/${action}`, apiToken, {
+        method: "POST",
+      });
+      setBackups((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setOverview((current) => {
+        if (!current) {
+          return current;
+        }
+        const protectedDelta = updated.protected === backup.protected ? 0 : updated.protected ? 1 : -1;
+        const unprotectedDelta = updated.protected === backup.protected ? 0 : updated.protected ? -1 : 1;
+        return {
+          ...current,
+          backups: {
+            ...current.backups,
+            protected: Math.max(0, current.backups.protected + protectedDelta),
+          },
+          attention: {
+            ...current.attention,
+            unprotected_backups: Math.max(0, current.attention.unprotected_backups + unprotectedDelta),
+          },
+        };
+      });
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "backup protection update failed");
+    } finally {
+      setUpdatingBackupID(null);
     }
   }
 
@@ -411,7 +446,18 @@ export function App() {
                     latestBackups.map((backup) => (
                       <div key={backup.id} className="flex h-10 items-center justify-between gap-3 rounded-md bg-surface px-3 text-sm">
                         <span className="min-w-0 truncate">{backup.target_id || backup.id}</span>
-                        <span className="font-mono text-xs text-muted">{formatBytes(backup.size_bytes)}</span>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="font-mono text-xs text-muted">{formatBytes(backup.size_bytes)}</span>
+                          <Button
+                            className="h-7 px-2 text-xs"
+                            disabled={updatingBackupID === backup.id}
+                            onClick={() => void toggleBackupProtection(backup)}
+                            type="button"
+                            variant={backup.protected ? "secondary" : "ghost"}
+                          >
+                            {updatingBackupID === backup.id ? "Saving" : backup.protected ? "Protected" : "Protect"}
+                          </Button>
+                        </div>
                       </div>
                     ))
                   ) : (
@@ -475,12 +521,12 @@ function InventoryGroup({ empty, items }: { empty: string; items: Array<{ key: s
   );
 }
 
-async function requestJSON<T>(path: string, token: string): Promise<T> {
+async function requestJSON<T>(path: string, token: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (token.trim() !== "") {
     headers.Authorization = `Bearer ${token.trim()}`;
   }
-  const response = await fetch(path, { headers });
+  const response = await fetch(path, { ...init, headers: { ...headers, ...init.headers } });
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
       throw new Error("API token required");

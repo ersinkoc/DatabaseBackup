@@ -23,8 +23,8 @@ real-service MongoDB 7.0 conformance, and a 10,000-document restore drill in
 CI; it still needs broader version/recovery coverage before it should be
 treated as production-grade. The full product vision across SFTP, Azure Blob, Google Cloud
 Storage, deeper WebUI workflows beyond the authenticated live
-overview/jobs/backups/inventory dashboard, and multi-instance control-plane
-operation is still roadmap work.
+overview/jobs/backups/inventory dashboard and backup protection action, and
+multi-instance control-plane operation is still roadmap work.
 MySQL/MariaDB
 now has a `mysqldump`/`mysql` logical MVP with deterministic unit coverage and
 real-service MySQL 8.4 plus MariaDB 11.4 conformance for backup/restore of
