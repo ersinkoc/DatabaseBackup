@@ -2314,6 +2314,13 @@ func handleDeleteUser(w http.ResponseWriter, r *http.Request, store *control.Use
 		http.Error(w, "user store is not configured", http.StatusServiceUnavailable)
 		return
 	}
+	if _, ok, err := store.Get(id); err != nil {
+		http.Error(w, "get user", http.StatusInternalServerError)
+		return
+	} else if !ok {
+		http.NotFound(w, nil)
+		return
+	}
 	if err := store.Delete(id); err != nil {
 		http.Error(w, "delete user", http.StatusInternalServerError)
 		return
@@ -3293,6 +3300,13 @@ func handleDeleteRetentionPolicy(w http.ResponseWriter, r *http.Request, store *
 		http.Error(w, "retention policy store is not configured", http.StatusServiceUnavailable)
 		return
 	}
+	if _, ok, err := store.Get(id); err != nil {
+		http.Error(w, "get retention policy", http.StatusInternalServerError)
+		return
+	} else if !ok {
+		http.NotFound(w, nil)
+		return
+	}
 	if err := store.Delete(id); err != nil {
 		http.Error(w, "delete retention policy", http.StatusInternalServerError)
 		return
@@ -3577,6 +3591,13 @@ func handleDeleteTarget(w http.ResponseWriter, r *http.Request, store *control.T
 		http.Error(w, "target store is not configured", http.StatusServiceUnavailable)
 		return
 	}
+	if _, ok, err := store.Get(id); err != nil {
+		http.Error(w, "get target", http.StatusInternalServerError)
+		return
+	} else if !ok {
+		http.NotFound(w, nil)
+		return
+	}
 	if err := store.Delete(id); err != nil {
 		http.Error(w, "delete target", http.StatusInternalServerError)
 		return
@@ -3691,6 +3712,13 @@ func handleDeleteStorage(w http.ResponseWriter, r *http.Request, store *control.
 		http.Error(w, "storage store is not configured", http.StatusServiceUnavailable)
 		return
 	}
+	if _, ok, err := store.Get(id); err != nil {
+		http.Error(w, "get storage", http.StatusInternalServerError)
+		return
+	} else if !ok {
+		http.NotFound(w, nil)
+		return
+	}
 	if err := store.Delete(id); err != nil {
 		http.Error(w, "delete storage", http.StatusInternalServerError)
 		return
@@ -3795,6 +3823,13 @@ func handleUpdateSchedule(w http.ResponseWriter, r *http.Request, store *control
 func handleDeleteSchedule(w http.ResponseWriter, r *http.Request, store *control.ScheduleStore, auditLog *kaudit.Log, id core.ID) {
 	if store == nil {
 		http.Error(w, "schedule store is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	if _, ok, err := store.Get(id); err != nil {
+		http.Error(w, "get schedule", http.StatusInternalServerError)
+		return
+	} else if !ok {
+		http.NotFound(w, nil)
 		return
 	}
 	if err := store.Delete(id); err != nil {

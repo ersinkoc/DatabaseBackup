@@ -1631,6 +1631,18 @@ func TestServerUserEndpoints(t *testing.T) {
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("DELETE user status = %d, want 204", resp.StatusCode)
 	}
+	req, err = http.NewRequest(http.MethodDelete, server.URL+"/api/v1/users/user-1", nil)
+	if err != nil {
+		t.Fatalf("NewRequest(delete missing user) error = %v", err)
+	}
+	resp, err = server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("DELETE missing user error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("DELETE missing user status = %d, want 404", resp.StatusCode)
+	}
 	resp, err = server.Client().Get(server.URL + "/api/v1/users/user-1")
 	if err != nil {
 		t.Fatalf("GET deleted user error = %v", err)
@@ -2962,6 +2974,18 @@ func TestServerRetentionPolicyCRUD(t *testing.T) {
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("DELETE retention policy status = %d, want 204", resp.StatusCode)
 	}
+	req, err = http.NewRequest(http.MethodDelete, server.URL+"/api/v1/retention/policies/policy-1", nil)
+	if err != nil {
+		t.Fatalf("NewRequest(delete missing policy) error = %v", err)
+	}
+	resp, err = server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("DELETE missing retention policy error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("DELETE missing retention policy status = %d, want 404", resp.StatusCode)
+	}
 	resp, err = server.Client().Get(server.URL + "/api/v1/retention/policies/policy-1")
 	if err != nil {
 		t.Fatalf("GET deleted retention policy error = %v", err)
@@ -3058,6 +3082,18 @@ func TestServerTargetCRUD(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("DELETE target status = %d, want 204", resp.StatusCode)
+	}
+	req, err = http.NewRequest(http.MethodDelete, server.URL+"/api/v1/targets/target-1", nil)
+	if err != nil {
+		t.Fatalf("NewRequest(delete missing target) error = %v", err)
+	}
+	resp, err = server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("DELETE missing target error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("DELETE missing target status = %d, want 404", resp.StatusCode)
 	}
 	resp, err = server.Client().Get(server.URL + "/api/v1/targets/target-1")
 	if err != nil {
@@ -3269,6 +3305,18 @@ func TestServerScheduleCRUD(t *testing.T) {
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("DELETE schedule status = %d, want 204", resp.StatusCode)
 	}
+	req, err = http.NewRequest(http.MethodDelete, server.URL+"/api/v1/schedules/schedule-1", nil)
+	if err != nil {
+		t.Fatalf("NewRequest(delete missing schedule) error = %v", err)
+	}
+	resp, err = server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("DELETE missing schedule error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("DELETE missing schedule status = %d, want 404", resp.StatusCode)
+	}
 	resp, err = server.Client().Get(server.URL + "/api/v1/schedules/schedule-1")
 	if err != nil {
 		t.Fatalf("GET deleted schedule error = %v", err)
@@ -3364,6 +3412,18 @@ func TestServerStorageCRUD(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("DELETE storage status = %d, want 204", resp.StatusCode)
+	}
+	req, err = http.NewRequest(http.MethodDelete, server.URL+"/api/v1/storages/storage-1", nil)
+	if err != nil {
+		t.Fatalf("NewRequest(delete missing storage) error = %v", err)
+	}
+	resp, err = server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("DELETE missing storage error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("DELETE missing storage status = %d, want 404", resp.StatusCode)
 	}
 	resp, err = server.Client().Get(server.URL + "/api/v1/storages/storage-1")
 	if err != nil {
