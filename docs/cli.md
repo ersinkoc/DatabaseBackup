@@ -78,6 +78,10 @@ kronos backup unprotect --id backup-1
 kronos backup verify --manifest manifest.json --public-key <hex> --storage-local /repo
 ```
 
+List time filters accept RFC3339 timestamps or durations such as `7d`, `24h`,
+and `2h`; when both `--since` and `--until` are provided, `--since` must not be
+later than `--until`.
+
 ## Scheduling And Jobs
 
 ```bash
@@ -119,10 +123,14 @@ kronos retention policy inspect --id policy-1
 kronos retention policy update --id policy-1 --input policy.json
 kronos retention policy remove --id policy-1
 kronos restore preview --backup backup-1 --target restore-target
+kronos restore preview --backup backup-1 --target restore-target --at 2026-04-25T12:00:00Z
 kronos restore start --backup backup-1 --target restore-target --dry-run
 kronos restore start --backup backup-1 --target restore-target --replace-existing --yes
 kronos gc --storage-local /repo --public-key <hex> --dry-run
 ```
+
+Restore `--at` values must be RFC3339 timestamps and cannot point into the
+future.
 
 ## Users, Tokens, And Audit
 
