@@ -151,8 +151,8 @@ production suite. The largest remaining areas are:
   Redis/Valkey, the PostgreSQL logical MVP, and a MySQL/MariaDB
   `mysqldump`/`mysql` logical MVP with unit coverage plus real-service MySQL
   8.4 and MariaDB 11.4 conformance for backup/restore of indexed JSON data,
-  bidirectional MySQL/MariaDB restore rehearsals, and a 10,000-row MySQL
-  restore drill. MongoDB remains roadmap work.
+  bidirectional MySQL/MariaDB restore rehearsals, and 10,000-row
+  MySQL/MariaDB restore drills. MongoDB remains roadmap work.
 - Additional storage backends such as SFTP, Azure Blob, and Google Cloud
   Storage. Current executable backends are local filesystem and S3-compatible
   object storage.
@@ -165,11 +165,10 @@ production suite. The largest remaining areas are:
 
 ## Next Best Work
 
-1. Add MariaDB operator-scale restore drill coverage.
-2. Extend PostgreSQL hardening around full-cluster global-object restore
+1. Extend PostgreSQL hardening around full-cluster global-object restore
    rehearsals, operator-scale restore drills, and broader upgrade rehearsal
    evidence.
-3. Wire the WebUI to live API endpoints for dashboard state, jobs, backups, and
+2. Wire the WebUI to live API endpoints for dashboard state, jobs, backups, and
    agents.
 4. Add additional notification channels and hook execution surfaces.
 5. Run a signed-tag release rehearsal and archive checksum, signature, and

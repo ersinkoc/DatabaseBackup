@@ -21,16 +21,17 @@ now has a `mysqldump`/`mysql` logical MVP with deterministic unit coverage and
 real-service MySQL 8.4 plus MariaDB 11.4 conformance for backup/restore of
 indexed JSON data. CI also runs bidirectional MySQL 8.4 and MariaDB 11.4
 cross-engine restore rehearsals with larger indexed JSON datasets, and a
-10,000-row MySQL operator-scale restore drill. Broader MariaDB operator-scale
-drills remain before that path should be treated as fully production-grade.
+10,000-row operator-scale restore drill for both MySQL and MariaDB. Larger
+field-scale MySQL/MariaDB drills remain before that path should be treated as
+fully production-grade.
 
 ## Readiness Estimate
 
 | Scope | Estimate | Notes |
 | --- | ---: | --- |
 | Implemented Redis/local/S3 path | 93% | Core pipeline, agent/server flow, lost-agent recovery, server restart recovery, restore planning, retention, audit, metrics, release scripts, Kubernetes examples, runbooks, a reusable production gate, and tagged worker/control-plane/Redis backup, restore, retention apply, and recovery E2E tests are in place. |
-| Broad multi-database product vision | 91% | Redis is executable, PostgreSQL now has a plain SQL logical driver MVP, optional global role metadata capture and focused global restore coverage in real-service conformance, worker pipeline smoke E2E coverage, CI conformance coverage across PostgreSQL 15, 16, and 17, and a PostgreSQL 15-to-17 restore rehearsal. MySQL/MariaDB now has a `mysqldump`/`mysql` logical MVP with unit coverage, real-service MySQL 8.4 and MariaDB 11.4 conformance, bidirectional MySQL/MariaDB restore rehearsal coverage, and a 10,000-row MySQL restore drill, while MongoDB, storage backends, WebUI workflows, and multi-instance deployment patterns remain roadmap work. |
-| Current repository release hygiene | 99% | Tests, vet, format checks, OpenAPI checks, release artifacts, provenance, SBOM metadata, GitHub build/SBOM attestations, keyless cosign signatures and verification, consumer release verification docs, CI govulncheck, release artifact smoke checks, PostgreSQL, MySQL, MariaDB, bidirectional MySQL/MariaDB restore rehearsal conformance, and a 10,000-row MySQL restore drill, the production check script, tagged backup/restore/retention/recovery E2E coverage, and Node 24-native GitHub Actions are present. The `golang.org/x/crypto` advisories are fixed. |
+| Broad multi-database product vision | 92% | Redis is executable, PostgreSQL now has a plain SQL logical driver MVP, optional global role metadata capture and focused global restore coverage in real-service conformance, worker pipeline smoke E2E coverage, CI conformance coverage across PostgreSQL 15, 16, and 17, and a PostgreSQL 15-to-17 restore rehearsal. MySQL/MariaDB now has a `mysqldump`/`mysql` logical MVP with unit coverage, real-service MySQL 8.4 and MariaDB 11.4 conformance, bidirectional MySQL/MariaDB restore rehearsal coverage, and 10,000-row MySQL/MariaDB restore drills, while MongoDB, storage backends, WebUI workflows, and multi-instance deployment patterns remain roadmap work. |
+| Current repository release hygiene | 99% | Tests, vet, format checks, OpenAPI checks, release artifacts, provenance, SBOM metadata, GitHub build/SBOM attestations, keyless cosign signatures and verification, consumer release verification docs, CI govulncheck, release artifact smoke checks, PostgreSQL, MySQL, MariaDB, bidirectional MySQL/MariaDB restore rehearsal conformance, and 10,000-row MySQL/MariaDB restore drills, the production check script, tagged backup/restore/retention/recovery E2E coverage, and Node 24-native GitHub Actions are present. The `golang.org/x/crypto` advisories are fixed. |
 
 ## Current Release Gate
 
@@ -69,8 +70,8 @@ executes `kronos version`.
   restores into a separate database, and verifies indexed JSON row counts and
   checksums. Separate MySQL 8.4 to MariaDB 11.4 and MariaDB 11.4 to MySQL 8.4
   restore rehearsals verify larger 1,500-row indexed JSON datasets across
-  engines. A dedicated MySQL 8.4 operator-scale restore drill verifies 10,000
-  indexed JSON rows across separate source and target services.
+  engines. Dedicated MySQL 8.4 and MariaDB 11.4 operator-scale restore drills
+  verify 10,000 indexed JSON rows across separate source and target services.
 - Local and S3-compatible storage backends.
 - Persistent control plane state, scheduler state, jobs, backups, retention,
   notifications, users, tokens, and audit log.
@@ -83,7 +84,7 @@ executes `kronos version`.
 - CI runs formatting, vet, staticcheck, govulncheck, race tests, PostgreSQL
   15/16/17 service conformance, PostgreSQL 15-to-17 restore rehearsal, MySQL
   8.4 and MariaDB 11.4 service conformance, bidirectional MySQL/MariaDB
-  restore rehearsals, a 10,000-row MySQL restore drill, release artifact
+  restore rehearsals, 10,000-row MySQL/MariaDB restore drills, release artifact
   verification, container builds, completion syntax checks, and the
   production-readiness gate. Release
   artifacts are also smoke-tested by
@@ -102,27 +103,25 @@ executes `kronos version`.
 
 ## Blocking Work Before Calling The Whole Product Production-Ready
 
-1. Add MariaDB operator-scale restore drill coverage.
-2. Harden PostgreSQL operational behavior around full-cluster global-object
+1. Harden PostgreSQL operational behavior around full-cluster global-object
    restore rehearsals, operator-scale restore drills, and broader upgrade
    rehearsal evidence.
-3. Extend E2E coverage into more retention policy edge cases and release
+2. Extend E2E coverage into more retention policy edge cases and release
    verification drills.
-4. Expand the WebUI from dashboard shell into live resource CRUD, job detail,
+3. Expand the WebUI from dashboard shell into live resource CRUD, job detail,
    backup detail, and restore workflows.
-5. Decide the supported multi-instance story for control-plane state, or
+4. Decide the supported multi-instance story for control-plane state, or
    document single-replica constraints as a hard production boundary.
-6. Run at least one signed-tag release rehearsal against a disposable version
+5. Run at least one signed-tag release rehearsal against a disposable version
    tag and archive the verification evidence.
 
 ## Next Engineering Slices
 
-1. Add MariaDB operator-scale restore drill coverage.
-2. Extend PostgreSQL hardening around full-cluster global-object restore
+1. Extend PostgreSQL hardening around full-cluster global-object restore
    rehearsals, operator-scale restore drills, and broader upgrade rehearsal
    evidence.
-3. WebUI live API wiring for overview, jobs, backups, agents, and readiness.
-4. Production deployment hardening for single-replica Kubernetes and external
+2. WebUI live API wiring for overview, jobs, backups, agents, and readiness.
+3. Production deployment hardening for single-replica Kubernetes and external
    secret management.
-5. Run a signed-tag release rehearsal and archive checksum, signature, and
+4. Run a signed-tag release rehearsal and archive checksum, signature, and
    attestation verification evidence.
