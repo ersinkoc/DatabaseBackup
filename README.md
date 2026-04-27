@@ -86,6 +86,8 @@ This repository currently has the Phase 0 foundation in place and active Phase
 - token API: scoped API token create/list/verify/revoke/prune with hashed verifier
   storage and copy-once bearer secret output
 - user API: local user metadata create/list/get/delete plus role grants
+- HTTP hardening: request IDs, no-store control-plane responses, and baseline
+  browser security headers for API/WebUI responses
 
 ## Build
 
