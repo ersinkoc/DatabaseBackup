@@ -22,6 +22,7 @@ func TestPostgresDriverConformanceBackupRestore(t *testing.T) {
 		t.Skip("KRONOS_POSTGRES_TEST_DSN is not set")
 	}
 	requireCommand(t, "pg_dump")
+	requireCommand(t, "pg_dumpall")
 	requireCommand(t, "psql")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -31,13 +32,16 @@ func TestPostgresDriverConformanceBackupRestore(t *testing.T) {
 	sourceSchema := "kronos_src_" + suffix
 	restoreSchema := "kronos_restore_" + suffix
 	failureSchema := "kronos_fail_" + suffix
+	roleName := "kronos_role_" + suffix
 	restoreDSN := firstNonEmpty(strings.TrimSpace(os.Getenv("KRONOS_POSTGRES_RESTORE_DSN")), sourceDSN)
 	cleanupSchema(t, ctx, sourceDSN, sourceSchema)
 	cleanupSchema(t, ctx, restoreDSN, restoreSchema)
 	cleanupSchema(t, ctx, restoreDSN, failureSchema)
+	cleanupRole(t, ctx, sourceDSN, roleName)
 	defer cleanupSchema(t, context.Background(), sourceDSN, sourceSchema)
 	defer cleanupSchema(t, context.Background(), restoreDSN, restoreSchema)
 	defer cleanupSchema(t, context.Background(), restoreDSN, failureSchema)
+	defer cleanupRole(t, context.Background(), sourceDSN, roleName)
 
 	seedSQL := fmt.Sprintf(`
 create extension if not exists pgcrypto;
@@ -48,21 +52,38 @@ insert into %s.users(id, name) values (1, 'Ada'), (2, 'Grace');
 insert into %s.documents(id, payload_oid) values (1, lo_from_bytea(0, convert_to('kronos-large-object-%s', 'UTF8')));
 `, sourceSchema, sourceSchema, sourceSchema, sourceSchema, sourceSchema, suffix)
 	runPSQL(t, ctx, sourceDSN, seedSQL)
+	runPSQL(t, ctx, sourceDSN, fmt.Sprintf("create role %s login password 'kronos-secret-%s';", roleName, suffix))
 
 	driver := NewDriver()
 	var backup drivers.MemoryRecordStream
-	_, err := driver.BackupFull(ctx, drivers.Target{Connection: map[string]string{"dsn": sourceDSN}}, &backup)
+	rp, err := driver.BackupFull(ctx, drivers.Target{
+		Connection: map[string]string{"dsn": sourceDSN},
+		Options:    map[string]string{"include_globals": "true"},
+	}, &backup)
 	if err != nil {
 		t.Fatalf("BackupFull() error = %v", err)
 	}
 	records := backup.Records()
-	if len(records) == 0 || !strings.Contains(string(records[0].Payload), sourceSchema) || !strings.Contains(string(records[0].Payload), "Ada") {
+	if rp.Position != "pg_dumpall:globals+pg_dump:plain" {
+		t.Fatalf("ResumePoint.Position = %q", rp.Position)
+	}
+	if len(records) < 3 || records[0].Object.Kind != globalsObjectKind || records[2].Object.Kind != databaseObjectKind {
+		t.Fatalf("backup records do not include globals then database streams: %#v", records)
+	}
+	globalsSQL := string(records[0].Payload)
+	if !strings.Contains(globalsSQL, roleName) {
+		t.Fatalf("globals backup does not contain role %q", roleName)
+	}
+	if strings.Contains(strings.ToLower(globalsSQL), "kronos-secret") || strings.Contains(strings.ToLower(globalsSQL), "password '") {
+		t.Fatalf("globals backup leaked role password material")
+	}
+	if !strings.Contains(string(records[2].Payload), sourceSchema) || !strings.Contains(string(records[2].Payload), "Ada") {
 		t.Fatalf("backup records do not contain expected source data: %#v", records)
 	}
 	runPSQL(t, ctx, sourceDSN, fmt.Sprintf("select lo_unlink(payload_oid) from %s.documents; drop schema %s cascade;", sourceSchema, sourceSchema))
 
 	var restore drivers.MemoryRecordStream
-	rewrite := strings.ReplaceAll(string(records[0].Payload), sourceSchema, restoreSchema)
+	rewrite := strings.ReplaceAll(string(records[2].Payload), sourceSchema, restoreSchema)
 	if err := restore.WriteRecord(drivers.ObjectRef{Name: restoreSchema, Kind: databaseObjectKind}, []byte(rewrite)); err != nil {
 		t.Fatalf("WriteRecord(restore) error = %v", err)
 	}
@@ -129,6 +150,15 @@ func cleanupSchema(t *testing.T, ctx context.Context, dsn string, schema string)
 	cmd := exec.CommandContext(ctx, "psql", "--set", "ON_ERROR_STOP=1", "--dbname", dsn, "--command", fmt.Sprintf("drop schema if exists %s cascade;", schema))
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("cleanup schema %s error = %v output=%s", schema, err, strings.TrimSpace(string(out)))
+	}
+}
+
+func cleanupRole(t *testing.T, ctx context.Context, dsn string, roleName string) {
+	t.Helper()
+
+	cmd := exec.CommandContext(ctx, "psql", "--set", "ON_ERROR_STOP=1", "--dbname", dsn, "--command", fmt.Sprintf("drop role if exists %s;", roleName))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("cleanup role %s error = %v output=%s", roleName, err, strings.TrimSpace(string(out)))
 	}
 }
 
