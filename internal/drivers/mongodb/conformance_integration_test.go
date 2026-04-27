@@ -90,7 +90,7 @@ func TestMongoDBDriverConformanceBackupRestore(t *testing.T) {
 	}
 	wantChecksum := strconv.Itoa((bulkRows * (bulkRows + 1)) / 2)
 	wantBulkChecksum := wantBulkRows + ":" + wantChecksum + ":" + wantChecksum
-	checksumScript := `const row = db.bulk_items.aggregate([{$group: {_id: null, count: {$sum: 1}, ids: {$sum: "$id"}, ranks: {$sum: "$payload.rank"}}}]).toArray()[0]; row.count + ":" + row.ids + ":" + row.ranks`
+	checksumScript := `(() => { const row = db.bulk_items.aggregate([{$group: {_id: null, count: {$sum: 1}, ids: {$sum: "$id"}, ranks: {$sum: "$payload.rank"}}}]).toArray()[0]; return row.count + ":" + row.ids + ":" + row.ranks; })()`
 	if got := queryMongoScalar(t, ctx, restoreTarget, checksumScript); got != wantBulkChecksum {
 		t.Fatalf("restored bulk checksum = %q, want %s", got, wantBulkChecksum)
 	}

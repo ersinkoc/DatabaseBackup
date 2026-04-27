@@ -155,11 +155,16 @@ func TestUnlockRejectsMalformedSlots(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			file := valid
+			file := cloneKeySlotFile(valid)
 			tc.mutate(&file.Slots[0])
 			if _, err := file.Unlock("ops", []byte("pass")); err == nil {
 				t.Fatal("Unlock() error = nil, want error")
 			}
 		})
 	}
+}
+
+func cloneKeySlotFile(file KeySlotFile) KeySlotFile {
+	file.Slots = append([]KeySlot(nil), file.Slots...)
+	return file
 }
