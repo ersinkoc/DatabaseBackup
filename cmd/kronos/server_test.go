@@ -269,6 +269,48 @@ func TestServerControlPlaneReadOnlyAllowHeaders(t *testing.T) {
 	}
 }
 
+func TestServerAPIAllowHeaders(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(newServerHandler(nil))
+	defer server.Close()
+
+	cases := []struct {
+		method string
+		path   string
+		allow  string
+	}{
+		{method: http.MethodPost, path: "/api/v1/agents", allow: "GET"},
+		{method: http.MethodGet, path: "/api/v1/agents/heartbeat", allow: "POST"},
+		{method: http.MethodPatch, path: "/api/v1/tokens", allow: "GET, POST"},
+		{method: http.MethodGet, path: "/api/v1/tokens/prune", allow: "POST"},
+		{method: http.MethodOptions, path: "/api/v1/users/missing", allow: "GET, DELETE, POST"},
+		{method: http.MethodPatch, path: "/api/v1/retention/policies/missing", allow: "GET, PUT, DELETE"},
+		{method: http.MethodGet, path: "/api/v1/restore", allow: "POST"},
+		{method: http.MethodPatch, path: "/api/v1/schedules/missing", allow: "GET, PUT, DELETE, POST"},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
+			req, err := http.NewRequest(tc.method, server.URL+tc.path, nil)
+			if err != nil {
+				t.Fatalf("NewRequest() error = %v", err)
+			}
+			resp, err := server.Client().Do(req)
+			if err != nil {
+				t.Fatalf("Do() error = %v", err)
+			}
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusMethodNotAllowed {
+				t.Fatalf("status = %d, want 405", resp.StatusCode)
+			}
+			if got := resp.Header.Get("Allow"); got != tc.allow {
+				t.Fatalf("Allow = %q, want %q", got, tc.allow)
+			}
+		})
+	}
+}
+
 func TestAuditMetadataUsesRequestContext(t *testing.T) {
 	t.Parallel()
 

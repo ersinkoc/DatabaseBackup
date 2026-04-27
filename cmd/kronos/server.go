@@ -696,9 +696,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		handleOverview(w, r, registry, stores)
 	})
 	mux.HandleFunc("/api/v1/agents/heartbeat", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodPost) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "agent:write") {
@@ -719,9 +717,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		writeJSON(w, registry.Heartbeat(heartbeat))
 	})
 	mux.HandleFunc("/api/v1/agents", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.Header().Set("Allow", http.MethodGet)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodGet) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "agent:read") {
@@ -731,9 +727,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 	})
 	mux.HandleFunc("/api/v1/agents/", func(w http.ResponseWriter, r *http.Request) {
 		id := strings.TrimPrefix(r.URL.Path, "/api/v1/agents/")
-		if r.Method != http.MethodGet {
-			w.Header().Set("Allow", http.MethodGet)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodGet) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "agent:read") {
@@ -747,9 +741,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		writeJSON(w, agent)
 	})
 	mux.HandleFunc("/api/v1/audit", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.Header().Set("Allow", http.MethodGet)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodGet) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "audit:read") {
@@ -758,9 +750,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		handleListAudit(w, r, stores.audit)
 	})
 	mux.HandleFunc("/api/v1/audit/verify", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodPost) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "audit:verify") {
@@ -769,9 +759,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		handleVerifyAudit(w, r, stores.audit)
 	})
 	mux.HandleFunc("/api/v1/auth/verify", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodPost) {
 			return
 		}
 		if !authLimiter.Allow(r) {
@@ -794,16 +782,13 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleCreateToken(w, r, stores.tokens, stores.users, stores.audit)
 		default:
-			w.Header().Set("Allow", "GET, POST")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPost)
 		}
 	})
 	mux.HandleFunc("/api/v1/tokens/", func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/api/v1/tokens/")
 		if path == "prune" {
-			if r.Method != http.MethodPost {
-				w.Header().Set("Allow", http.MethodPost)
-				http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			if !allowMethods(w, r, http.MethodPost) {
 				return
 			}
 			if !requireScope(w, r, stores.tokens, "token:write") {
@@ -825,8 +810,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleRevokeToken(w, r, stores.tokens, stores.audit, core.ID(id))
 		default:
-			w.Header().Set("Allow", "GET, POST")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPost)
 		}
 	})
 	mux.HandleFunc("/api/v1/users", func(w http.ResponseWriter, r *http.Request) {
@@ -842,8 +826,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleCreateUser(w, r, stores.users, stores.audit)
 		default:
-			w.Header().Set("Allow", "GET, POST")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPost)
 		}
 	})
 	mux.HandleFunc("/api/v1/users/", func(w http.ResponseWriter, r *http.Request) {
@@ -867,14 +850,11 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleGrantUser(w, r, stores.users, stores.audit, id)
 		default:
-			w.Header().Set("Allow", "GET, DELETE, POST")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodDelete, http.MethodPost)
 		}
 	})
 	mux.HandleFunc("/api/v1/jobs", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.Header().Set("Allow", http.MethodGet)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodGet) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "job:read") {
@@ -898,9 +878,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		writeJSON(w, map[string]any{"jobs": jobs})
 	})
 	mux.HandleFunc("/api/v1/jobs/claim", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodPost) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "job:write") {
@@ -933,14 +911,11 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleFinishJob(w, r, stores.jobs, stores.backups, stores.audit, stores.notifications, core.ID(id))
 		default:
-			w.Header().Set("Allow", "GET, POST")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPost)
 		}
 	})
 	mux.HandleFunc("/api/v1/scheduler/tick", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodPost) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "schedule:write") {
@@ -949,9 +924,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		handleSchedulerTick(w, r, stores, registry)
 	})
 	mux.HandleFunc("/api/v1/backups/now", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodPost) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "backup:write") {
@@ -960,9 +933,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		handleBackupNow(w, r, stores.jobs, stores.audit)
 	})
 	mux.HandleFunc("/api/v1/backups", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			w.Header().Set("Allow", http.MethodGet)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodGet) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "backup:read") {
@@ -990,14 +961,11 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleProtectBackup(w, r, stores.backups, stores.audit, core.ID(id), false)
 		default:
-			w.Header().Set("Allow", "GET, POST")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPost)
 		}
 	})
 	mux.HandleFunc("/api/v1/retention/plan", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodPost) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "retention:read") {
@@ -1006,9 +974,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		handleRetentionPlan(w, r, stores.backups)
 	})
 	mux.HandleFunc("/api/v1/retention/apply", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodPost) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "retention:write") {
@@ -1029,8 +995,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleCreateRetentionPolicy(w, r, stores.policies, stores.audit)
 		default:
-			w.Header().Set("Allow", "GET, POST")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPost)
 		}
 	})
 	mux.HandleFunc("/api/v1/retention/policies/", func(w http.ResponseWriter, r *http.Request) {
@@ -1052,8 +1017,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleDeleteRetentionPolicy(w, r, stores.policies, stores.audit, id)
 		default:
-			w.Header().Set("Allow", "GET, PUT, DELETE")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPut, http.MethodDelete)
 		}
 	})
 	mux.HandleFunc("/api/v1/notifications", func(w http.ResponseWriter, r *http.Request) {
@@ -1072,8 +1036,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleCreateNotification(w, r, stores.notifications, stores.audit)
 		default:
-			w.Header().Set("Allow", "GET, POST")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPost)
 		}
 	})
 	mux.HandleFunc("/api/v1/notifications/", func(w http.ResponseWriter, r *http.Request) {
@@ -1098,14 +1061,11 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleDeleteNotification(w, r, stores.notifications, stores.audit, id)
 		default:
-			w.Header().Set("Allow", "GET, PUT, DELETE")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPut, http.MethodDelete)
 		}
 	})
 	mux.HandleFunc("/api/v1/restore", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodPost) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "restore:write") {
@@ -1114,9 +1074,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		handleRestoreStart(w, r, stores.backups, stores.jobs, stores.audit)
 	})
 	mux.HandleFunc("/api/v1/restore/preview", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", http.MethodPost)
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		if !allowMethods(w, r, http.MethodPost) {
 			return
 		}
 		if !requireScope(w, r, stores.tokens, "restore:read") {
@@ -1140,8 +1098,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleCreateTarget(w, r, stores.targets, stores.audit)
 		default:
-			w.Header().Set("Allow", "GET, POST")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPost)
 		}
 	})
 	mux.HandleFunc("/api/v1/targets/", func(w http.ResponseWriter, r *http.Request) {
@@ -1166,8 +1123,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleDeleteTarget(w, r, stores.targets, stores.audit, id)
 		default:
-			w.Header().Set("Allow", "GET, PUT, DELETE")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPut, http.MethodDelete)
 		}
 	})
 	mux.HandleFunc("/api/v1/storages", func(w http.ResponseWriter, r *http.Request) {
@@ -1186,8 +1142,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleCreateStorage(w, r, stores.storages, stores.audit)
 		default:
-			w.Header().Set("Allow", "GET, POST")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPost)
 		}
 	})
 	mux.HandleFunc("/api/v1/storages/", func(w http.ResponseWriter, r *http.Request) {
@@ -1212,8 +1167,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleDeleteStorage(w, r, stores.storages, stores.audit, id)
 		default:
-			w.Header().Set("Allow", "GET, PUT, DELETE")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPut, http.MethodDelete)
 		}
 	})
 	mux.HandleFunc("/api/v1/schedules", func(w http.ResponseWriter, r *http.Request) {
@@ -1229,8 +1183,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handleCreateSchedule(w, r, stores.schedules, stores.audit)
 		default:
-			w.Header().Set("Allow", "GET, POST")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPost)
 		}
 	})
 	mux.HandleFunc("/api/v1/schedules/", func(w http.ResponseWriter, r *http.Request) {
@@ -1264,8 +1217,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 			}
 			handlePauseSchedule(w, r, stores.schedules, stores.audit, id, false)
 		default:
-			w.Header().Set("Allow", "GET, PUT, DELETE, POST")
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			methodNotAllowed(w, http.MethodGet, http.MethodPut, http.MethodDelete, http.MethodPost)
 		}
 	})
 	mux.Handle("/", webui.Handler())
@@ -1278,9 +1230,13 @@ func allowMethods(w http.ResponseWriter, r *http.Request, methods ...string) boo
 			return true
 		}
 	}
+	methodNotAllowed(w, methods...)
+	return false
+}
+
+func methodNotAllowed(w http.ResponseWriter, methods ...string) {
 	w.Header().Set("Allow", strings.Join(methods, ", "))
 	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-	return false
 }
 
 func writeJSON(w http.ResponseWriter, value any) {
