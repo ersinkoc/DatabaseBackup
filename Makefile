@@ -1,4 +1,4 @@
-.PHONY: help build test lint fmt vet vuln bench integration e2e ui release release-all provenance sbom sign-release verify-release smoke-release production-check clean check
+.PHONY: help build test lint fmt vet vuln bench integration e2e ui release release-all provenance sbom sign-release verify-signatures verify-release smoke-release production-check clean check
 
 BIN := bin/kronos
 GO ?= go
@@ -30,6 +30,7 @@ help:
 		'  provenance   Write release artifact provenance JSON' \
 		'  sbom         Write Go module SBOM JSON' \
 		'  sign-release Sign release binaries and metadata with cosign keyless signing' \
+		'  verify-signatures Verify cosign keyless release signatures' \
 		'  verify-release Verify release binaries, checksums, and metadata' \
 		'  smoke-release Execute the host release artifact and completion output' \
 		'  production-check Run the release-readiness gate without requiring make recursion' \
@@ -82,6 +83,9 @@ sbom:
 sign-release:
 	./scripts/sign-release.sh bin
 
+verify-signatures:
+	./scripts/verify-signatures.sh bin
+
 verify-release:
 	./scripts/verify-release.sh bin
 
@@ -112,6 +116,7 @@ check:
 	sh -n scripts/provenance.sh
 	sh -n scripts/sign-release.sh
 	sh -n scripts/sbom.sh
+	sh -n scripts/verify-signatures.sh
 	sh -n scripts/verify-release.sh
 	sh -n scripts/smoke-release.sh
 	sh -n web/build.sh

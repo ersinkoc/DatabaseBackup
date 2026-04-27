@@ -87,6 +87,7 @@ func TestReleaseWorkflowPublishesArtifacts(t *testing.T) {
 		"./scripts/provenance.sh",
 		"./scripts/sbom.sh",
 		"./scripts/sign-release.sh",
+		"./scripts/verify-signatures.sh",
 		"./scripts/verify-release.sh",
 		"./scripts/smoke-release.sh",
 		"id-token: write",
@@ -107,6 +108,7 @@ func TestReleaseScriptsIncludeProvenance(t *testing.T) {
 		filepath.Join("..", "scripts", "provenance.sh"),
 		filepath.Join("..", "scripts", "sbom.sh"),
 		filepath.Join("..", "scripts", "sign-release.sh"),
+		filepath.Join("..", "scripts", "verify-signatures.sh"),
 		filepath.Join("..", "scripts", "verify-release.sh"),
 		filepath.Join("..", "Makefile"),
 	} {

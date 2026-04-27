@@ -54,6 +54,9 @@ jobs:
       - name: Sign release artifacts
         run: ./scripts/sign-release.sh bin
 
+      - name: Verify release signatures
+        run: ./scripts/verify-signatures.sh bin
+
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v7
         with:
