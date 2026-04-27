@@ -264,6 +264,10 @@ paths:
                 $ref: "#/components/schemas/CreatedTokenResponse"
         "400":
           description: Invalid token request
+        "403":
+          description: Requested scopes are not allowed for the user
+        "404":
+          description: User not found
   /api/v1/tokens/{id}:
     get:
       summary: Get API token
@@ -307,6 +311,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PruneTokensResponse"
+        "400":
+          description: Invalid token prune request
   /api/v1/users:
     get:
       summary: List users
@@ -380,6 +386,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid grant request
         "404":
           description: User not found
   /api/v1/jobs:
@@ -798,6 +806,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotificationRule"
+        "400":
+          description: Invalid notification rule
         "404":
           description: Notification rule not found
     delete:

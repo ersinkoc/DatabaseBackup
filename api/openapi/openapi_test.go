@@ -174,7 +174,7 @@ func TestOpenAPIDocumentsInvalidWriteResponses(t *testing.T) {
 		t.Fatalf("ReadFile(openapi.yaml) error = %v", err)
 	}
 	text := string(data)
-	for _, want := range []string{"Invalid backup request", "Invalid retention plan request", "Invalid retention apply request", "Invalid retention policy", "Invalid target", "Invalid storage", "Invalid schedule"} {
+	for _, want := range []string{"Invalid token request", "Invalid token prune request", "Invalid grant request", "Invalid backup request", "Invalid retention plan request", "Invalid retention apply request", "Invalid retention policy", "Invalid notification rule", "Invalid target", "Invalid storage", "Invalid schedule"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("openapi.yaml missing %q", want)
 		}
@@ -189,11 +189,16 @@ func TestOpenAPIWriteOperationsDocumentBadRequests(t *testing.T) {
 		path   string
 		method string
 	}{
+		{path: "/api/v1/tokens", method: "post"},
+		{path: "/api/v1/tokens/prune", method: "post"},
+		{path: "/api/v1/users/{id}/grant", method: "post"},
 		{path: "/api/v1/backups/now", method: "post"},
 		{path: "/api/v1/retention/plan", method: "post"},
 		{path: "/api/v1/retention/apply", method: "post"},
 		{path: "/api/v1/retention/policies", method: "post"},
 		{path: "/api/v1/retention/policies/{id}", method: "put"},
+		{path: "/api/v1/notifications", method: "post"},
+		{path: "/api/v1/notifications/{id}", method: "put"},
 		{path: "/api/v1/targets", method: "post"},
 		{path: "/api/v1/targets/{id}", method: "put"},
 		{path: "/api/v1/storages", method: "post"},
@@ -204,6 +209,18 @@ func TestOpenAPIWriteOperationsDocumentBadRequests(t *testing.T) {
 		responses := openAPIResponses(t, doc, operation.path, operation.method)
 		if _, ok := responses["400"]; !ok {
 			t.Fatalf("%s %s missing 400 response", operation.method, operation.path)
+		}
+	}
+}
+
+func TestOpenAPITokenCreateDocumentsUserFailures(t *testing.T) {
+	t.Parallel()
+
+	doc := readOpenAPIDoc(t)
+	responses := openAPIResponses(t, doc, "/api/v1/tokens", "post")
+	for _, status := range []string{"403", "404"} {
+		if _, ok := responses[status]; !ok {
+			t.Fatalf("post /api/v1/tokens missing %s response", status)
 		}
 	}
 }
