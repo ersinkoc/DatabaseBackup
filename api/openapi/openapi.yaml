@@ -1523,6 +1523,8 @@ components:
           type: string
         backup:
           $ref: "#/components/schemas/Backup"
+        failure:
+          $ref: "#/components/schemas/FailureEvidence"
         restore:
           $ref: "#/components/schemas/RestoreReport"
         verification:
@@ -1773,6 +1775,8 @@ components:
           type: boolean
         restore_report:
           $ref: "#/components/schemas/RestoreReport"
+        failure_evidence:
+          $ref: "#/components/schemas/FailureEvidence"
         verify_backup_id:
           type: string
         verify_manifest_id:
@@ -1800,6 +1804,29 @@ components:
           format: date-time
         error:
           type: string
+    FailureEvidence:
+      type: object
+      properties:
+        operation:
+          type: string
+          enum: [backup, restore, verify]
+        stage:
+          type: string
+        message:
+          type: string
+        backup_id:
+          type: string
+        target_id:
+          type: string
+        storage_id:
+          type: string
+        manifest_ids:
+          type: array
+          items:
+            type: string
+        at:
+          type: string
+          format: date-time
     RestoreReport:
       type: object
       properties:

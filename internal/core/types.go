@@ -91,8 +91,21 @@ const (
 // JobResult carries operation-specific output from an agent back to the control plane.
 type JobResult struct {
 	Backup       *Backup             `json:"backup,omitempty"`
+	Failure      *FailureEvidence    `json:"failure,omitempty"`
 	Restore      *RestoreReport      `json:"restore,omitempty"`
 	Verification *VerificationReport `json:"verification,omitempty"`
+}
+
+// FailureEvidence captures structured context for a failed job.
+type FailureEvidence struct {
+	Operation   JobOperation `json:"operation,omitempty"`
+	Stage       string       `json:"stage,omitempty"`
+	Message     string       `json:"message"`
+	BackupID    ID           `json:"backup_id,omitempty"`
+	TargetID    ID           `json:"target_id,omitempty"`
+	StorageID   ID           `json:"storage_id,omitempty"`
+	ManifestIDs []ID         `json:"manifest_ids,omitempty"`
+	At          time.Time    `json:"at,omitempty"`
 }
 
 // RestoreReport summarizes restore work completed by an agent.
@@ -201,6 +214,7 @@ type Job struct {
 	RestoreDryRun          bool                 `json:"restore_dry_run,omitempty"`
 	RestoreReplaceExisting bool                 `json:"restore_replace_existing,omitempty"`
 	RestoreReport          *RestoreReport       `json:"restore_report,omitempty"`
+	FailureEvidence        *FailureEvidence     `json:"failure_evidence,omitempty"`
 	VerifyBackupID         ID                   `json:"verify_backup_id,omitempty"`
 	VerifyManifestID       ID                   `json:"verify_manifest_id,omitempty"`
 	VerifyManifestIDs      []ID                 `json:"verify_manifest_ids,omitempty"`

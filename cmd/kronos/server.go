@@ -2355,6 +2355,7 @@ type finishJobRequest struct {
 	Status       core.JobStatus           `json:"status"`
 	Error        string                   `json:"error,omitempty"`
 	Backup       *core.Backup             `json:"backup,omitempty"`
+	Failure      *core.FailureEvidence    `json:"failure,omitempty"`
 	Restore      *core.RestoreReport      `json:"restore,omitempty"`
 	Verification *core.VerificationReport `json:"verification,omitempty"`
 }
@@ -2746,6 +2747,14 @@ func handleFinishJob(w http.ResponseWriter, r *http.Request, jobs *control.JobSt
 		http.Error(w, "restore reports require restore jobs", http.StatusBadRequest)
 		return
 	}
+	if request.Failure != nil && request.Status != core.JobStatusFailed {
+		http.Error(w, "failure evidence requires failed status", http.StatusBadRequest)
+		return
+	}
+	if request.Failure != nil && current.Operation != core.JobOperationRestore {
+		http.Error(w, "failure evidence requires restore jobs", http.StatusBadRequest)
+		return
+	}
 	job, err := orchestrator.Finish(id, request.Status, request.Error)
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
@@ -2823,6 +2832,44 @@ func handleFinishJob(w http.ResponseWriter, r *http.Request, jobs *control.JobSt
 			return
 		}
 	}
+	if request.Failure != nil {
+		evidence := *request.Failure
+		if evidence.Operation == "" {
+			evidence.Operation = job.Operation
+		}
+		if evidence.Stage == "" {
+			evidence.Stage = "restore"
+		}
+		if evidence.Message == "" {
+			evidence.Message = job.Error
+		}
+		if evidence.BackupID.IsZero() {
+			evidence.BackupID = job.RestoreBackupID
+		}
+		if evidence.TargetID.IsZero() {
+			evidence.TargetID = job.RestoreTargetID
+		}
+		if evidence.TargetID.IsZero() {
+			evidence.TargetID = job.TargetID
+		}
+		if evidence.StorageID.IsZero() {
+			evidence.StorageID = job.StorageID
+		}
+		if len(evidence.ManifestIDs) == 0 {
+			evidence.ManifestIDs = append([]core.ID(nil), job.RestoreManifestIDs...)
+		}
+		if len(evidence.ManifestIDs) == 0 && !job.RestoreManifestID.IsZero() {
+			evidence.ManifestIDs = []core.ID{job.RestoreManifestID}
+		}
+		if evidence.At.IsZero() {
+			evidence.At = job.EndedAt
+		}
+		job.FailureEvidence = &evidence
+		if err := jobs.Save(job); err != nil {
+			http.Error(w, "save failure evidence", http.StatusInternalServerError)
+			return
+		}
+	}
 	metadata := map[string]any{"status": request.Status}
 	if request.Error != "" {
 		metadata["error"] = request.Error
@@ -2835,6 +2882,9 @@ func handleFinishJob(w http.ResponseWriter, r *http.Request, jobs *control.JobSt
 	}
 	if request.Restore != nil {
 		metadata["restore"] = request.Restore
+	}
+	if request.Failure != nil {
+		metadata["failure"] = request.Failure
 	}
 	notificationCtx, cancelNotifications := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancelNotifications()

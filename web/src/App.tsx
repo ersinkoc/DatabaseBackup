@@ -122,7 +122,19 @@ type Job = {
   verify_manifest_ids?: string[];
   verify_level?: string;
   verify_report?: VerificationReport;
+  failure_evidence?: FailureEvidence;
   error?: string;
+};
+
+type FailureEvidence = {
+  operation?: string;
+  stage?: string;
+  message?: string;
+  backup_id?: string;
+  target_id?: string;
+  storage_id?: string;
+  manifest_ids?: string[];
+  at?: string;
 };
 
 type RestoreReport = {
@@ -2377,6 +2389,7 @@ function JobDetail({ job }: { job: Job | null }) {
         {job.verify_level ? <HealthRow label="Verify level" value={job.verify_level} tone="indigo" /> : null}
         {job.restore_report ? <RestoreReportDetail report={job.restore_report} /> : null}
         {job.verify_report ? <VerificationReportDetail report={job.verify_report} /> : null}
+        {job.failure_evidence ? <FailureEvidenceDetail evidence={job.failure_evidence} /> : null}
         {job.operation === "restore" ? <HealthRow label="Dry run" value={job.restore_dry_run ? "yes" : "no"} tone="indigo" /> : null}
         {job.operation === "restore" ? <HealthRow label="Replace" value={job.restore_replace_existing ? "yes" : "no"} tone="warning" /> : null}
         {job.error ? <HealthRow label="Error" value={job.error} tone="warning" /> : null}
@@ -2587,6 +2600,7 @@ function BackupRestoreHistory({ jobs }: { jobs: Job[] }) {
             {job.restore_at ? <HealthRow label="At" value={formatDateTime(job.restore_at) ?? job.restore_at} tone="indigo" /> : null}
             <HealthRow label="Replace" value={job.restore_replace_existing ? "yes" : "no"} tone={job.restore_replace_existing ? "warning" : "success"} />
             {job.restore_report ? <RestoreReportDetail report={job.restore_report} /> : null}
+            {job.failure_evidence ? <FailureEvidenceDetail evidence={job.failure_evidence} /> : null}
             {job.error ? <HealthRow label="Error" value={job.error} tone="warning" /> : null}
           </div>
         </div>
@@ -2602,6 +2616,17 @@ function RestoreReportDetail({ report }: { report: RestoreReport }) {
       <HealthRow label="Chunks restored" value={metricValue(report.chunks, false)} tone="success" />
       {typeof report.stored_bytes === "number" ? <HealthRow label="Stored bytes" value={formatBytes(report.stored_bytes)} tone="bronze" /> : null}
       {typeof report.restored_bytes === "number" ? <HealthRow label="Restored bytes" value={formatBytes(report.restored_bytes)} tone="indigo" /> : null}
+    </>
+  );
+}
+
+function FailureEvidenceDetail({ evidence }: { evidence: FailureEvidence }) {
+  return (
+    <>
+      <HealthRow label="Failure stage" value={evidence.stage || "-"} tone="warning" />
+      <HealthRow label="Failure message" value={evidence.message || "-"} tone="warning" />
+      {evidence.at ? <HealthRow label="Failure time" value={formatDateTime(evidence.at) ?? evidence.at} tone="warning" /> : null}
+      {evidence.manifest_ids && evidence.manifest_ids.length > 0 ? <HealthRow label="Failure chain" value={evidence.manifest_ids.join(", ")} tone="bronze" /> : null}
     </>
   );
 }

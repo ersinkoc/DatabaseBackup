@@ -2184,6 +2184,58 @@ func TestServerFinishRestoreJobRejectsBackupMetadata(t *testing.T) {
 	}
 }
 
+func TestServerFinishRestoreJobPersistsFailureEvidence(t *testing.T) {
+	t.Parallel()
+
+	db, err := kvstore.Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	stores, err := newAPIStores(db)
+	if err != nil {
+		t.Fatalf("newAPIStores() error = %v", err)
+	}
+	now := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
+	if err := stores.jobs.Save(core.Job{
+		ID:                 "restore-job",
+		Operation:          core.JobOperationRestore,
+		TargetID:           "target",
+		StorageID:          "storage",
+		RestoreBackupID:    "backup-1",
+		RestoreManifestIDs: []core.ID{"manifest-full", "manifest-incr"},
+		RestoreTargetID:    "restore-target",
+		Status:             core.JobStatusRunning,
+		QueuedAt:           now,
+		StartedAt:          now,
+	}); err != nil {
+		t.Fatalf("Save(restore job) error = %v", err)
+	}
+	server := httptest.NewServer(newServerHandlerWithStores(nil, nil, stores))
+	defer server.Close()
+
+	resp, err := server.Client().Post(server.URL+"/api/v1/jobs/restore-job/finish", "application/json", strings.NewReader(`{"status":"failed","error":"restore boom","failure":{"stage":"driver","message":"restore boom"}}`))
+	if err != nil {
+		t.Fatalf("POST restore finish failure error = %v", err)
+	}
+	var body bytes.Buffer
+	if _, err := body.ReadFrom(resp.Body); err != nil {
+		t.Fatalf("ReadFrom(restore failure) error = %v", err)
+	}
+	resp.Body.Close()
+	text := body.String()
+	if resp.StatusCode != http.StatusOK || !strings.Contains(text, `"failure_evidence"`) || !strings.Contains(text, `"stage":"driver"`) || !strings.Contains(text, `"backup_id":"backup-1"`) {
+		t.Fatalf("restore failure status=%d body=%q", resp.StatusCode, text)
+	}
+	job, ok, err := stores.jobs.Get("restore-job")
+	if err != nil || !ok {
+		t.Fatalf("Get(restore-job) ok=%v err=%v", ok, err)
+	}
+	if job.FailureEvidence == nil || job.FailureEvidence.Operation != core.JobOperationRestore || job.FailureEvidence.TargetID != "restore-target" || len(job.FailureEvidence.ManifestIDs) != 2 || job.FailureEvidence.At.IsZero() {
+		t.Fatalf("failure evidence = %#v", job.FailureEvidence)
+	}
+}
+
 func TestServerJobCancelEndpoint(t *testing.T) {
 	t.Parallel()
 

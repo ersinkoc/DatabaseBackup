@@ -93,7 +93,7 @@ func (w Worker) tick(ctx context.Context) error {
 func (w Worker) execute(ctx context.Context, job core.Job) error {
 	result, err := w.Executor.Execute(ctx, job)
 	if err != nil {
-		_, finishErr := w.Client.Finish(ctx, job.ID, core.JobStatusFailed, err.Error(), core.JobResult{})
+		_, finishErr := w.Client.Finish(ctx, job.ID, core.JobStatusFailed, err.Error(), failedJobResult(job, err))
 		if finishErr != nil {
 			return fmt.Errorf("job %s failed: %v; finish failed: %w", job.ID, err, finishErr)
 		}
@@ -101,4 +101,29 @@ func (w Worker) execute(ctx context.Context, job core.Job) error {
 	}
 	_, err = w.Client.Finish(ctx, job.ID, core.JobStatusSucceeded, "", result)
 	return err
+}
+
+func failedJobResult(job core.Job, err error) core.JobResult {
+	if job.Operation != core.JobOperationRestore || err == nil {
+		return core.JobResult{}
+	}
+	manifestIDs := append([]core.ID(nil), job.RestoreManifestIDs...)
+	if len(manifestIDs) == 0 && !job.RestoreManifestID.IsZero() {
+		manifestIDs = []core.ID{job.RestoreManifestID}
+	}
+	targetID := job.RestoreTargetID
+	if targetID.IsZero() {
+		targetID = job.TargetID
+	}
+	return core.JobResult{
+		Failure: &core.FailureEvidence{
+			Operation:   job.Operation,
+			Stage:       "restore",
+			Message:     err.Error(),
+			BackupID:    job.RestoreBackupID,
+			TargetID:    targetID,
+			StorageID:   job.StorageID,
+			ManifestIDs: manifestIDs,
+		},
+	}
 }

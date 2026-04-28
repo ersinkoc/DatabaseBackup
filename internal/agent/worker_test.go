@@ -96,6 +96,52 @@ func TestWorkerFinishesFailedWhenExecutorErrors(t *testing.T) {
 	}
 }
 
+func TestWorkerSendsRestoreFailureEvidence(t *testing.T) {
+	t.Parallel()
+
+	job := core.Job{
+		ID:                 "restore-job",
+		Operation:          core.JobOperationRestore,
+		Status:             core.JobStatusQueued,
+		TargetID:           "source-target",
+		StorageID:          "storage-1",
+		RestoreBackupID:    "backup-1",
+		RestoreManifestIDs: []core.ID{"manifest-full", "manifest-incr"},
+		RestoreTargetID:    "restore-target",
+	}
+	var finished finishRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/agents/heartbeat":
+			writeTestJSON(t, w, control.AgentSnapshot{ID: "agent-1", Status: control.AgentHealthy})
+		case "/api/v1/jobs/claim":
+			job.Status = core.JobStatusRunning
+			writeTestJSON(t, w, claimResponse{Job: &job})
+		case "/api/v1/jobs/restore-job/finish":
+			decodeTestJSON(t, w, r, &finished)
+			writeTestJSON(t, w, core.Job{ID: "restore-job", Status: finished.Status, Error: finished.Error, FailureEvidence: finished.Failure})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	client, err := NewClient(server.URL, server.Client())
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	worker := Worker{
+		Client:    client,
+		Heartbeat: control.AgentHeartbeat{ID: "agent-1"},
+		Executor:  staticExecutor{err: fmt.Errorf("restore boom")},
+	}
+	if err := worker.tick(context.Background()); err != nil {
+		t.Fatalf("tick() error = %v", err)
+	}
+	if finished.Failure == nil || finished.Failure.Operation != core.JobOperationRestore || finished.Failure.Stage != "restore" || finished.Failure.Message != "restore boom" || finished.Failure.BackupID != "backup-1" || finished.Failure.TargetID != "restore-target" || len(finished.Failure.ManifestIDs) != 2 {
+		t.Fatalf("failure evidence = %#v", finished.Failure)
+	}
+}
+
 func TestWorkerSyncsResourcesBeforeClaim(t *testing.T) {
 	t.Parallel()
 
