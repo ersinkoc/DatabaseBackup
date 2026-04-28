@@ -239,6 +239,20 @@ type TargetForm = {
   tier: string;
 };
 
+type StorageForm = {
+  id: string;
+  name: string;
+  kind: string;
+  uri: string;
+  region: string;
+  endpoint: string;
+  credentials: string;
+  accessKey: string;
+  secretKey: string;
+  sessionToken: string;
+  forcePathStyle: boolean;
+};
+
 const emptyTargetForm: TargetForm = {
   id: "",
   name: "",
@@ -250,6 +264,20 @@ const emptyTargetForm: TargetForm = {
   tls: "",
   agent: "",
   tier: "",
+};
+
+const emptyStorageForm: StorageForm = {
+  id: "",
+  name: "",
+  kind: "local",
+  uri: "",
+  region: "",
+  endpoint: "",
+  credentials: "",
+  accessKey: "",
+  secretKey: "",
+  sessionToken: "",
+  forcePathStyle: false,
 };
 
 function AppLogo() {
@@ -289,6 +317,9 @@ export function App() {
   const [savingTarget, setSavingTarget] = useState(false);
   const [editingTargetID, setEditingTargetID] = useState<string | null>(null);
   const [targetForm, setTargetForm] = useState<TargetForm>(emptyTargetForm);
+  const [savingStorage, setSavingStorage] = useState(false);
+  const [editingStorageID, setEditingStorageID] = useState<string | null>(null);
+  const [storageForm, setStorageForm] = useState<StorageForm>(emptyStorageForm);
   const [targetDeleteConfirmation, setTargetDeleteConfirmation] = useState("");
   const [storageDeleteConfirmation, setStorageDeleteConfirmation] = useState("");
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -340,7 +371,7 @@ export function App() {
         setTargets([]);
       }
       if (storageResult.status === "fulfilled") {
-        setStorages((storageResult.value.storages ?? []).slice(0, 8));
+        setStorages(sortStorages(storageResult.value.storages ?? []).slice(0, 8));
       } else {
         setStorages([]);
       }
@@ -568,6 +599,73 @@ export function App() {
       setDetailError(err instanceof Error ? err.message : "target delete failed");
     } finally {
       setDeletingInventoryID(null);
+    }
+  }
+
+  async function editStorage(storage: Storage) {
+    setLoadingInventoryID(storage.id);
+    setDetailError(null);
+    try {
+      const detail = await requestJSON<Storage>(`/api/v1/storages/${encodeURIComponent(storage.id)}?include_secrets=true`, apiToken);
+      setEditingStorageID(detail.id);
+      setStorageForm(storageFormFromStorage(detail));
+      setStorageDeleteConfirmation("");
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "storage edit request failed");
+    } finally {
+      setLoadingInventoryID(null);
+    }
+  }
+
+  function resetStorageForm() {
+    setEditingStorageID(null);
+    setStorageForm(emptyStorageForm);
+    setStorageDeleteConfirmation("");
+  }
+
+  async function saveStorage() {
+    if (!storageForm.name.trim() || !storageForm.kind.trim() || !storageForm.uri.trim()) {
+      setDetailError("storage name, kind, and uri are required");
+      return;
+    }
+    setSavingStorage(true);
+    setDetailError(null);
+    try {
+      const payload = storagePayload(storageForm, editingStorageID);
+      const saved = editingStorageID
+        ? await requestJSON<Storage>(`/api/v1/storages/${encodeURIComponent(editingStorageID)}`, apiToken, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await requestJSON<Storage>("/api/v1/storages", apiToken, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+      setStorages((current) => sortStorages([saved, ...current.filter((item) => item.id !== saved.id)]).slice(0, 8));
+      setSelectedStorage(saved);
+      setSelectedTarget(null);
+      setEditingStorageID(null);
+      setStorageForm(emptyStorageForm);
+      setStorageDeleteConfirmation("");
+      if (!editingStorageID) {
+        setOverview((current) =>
+          current
+            ? {
+                ...current,
+                inventory: {
+                  ...current.inventory,
+                  storages: current.inventory.storages + 1,
+                },
+              }
+            : current,
+        );
+      }
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "storage save failed");
+    } finally {
+      setSavingStorage(false);
     }
   }
 
@@ -935,6 +1033,14 @@ export function App() {
                 onReset={resetTargetForm}
                 onSave={saveTarget}
               />
+              <StorageEditor
+                editing={editingStorageID !== null}
+                form={storageForm}
+                saving={savingStorage}
+                onChange={(patch) => setStorageForm((current) => ({ ...current, ...patch }))}
+                onReset={resetStorageForm}
+                onSave={saveStorage}
+              />
 
               <section className="rounded-md border border-line bg-panel p-4">
                 <h2 className="text-base font-semibold">Automation</h2>
@@ -1015,6 +1121,7 @@ export function App() {
                 storage={selectedStorage}
                 onConfirmationChange={setStorageDeleteConfirmation}
                 onDelete={deleteStorage}
+                onEdit={editStorage}
               />
               <ScheduleDetail schedule={selectedSchedule} updating={updatingScheduleID === selectedSchedule?.id} onToggle={toggleSchedulePause} />
               <RetentionPolicyDetail policy={selectedRetentionPolicy} />
@@ -1267,6 +1374,155 @@ function TargetEditor({
   );
 }
 
+function StorageEditor({
+  editing,
+  form,
+  saving,
+  onChange,
+  onReset,
+  onSave,
+}: {
+  editing: boolean;
+  form: StorageForm;
+  saving: boolean;
+  onChange: (patch: Partial<StorageForm>) => void;
+  onReset: () => void;
+  onSave: () => Promise<void>;
+}) {
+  const disabled = saving || !form.name.trim() || !form.kind.trim() || !form.uri.trim();
+  return (
+    <section className="rounded-md border border-line bg-panel p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">Storage editor</h2>
+        <Button className="h-7 px-2 text-xs" icon={<Plus className="h-3.5 w-3.5" />} onClick={onReset} type="button" variant="ghost">
+          New
+        </Button>
+      </div>
+      <div className="mt-4 grid gap-3">
+        <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-id">
+          ID
+          <input
+            id="storage-id"
+            className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze disabled:opacity-70"
+            disabled={editing}
+            placeholder="optional"
+            value={form.id}
+            onChange={(event) => onChange({ id: event.target.value })}
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-name">
+            Name
+            <input
+              id="storage-name"
+              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+              value={form.name}
+              onChange={(event) => onChange({ name: event.target.value })}
+            />
+          </label>
+          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-kind">
+            Kind
+            <select
+              id="storage-kind"
+              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition focus:border-bronze"
+              value={form.kind}
+              onChange={(event) => onChange({ kind: event.target.value })}
+            >
+              <option value="local">local</option>
+              <option value="s3">s3</option>
+            </select>
+          </label>
+        </div>
+        <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-uri">
+          URI
+          <input
+            id="storage-uri"
+            className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+            placeholder="file:///var/lib/kronos/repo or s3://bucket/prefix"
+            value={form.uri}
+            onChange={(event) => onChange({ uri: event.target.value })}
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-region">
+            Region
+            <input
+              id="storage-region"
+              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+              value={form.region}
+              onChange={(event) => onChange({ region: event.target.value })}
+            />
+          </label>
+          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-endpoint">
+            Endpoint
+            <input
+              id="storage-endpoint"
+              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+              value={form.endpoint}
+              onChange={(event) => onChange({ endpoint: event.target.value })}
+            />
+          </label>
+        </div>
+        <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-credentials">
+          Credentials
+          <input
+            id="storage-credentials"
+            className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+            placeholder="mode or secret reference"
+            value={form.credentials}
+            onChange={(event) => onChange({ credentials: event.target.value })}
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-access-key">
+            Access key
+            <input
+              id="storage-access-key"
+              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+              type="password"
+              value={form.accessKey}
+              onChange={(event) => onChange({ accessKey: event.target.value })}
+            />
+          </label>
+          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-secret-key">
+            Secret key
+            <input
+              id="storage-secret-key"
+              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+              type="password"
+              value={form.secretKey}
+              onChange={(event) => onChange({ secretKey: event.target.value })}
+            />
+          </label>
+        </div>
+        <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-session-token">
+          Session token
+          <input
+            id="storage-session-token"
+            className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+            type="password"
+            value={form.sessionToken}
+            onChange={(event) => onChange({ sessionToken: event.target.value })}
+          />
+        </label>
+        <label className="flex min-h-9 items-center gap-2 rounded-md bg-surface px-3 text-sm text-muted" htmlFor="storage-force-path-style">
+          <input
+            id="storage-force-path-style"
+            checked={form.forcePathStyle}
+            className="h-4 w-4 accent-bronze"
+            type="checkbox"
+            onChange={(event) => onChange({ forcePathStyle: event.target.checked })}
+          />
+          Force path-style requests
+        </label>
+        <Button className="h-8 text-xs" disabled={disabled} icon={<Save className="h-4 w-4" />} onClick={() => void onSave()} type="button" variant="primary">
+          {saving ? "Saving" : editing ? "Update storage" : "Create storage"}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 function TargetDetail({
   confirmation,
   deleting,
@@ -1322,19 +1578,26 @@ function StorageDetail({
   storage,
   onConfirmationChange,
   onDelete,
+  onEdit,
 }: {
   confirmation: string;
   deleting: boolean;
   storage: Storage | null;
   onConfirmationChange: (value: string) => void;
   onDelete: (storage: Storage) => Promise<void>;
+  onEdit: (storage: Storage) => Promise<void>;
 }) {
   if (!storage) {
     return null;
   }
   return (
     <section className="rounded-md border border-line bg-panel p-4">
-      <h2 className="text-base font-semibold">Storage detail</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">Storage detail</h2>
+        <Button className="h-7 px-2 text-xs" icon={<Pencil className="h-3.5 w-3.5" />} onClick={() => void onEdit(storage)} type="button" variant="ghost">
+          Edit
+        </Button>
+      </div>
       <div className="mt-4 grid gap-3">
         <HealthRow label="ID" value={storage.id} tone="bronze" />
         <HealthRow label="Name" value={storage.name || "-"} tone="indigo" />
@@ -1656,6 +1919,10 @@ function sortTargets(values: Target[]) {
   return [...values].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
 }
 
+function sortStorages(values: Storage[]) {
+  return [...values].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
+}
+
 function targetFormFromTarget(target: Target): TargetForm {
   return {
     id: target.id,
@@ -1710,6 +1977,60 @@ function targetPayload(form: TargetForm, editingID: string | null) {
   return payload;
 }
 
+function storageFormFromStorage(storage: Storage): StorageForm {
+  return {
+    id: storage.id,
+    name: storage.name || "",
+    kind: storage.kind || "local",
+    uri: storage.uri || "",
+    region: stringOption(storage.options, "region"),
+    endpoint: stringOption(storage.options, "endpoint"),
+    credentials: secretOption(storage.options, "credentials"),
+    accessKey: secretOption(storage.options, "access_key"),
+    secretKey: secretOption(storage.options, "secret_key"),
+    sessionToken: secretOption(storage.options, "session_token"),
+    forcePathStyle: boolOption(storage.options, "force_path_style"),
+  };
+}
+
+function storagePayload(form: StorageForm, editingID: string | null) {
+  const payload: Record<string, unknown> = {
+    name: form.name.trim(),
+    kind: form.kind.trim(),
+    uri: form.uri.trim(),
+  };
+  const id = editingID || form.id.trim();
+  if (id) {
+    payload.id = id;
+  }
+  const options: Record<string, unknown> = {};
+  if (form.region.trim()) {
+    options.region = form.region.trim();
+  }
+  if (form.endpoint.trim()) {
+    options.endpoint = form.endpoint.trim();
+  }
+  if (form.credentials.trim()) {
+    options.credentials = form.credentials.trim();
+  }
+  if (form.accessKey.trim()) {
+    options.access_key = form.accessKey.trim();
+  }
+  if (form.secretKey.trim()) {
+    options.secret_key = form.secretKey.trim();
+  }
+  if (form.sessionToken.trim()) {
+    options.session_token = form.sessionToken.trim();
+  }
+  if (form.forcePathStyle) {
+    options.force_path_style = true;
+  }
+  if (Object.keys(options).length > 0) {
+    payload.options = options;
+  }
+  return payload;
+}
+
 function stringOption(values: Record<string, unknown> | undefined, key: string) {
   const value = values?.[key];
   return typeof value === "string" ? value : "";
@@ -1718,6 +2039,10 @@ function stringOption(values: Record<string, unknown> | undefined, key: string) 
 function secretOption(values: Record<string, unknown> | undefined, key: string) {
   const value = stringOption(values, key);
   return value === "***REDACTED***" ? "" : value;
+}
+
+function boolOption(values: Record<string, unknown> | undefined, key: string) {
+  return values?.[key] === true;
 }
 
 function restorePayload(backupID: string, targetID: string, at: string, dryRun: boolean, replaceExisting: boolean) {
