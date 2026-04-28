@@ -264,6 +264,12 @@ type ScheduleForm = {
   paused: boolean;
 };
 
+type RetentionPolicyForm = {
+  id: string;
+  name: string;
+  rulesJSON: string;
+};
+
 const emptyTargetForm: TargetForm = {
   id: "",
   name: "",
@@ -300,6 +306,12 @@ const emptyScheduleForm: ScheduleForm = {
   expression: "",
   retentionPolicyID: "",
   paused: false,
+};
+
+const emptyRetentionPolicyForm: RetentionPolicyForm = {
+  id: "",
+  name: "",
+  rulesJSON: JSON.stringify([{ kind: "count", params: { n: 7 } }], null, 2),
 };
 
 function AppLogo() {
@@ -353,6 +365,9 @@ export function App() {
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [editingScheduleID, setEditingScheduleID] = useState<string | null>(null);
   const [scheduleForm, setScheduleForm] = useState<ScheduleForm>(emptyScheduleForm);
+  const [savingRetentionPolicy, setSavingRetentionPolicy] = useState(false);
+  const [editingRetentionPolicyID, setEditingRetentionPolicyID] = useState<string | null>(null);
+  const [retentionPolicyForm, setRetentionPolicyForm] = useState<RetentionPolicyForm>(emptyRetentionPolicyForm);
   const [restoreTargetID, setRestoreTargetID] = useState("");
   const [restoreAt, setRestoreAt] = useState("");
   const [restoreConfirmation, setRestoreConfirmation] = useState("");
@@ -406,7 +421,7 @@ export function App() {
         setSchedules([]);
       }
       if (retentionPolicyResult.status === "fulfilled") {
-        setRetentionPolicies((retentionPolicyResult.value.policies ?? []).slice(0, 8));
+        setRetentionPolicies(sortRetentionPolicies(retentionPolicyResult.value.policies ?? []).slice(0, 8));
       } else {
         setRetentionPolicies([]);
       }
@@ -823,6 +838,67 @@ export function App() {
     }
   }
 
+  function editRetentionPolicy(policy: RetentionPolicy) {
+    setEditingRetentionPolicyID(policy.id);
+    setRetentionPolicyForm(retentionPolicyFormFromPolicy(policy));
+  }
+
+  function resetRetentionPolicyForm() {
+    setEditingRetentionPolicyID(null);
+    setRetentionPolicyForm(emptyRetentionPolicyForm);
+  }
+
+  async function saveRetentionPolicy() {
+    if (!retentionPolicyForm.name.trim()) {
+      setDetailError("retention policy name is required");
+      return;
+    }
+    let payload: Record<string, unknown>;
+    try {
+      payload = retentionPolicyPayload(retentionPolicyForm, editingRetentionPolicyID);
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "retention policy rules are invalid");
+      return;
+    }
+    setSavingRetentionPolicy(true);
+    setDetailError(null);
+    try {
+      const saved = editingRetentionPolicyID
+        ? await requestJSON<RetentionPolicy>(`/api/v1/retention/policies/${encodeURIComponent(editingRetentionPolicyID)}`, apiToken, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+        : await requestJSON<RetentionPolicy>("/api/v1/retention/policies", apiToken, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+      setRetentionPolicies((current) => sortRetentionPolicies([saved, ...current.filter((item) => item.id !== saved.id)]).slice(0, 8));
+      setSelectedRetentionPolicy(saved);
+      setSelectedSchedule(null);
+      setEditingRetentionPolicyID(null);
+      setRetentionPolicyForm(emptyRetentionPolicyForm);
+      if (!editingRetentionPolicyID) {
+        setOverview((current) =>
+          current
+            ? {
+                ...current,
+                inventory: {
+                  ...current.inventory,
+                  retention_policies: current.inventory.retention_policies + 1,
+                },
+              }
+            : current,
+        );
+      }
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "retention policy save failed");
+    } finally {
+      setSavingRetentionPolicy(false);
+    }
+  }
+
   async function previewRestore() {
     if (!selectedBackup) {
       return;
@@ -1121,6 +1197,14 @@ export function App() {
                 onReset={resetScheduleForm}
                 onSave={saveSchedule}
               />
+              <RetentionPolicyEditor
+                editing={editingRetentionPolicyID !== null}
+                form={retentionPolicyForm}
+                saving={savingRetentionPolicy}
+                onChange={(patch) => setRetentionPolicyForm((current) => ({ ...current, ...patch }))}
+                onReset={resetRetentionPolicyForm}
+                onSave={saveRetentionPolicy}
+              />
 
               <section className="rounded-md border border-line bg-panel p-4">
                 <h2 className="text-base font-semibold">Automation</h2>
@@ -1204,7 +1288,7 @@ export function App() {
                 onEdit={editStorage}
               />
               <ScheduleDetail schedule={selectedSchedule} updating={updatingScheduleID === selectedSchedule?.id} onEdit={editSchedule} onToggle={toggleSchedulePause} />
-              <RetentionPolicyDetail policy={selectedRetentionPolicy} />
+              <RetentionPolicyDetail policy={selectedRetentionPolicy} onEdit={editRetentionPolicy} />
               <JobDetail job={selectedJob} />
               <BackupDetail
                 backup={selectedBackup}
@@ -1746,6 +1830,69 @@ function ScheduleEditor({
   );
 }
 
+function RetentionPolicyEditor({
+  editing,
+  form,
+  saving,
+  onChange,
+  onReset,
+  onSave,
+}: {
+  editing: boolean;
+  form: RetentionPolicyForm;
+  saving: boolean;
+  onChange: (patch: Partial<RetentionPolicyForm>) => void;
+  onReset: () => void;
+  onSave: () => Promise<void>;
+}) {
+  const disabled = saving || !form.name.trim() || !form.rulesJSON.trim();
+  return (
+    <section className="rounded-md border border-line bg-panel p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">Retention editor</h2>
+        <Button className="h-7 px-2 text-xs" icon={<Plus className="h-3.5 w-3.5" />} onClick={onReset} type="button" variant="ghost">
+          New
+        </Button>
+      </div>
+      <div className="mt-4 grid gap-3">
+        <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="retention-id">
+          ID
+          <input
+            id="retention-id"
+            className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze disabled:opacity-70"
+            disabled={editing}
+            placeholder="optional"
+            value={form.id}
+            onChange={(event) => onChange({ id: event.target.value })}
+          />
+        </label>
+        <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="retention-name">
+          Name
+          <input
+            id="retention-name"
+            className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+            value={form.name}
+            onChange={(event) => onChange({ name: event.target.value })}
+          />
+        </label>
+        <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="retention-rules">
+          Rules
+          <textarea
+            id="retention-rules"
+            className="min-h-36 resize-y rounded-md border border-line bg-surface px-3 py-2 font-mono text-xs normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+            spellCheck={false}
+            value={form.rulesJSON}
+            onChange={(event) => onChange({ rulesJSON: event.target.value })}
+          />
+        </label>
+        <Button className="h-8 text-xs" disabled={disabled} icon={<Save className="h-4 w-4" />} onClick={() => void onSave()} type="button" variant="primary">
+          {saving ? "Saving" : editing ? "Update retention" : "Create retention"}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
 function TargetDetail({
   confirmation,
   deleting,
@@ -1921,13 +2068,18 @@ function ScheduleDetail({
   );
 }
 
-function RetentionPolicyDetail({ policy }: { policy: RetentionPolicy | null }) {
+function RetentionPolicyDetail({ policy, onEdit }: { policy: RetentionPolicy | null; onEdit: (policy: RetentionPolicy) => void }) {
   if (!policy) {
     return null;
   }
   return (
     <section className="rounded-md border border-line bg-panel p-4">
-      <h2 className="text-base font-semibold">Retention detail</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">Retention detail</h2>
+        <Button className="h-7 px-2 text-xs" icon={<Pencil className="h-3.5 w-3.5" />} onClick={() => onEdit(policy)} type="button" variant="ghost">
+          Edit
+        </Button>
+      </div>
       <div className="mt-4 grid gap-3">
         <HealthRow label="ID" value={policy.id} tone="bronze" />
         <HealthRow label="Name" value={policy.name || "-"} tone="indigo" />
@@ -2157,6 +2309,10 @@ function sortSchedules(values: Schedule[]) {
   return [...values].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
 }
 
+function sortRetentionPolicies(values: RetentionPolicy[]) {
+  return [...values].sort((a, b) => (a.name || a.id).localeCompare(b.name || b.id));
+}
+
 function targetFormFromTarget(target: Target): TargetForm {
   return {
     id: target.id,
@@ -2295,6 +2451,39 @@ function schedulePayload(form: ScheduleForm, editingID: string | null) {
     payload.retention_policy_id = form.retentionPolicyID.trim();
   }
   return payload;
+}
+
+function retentionPolicyFormFromPolicy(policy: RetentionPolicy): RetentionPolicyForm {
+  return {
+    id: policy.id,
+    name: policy.name || "",
+    rulesJSON: JSON.stringify(policy.rules || [], null, 2),
+  };
+}
+
+function retentionPolicyPayload(form: RetentionPolicyForm, editingID: string | null) {
+  const rules = JSON.parse(form.rulesJSON) as unknown;
+  if (!Array.isArray(rules) || rules.length === 0) {
+    throw new Error("retention policy rules must be a non-empty JSON array");
+  }
+  for (const [index, rule] of rules.entries()) {
+    if (!isRetentionRule(rule)) {
+      throw new Error(`retention policy rule ${index + 1} must include a kind`);
+    }
+  }
+  const payload: Record<string, unknown> = {
+    name: form.name.trim(),
+    rules,
+  };
+  const id = editingID || form.id.trim();
+  if (id) {
+    payload.id = id;
+  }
+  return payload;
+}
+
+function isRetentionRule(value: unknown): value is RetentionPolicy["rules"][number] {
+  return typeof value === "object" && value !== null && typeof (value as { kind?: unknown }).kind === "string" && (value as { kind: string }).kind.trim() !== "";
 }
 
 function stringOption(values: Record<string, unknown> | undefined, key: string) {

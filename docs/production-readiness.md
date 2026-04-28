@@ -25,7 +25,7 @@ treated as production-grade. The full product vision across SFTP, Azure Blob, Go
 Storage, deeper WebUI workflows beyond the authenticated live
 overview/jobs/backups/inventory dashboard plus
 target/storage/schedule/retention/job/backup detail, schedule pause/resume, job
-cancel/retry, target/storage/schedule create/update editing, guarded
+cancel/retry, target/storage/schedule/retention create/update editing, guarded
 target/storage deletion, restore preview plus guarded dry-run/live restore
 queueing, and backup protection actions, and
 multi-instance control-plane operation is still roadmap work.
@@ -135,8 +135,8 @@ executes `kronos version`.
    evidence.
 3. Extend E2E coverage into more retention policy edge cases and release
    verification drills.
-4. Expand the WebUI from dashboard shell plus target/storage/schedule editing
-   into retention create/update workflows and richer backup drill actions.
+4. Expand the WebUI from dashboard shell plus resource editing into richer
+   backup drill actions.
 5. Decide the supported multi-instance story for control-plane state, or
    document single-replica constraints as a hard production boundary.
 6. Run at least one signed-tag release rehearsal against a disposable version
@@ -147,9 +147,8 @@ executes `kronos version`.
 1. Add broader MongoDB version/recovery coverage, including authenticated
    targets and larger archive restore drills.
 2. Extend PostgreSQL hardening around broader upgrade rehearsal evidence.
-3. Expand the WebUI beyond the live overview dashboard and
-   target/storage/schedule editing into retention create/update workflows and
-   richer backup drill actions.
+3. Expand the WebUI beyond the live overview dashboard and resource editing
+   into richer backup drill actions.
 4. Production deployment hardening for single-replica Kubernetes and external
    secret management.
 5. Run a signed-tag release rehearsal and archive checksum, signature, and
