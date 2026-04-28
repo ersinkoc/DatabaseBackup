@@ -421,6 +421,12 @@ paths:
           required: false
           schema:
             type: string
+        - name: verify_backup_id
+          in: query
+          required: false
+          description: Filter verification jobs for one backup.
+          schema:
+            type: string
         - name: since
           in: query
           required: false

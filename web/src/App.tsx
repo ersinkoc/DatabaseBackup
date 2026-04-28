@@ -417,6 +417,7 @@ export function App() {
   const [queuingBackup, setQueuingBackup] = useState(false);
   const [backupVerificationReport, setBackupVerificationReport] = useState<BackupVerificationReport | null>(null);
   const [backupVerificationJob, setBackupVerificationJob] = useState<Job | null>(null);
+  const [backupVerificationHistory, setBackupVerificationHistory] = useState<Job[]>([]);
   const [verifyingBackup, setVerifyingBackup] = useState(false);
 
   async function loadOverview({ refresh = false }: { refresh?: boolean } = {}) {
@@ -555,6 +556,7 @@ export function App() {
         body: JSON.stringify({ level: "chunk" }),
       });
       setBackupVerificationJob(job);
+      setBackupVerificationHistory((current) => sortJobs([job, ...current.filter((item) => item.id !== job.id)]).slice(0, 5));
       setJobs((current) => sortJobs([job, ...current.filter((item) => item.id !== job.id)]).slice(0, 8));
       setOverview((current) => updateOverviewJobCounts(current, "", job.status));
     } catch (err) {
@@ -584,8 +586,12 @@ export function App() {
     setLoadingBackupID(backup.id);
     setDetailError(null);
     try {
-      const detail = await requestJSON<Backup>(`/api/v1/backups/${encodeURIComponent(backup.id)}`, apiToken);
+      const [detail, verificationJobs] = await Promise.all([
+        requestJSON<Backup>(`/api/v1/backups/${encodeURIComponent(backup.id)}`, apiToken),
+        requestJSON<JobListResponse>(`/api/v1/jobs?operation=verify&verify_backup_id=${encodeURIComponent(backup.id)}`, apiToken),
+      ]);
       setSelectedBackup(detail);
+      setBackupVerificationHistory(sortJobs(verificationJobs.jobs ?? []).slice(0, 5));
       setRestoreTargetID(detail.target_id || "");
       setRestoreAt("");
       setRestoreConfirmation("");
@@ -1400,6 +1406,7 @@ export function App() {
                 backup={selectedBackup}
                 backups={backups}
                 report={backupVerificationReport}
+                verificationHistory={backupVerificationHistory}
                 verificationJob={backupVerificationJob}
                 verifyingBackup={verifyingBackup}
                 restoreAt={restoreAt}
@@ -2363,6 +2370,7 @@ function BackupDetail({
   backup,
   backups,
   report,
+  verificationHistory,
   verificationJob,
   verifyingBackup,
   restoreAt,
@@ -2386,6 +2394,7 @@ function BackupDetail({
   backup: Backup | null;
   backups: Backup[];
   report: BackupVerificationReport | null;
+  verificationHistory: Job[];
   verificationJob: Job | null;
   verifyingBackup: boolean;
   restoreAt: string;
@@ -2442,6 +2451,7 @@ function BackupDetail({
             </div>
           ) : null}
         </div>
+        {verificationHistory.length > 0 ? <BackupVerificationHistory jobs={verificationHistory} /> : null}
       </div>
       <div className="mt-5 border-t border-line pt-4">
         <h3 className="text-sm font-semibold text-marble">Restore validation</h3>
@@ -2558,6 +2568,28 @@ function VerificationReportDetail({ report }: { report: VerificationReport }) {
       {typeof report.stored_bytes === "number" ? <HealthRow label="Stored bytes" value={formatBytes(report.stored_bytes)} tone="bronze" /> : null}
       {typeof report.restored_bytes === "number" ? <HealthRow label="Restored bytes" value={formatBytes(report.restored_bytes)} tone="indigo" /> : null}
     </>
+  );
+}
+
+function BackupVerificationHistory({ jobs }: { jobs: Job[] }) {
+  return (
+    <div className="mt-4 grid gap-3">
+      <h4 className="text-xs font-semibold uppercase text-muted">Verification history</h4>
+      {jobs.map((job) => (
+        <div key={job.id} className="rounded-md border border-line bg-surface px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-mono text-xs text-marble">{job.id}</span>
+            <span className={`rounded px-2 py-1 text-[11px] font-semibold ${statusClass[job.status] ?? "bg-surface text-muted"}`}>{job.status}</span>
+          </div>
+          <div className="mt-2 grid gap-2">
+            <HealthRow label="Level" value={job.verify_level || "-"} tone="indigo" />
+            <HealthRow label="Queued" value={formatDateTime(job.queued_at) ?? "-"} tone="warning" />
+            {job.verify_report ? <VerificationReportDetail report={job.verify_report} /> : null}
+            {job.error ? <HealthRow label="Error" value={job.error} tone="warning" /> : null}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
