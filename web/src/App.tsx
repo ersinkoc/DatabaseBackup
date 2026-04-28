@@ -256,6 +256,9 @@ export function App() {
   const [selectedTarget, setSelectedTarget] = useState<Target | null>(null);
   const [selectedStorage, setSelectedStorage] = useState<Storage | null>(null);
   const [loadingInventoryID, setLoadingInventoryID] = useState<string | null>(null);
+  const [deletingInventoryID, setDeletingInventoryID] = useState<string | null>(null);
+  const [targetDeleteConfirmation, setTargetDeleteConfirmation] = useState("");
+  const [storageDeleteConfirmation, setStorageDeleteConfirmation] = useState("");
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [retentionPolicies, setRetentionPolicies] = useState<RetentionPolicy[]>([]);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
@@ -418,6 +421,7 @@ export function App() {
     try {
       setSelectedTarget(await requestJSON<Target>(`/api/v1/targets/${encodeURIComponent(target.id)}`, apiToken));
       setSelectedStorage(null);
+      setTargetDeleteConfirmation("");
     } catch (err) {
       setDetailError(err instanceof Error ? err.message : "target detail request failed");
     } finally {
@@ -431,10 +435,69 @@ export function App() {
     try {
       setSelectedStorage(await requestJSON<Storage>(`/api/v1/storages/${encodeURIComponent(storage.id)}`, apiToken));
       setSelectedTarget(null);
+      setStorageDeleteConfirmation("");
     } catch (err) {
       setDetailError(err instanceof Error ? err.message : "storage detail request failed");
     } finally {
       setLoadingInventoryID(null);
+    }
+  }
+
+  async function deleteTarget(target: Target) {
+    if (targetDeleteConfirmation !== target.id) {
+      return;
+    }
+    setDeletingInventoryID(target.id);
+    setDetailError(null);
+    try {
+      await requestJSON<void>(`/api/v1/targets/${encodeURIComponent(target.id)}`, apiToken, { method: "DELETE" });
+      setTargets((current) => current.filter((item) => item.id !== target.id));
+      setSelectedTarget(null);
+      setTargetDeleteConfirmation("");
+      setOverview((current) =>
+        current
+          ? {
+              ...current,
+              inventory: {
+                ...current.inventory,
+                targets: Math.max(0, current.inventory.targets - 1),
+              },
+            }
+          : current,
+      );
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "target delete failed");
+    } finally {
+      setDeletingInventoryID(null);
+    }
+  }
+
+  async function deleteStorage(storage: Storage) {
+    if (storageDeleteConfirmation !== storage.id) {
+      return;
+    }
+    setDeletingInventoryID(storage.id);
+    setDetailError(null);
+    try {
+      await requestJSON<void>(`/api/v1/storages/${encodeURIComponent(storage.id)}`, apiToken, { method: "DELETE" });
+      setStorages((current) => current.filter((item) => item.id !== storage.id));
+      setSelectedStorage(null);
+      setStorageDeleteConfirmation("");
+      setOverview((current) =>
+        current
+          ? {
+              ...current,
+              inventory: {
+                ...current.inventory,
+                storages: Math.max(0, current.inventory.storages - 1),
+              },
+            }
+          : current,
+      );
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "storage delete failed");
+    } finally {
+      setDeletingInventoryID(null);
     }
   }
 
@@ -830,8 +893,20 @@ export function App() {
                 </div>
               </section>
 
-              <TargetDetail target={selectedTarget} />
-              <StorageDetail storage={selectedStorage} />
+              <TargetDetail
+                confirmation={targetDeleteConfirmation}
+                deleting={deletingInventoryID === selectedTarget?.id}
+                target={selectedTarget}
+                onConfirmationChange={setTargetDeleteConfirmation}
+                onDelete={deleteTarget}
+              />
+              <StorageDetail
+                confirmation={storageDeleteConfirmation}
+                deleting={deletingInventoryID === selectedStorage?.id}
+                storage={selectedStorage}
+                onConfirmationChange={setStorageDeleteConfirmation}
+                onDelete={deleteStorage}
+              />
               <ScheduleDetail schedule={selectedSchedule} updating={updatingScheduleID === selectedSchedule?.id} onToggle={toggleSchedulePause} />
               <RetentionPolicyDetail policy={selectedRetentionPolicy} />
               <JobDetail job={selectedJob} />
@@ -939,7 +1014,19 @@ function JobActionButton({ job, updating, onAction }: { job: Job; updating: bool
   return <span className="text-xs text-muted">-</span>;
 }
 
-function TargetDetail({ target }: { target: Target | null }) {
+function TargetDetail({
+  confirmation,
+  deleting,
+  target,
+  onConfirmationChange,
+  onDelete,
+}: {
+  confirmation: string;
+  deleting: boolean;
+  target: Target | null;
+  onConfirmationChange: (value: string) => void;
+  onDelete: (target: Target) => Promise<void>;
+}) {
   if (!target) {
     return null;
   }
@@ -957,11 +1044,31 @@ function TargetDetail({ target }: { target: Target | null }) {
         <HealthRow label="Created" value={formatDateTime(target.created_at) ?? "-"} tone="bronze" />
         <HealthRow label="Updated" value={formatDateTime(target.updated_at) ?? "-"} tone="indigo" />
       </div>
+      <DeleteResourceControl
+        confirmation={confirmation}
+        deleting={deleting}
+        id={target.id}
+        label="target"
+        onChange={onConfirmationChange}
+        onDelete={() => void onDelete(target)}
+      />
     </section>
   );
 }
 
-function StorageDetail({ storage }: { storage: Storage | null }) {
+function StorageDetail({
+  confirmation,
+  deleting,
+  storage,
+  onConfirmationChange,
+  onDelete,
+}: {
+  confirmation: string;
+  deleting: boolean;
+  storage: Storage | null;
+  onConfirmationChange: (value: string) => void;
+  onDelete: (storage: Storage) => Promise<void>;
+}) {
   if (!storage) {
     return null;
   }
@@ -978,7 +1085,49 @@ function StorageDetail({ storage }: { storage: Storage | null }) {
         <HealthRow label="Created" value={formatDateTime(storage.created_at) ?? "-"} tone="bronze" />
         <HealthRow label="Updated" value={formatDateTime(storage.updated_at) ?? "-"} tone="indigo" />
       </div>
+      <DeleteResourceControl
+        confirmation={confirmation}
+        deleting={deleting}
+        id={storage.id}
+        label="storage"
+        onChange={onConfirmationChange}
+        onDelete={() => void onDelete(storage)}
+      />
     </section>
+  );
+}
+
+function DeleteResourceControl({
+  confirmation,
+  deleting,
+  id,
+  label,
+  onChange,
+  onDelete,
+}: {
+  confirmation: string;
+  deleting: boolean;
+  id: string;
+  label: string;
+  onChange: (value: string) => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="mt-5 border-t border-line pt-4">
+      <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor={`${label}-delete-confirm`}>
+        Confirm {label} ID
+        <input
+          id={`${label}-delete-confirm`}
+          className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+          placeholder={id}
+          value={confirmation}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </label>
+      <Button className="mt-3 h-8 w-full text-xs" disabled={deleting || confirmation !== id} onClick={onDelete} type="button" variant="ghost">
+        {deleting ? "Deleting" : `Delete ${label}`}
+      </Button>
+    </div>
   );
 }
 
@@ -1228,6 +1377,9 @@ async function requestJSON<T>(path: string, token: string, init: RequestInit = {
       throw new Error("API token required");
     }
     throw new Error(`${path} request failed with ${response.status}`);
+  }
+  if (response.status === 204) {
+    return undefined as T;
   }
   return (await response.json()) as T;
 }
