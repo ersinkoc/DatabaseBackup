@@ -18,6 +18,7 @@ import (
 	"github.com/kronos/kronos/internal/storage"
 	"github.com/kronos/kronos/internal/storage/local"
 	"github.com/kronos/kronos/internal/storage/s3"
+	"github.com/kronos/kronos/internal/verify"
 )
 
 // PipelineFactory builds a fresh chunk pipeline for a backend.
@@ -114,8 +115,11 @@ func OpenStorageBackend(item core.Storage) (storage.Backend, error) {
 
 // Execute runs one backup job and returns metadata for the control plane.
 func (e BackupExecutor) Execute(ctx context.Context, job core.Job) (*core.Backup, error) {
-	if job.Operation == core.JobOperationRestore {
+	switch job.Operation {
+	case core.JobOperationRestore:
 		return nil, e.executeRestore(ctx, job)
+	case core.JobOperationVerify:
+		return nil, e.executeVerify(ctx, job)
 	}
 	return e.executeBackup(ctx, job)
 }
@@ -484,6 +488,82 @@ func (e BackupExecutor) executeRestore(ctx context.Context, job core.Job) error 
 		},
 	})
 	return err
+}
+
+func (e BackupExecutor) executeVerify(ctx context.Context, job core.Job) error {
+	publicKey, err := e.publicKey()
+	if err != nil {
+		return err
+	}
+	if job.VerifyBackupID.IsZero() {
+		return fmt.Errorf("verify backup id is required")
+	}
+	storageID := job.StorageID
+	manifestID := job.VerifyManifestID
+	manifestIDs := append([]core.ID(nil), job.VerifyManifestIDs...)
+	if backup, ok := e.Backups[job.VerifyBackupID]; ok {
+		if storageID.IsZero() {
+			storageID = backup.StorageID
+		}
+		if manifestID.IsZero() {
+			manifestID = backup.ManifestID
+		}
+	}
+	if storageID.IsZero() {
+		return fmt.Errorf("verify storage id is required")
+	}
+	if len(manifestIDs) == 0 && !manifestID.IsZero() {
+		manifestIDs = append(manifestIDs, manifestID)
+	}
+	if len(manifestIDs) == 0 {
+		return fmt.Errorf("verify manifest ids are required")
+	}
+	backend, ok := e.Backends[storageID]
+	if !ok {
+		return fmt.Errorf("storage %q is not configured on agent", storageID)
+	}
+	level := job.VerifyLevel
+	if level == "" {
+		level = core.JobVerificationChunk
+	}
+	switch level {
+	case core.JobVerificationManifest:
+		for _, manifestID := range manifestIDs {
+			committed, _, err := repository.LoadManifest(ctx, backend, string(manifestID), publicKey)
+			if err != nil {
+				return err
+			}
+			if _, err := verify.Manifest(ctx, backend, committed, publicKey); err != nil {
+				return err
+			}
+		}
+	case core.JobVerificationChunk:
+		if e.PipelineFactory == nil {
+			return fmt.Errorf("pipeline factory is required")
+		}
+		pipeline, err := e.PipelineFactory(backend)
+		if err != nil {
+			return err
+		}
+		if pipeline == nil {
+			return fmt.Errorf("pipeline factory returned nil pipeline")
+		}
+		if pipeline.Cipher == nil {
+			return fmt.Errorf("pipeline cipher is required")
+		}
+		for _, manifestID := range manifestIDs {
+			committed, _, err := repository.LoadManifest(ctx, backend, string(manifestID), publicKey)
+			if err != nil {
+				return err
+			}
+			if _, err := verify.Chunks(ctx, pipeline, committed, publicKey); err != nil {
+				return err
+			}
+		}
+	default:
+		return fmt.Errorf("unknown verification level %q", level)
+	}
+	return nil
 }
 
 func (e BackupExecutor) restoreRefs(ctx context.Context, backend storage.Backend, publicKey ed25519.PublicKey, manifestIDs []core.ID) ([]chunk.ChunkRef, error) {

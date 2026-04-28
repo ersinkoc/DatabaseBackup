@@ -116,6 +116,10 @@ type Job = {
   restore_at?: string;
   restore_dry_run?: boolean;
   restore_replace_existing?: boolean;
+  verify_backup_id?: string;
+  verify_manifest_id?: string;
+  verify_manifest_ids?: string[];
+  verify_level?: string;
   error?: string;
 };
 
@@ -400,6 +404,8 @@ export function App() {
   const [backupRunJob, setBackupRunJob] = useState<Job | null>(null);
   const [queuingBackup, setQueuingBackup] = useState(false);
   const [backupVerificationReport, setBackupVerificationReport] = useState<BackupVerificationReport | null>(null);
+  const [backupVerificationJob, setBackupVerificationJob] = useState<Job | null>(null);
+  const [verifyingBackup, setVerifyingBackup] = useState(false);
 
   async function loadOverview({ refresh = false }: { refresh?: boolean } = {}) {
     if (refresh) {
@@ -527,6 +533,25 @@ export function App() {
     setBackupVerificationReport(backupMetadataReport(backup, backups));
   }
 
+  async function queueBackupVerification(backup: Backup) {
+    setVerifyingBackup(true);
+    setDetailError(null);
+    try {
+      const job = await requestJSON<Job>(`/api/v1/backups/${encodeURIComponent(backup.id)}/verify`, apiToken, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ level: "chunk" }),
+      });
+      setBackupVerificationJob(job);
+      setJobs((current) => sortJobs([job, ...current.filter((item) => item.id !== job.id)]).slice(0, 8));
+      setOverview((current) => updateOverviewJobCounts(current, "", job.status));
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : "backup verification request failed");
+    } finally {
+      setVerifyingBackup(false);
+    }
+  }
+
   async function updateJob(job: Job, action: "cancel" | "retry") {
     setUpdatingJobID(job.id);
     setDetailError(null);
@@ -556,6 +581,7 @@ export function App() {
       setRestorePlan(null);
       setRestoreJob(null);
       setBackupVerificationReport(null);
+      setBackupVerificationJob(null);
     } catch (err) {
       setDetailError(err instanceof Error ? err.message : "backup detail request failed");
     } finally {
@@ -1362,6 +1388,8 @@ export function App() {
                 backup={selectedBackup}
                 backups={backups}
                 report={backupVerificationReport}
+                verificationJob={backupVerificationJob}
+                verifyingBackup={verifyingBackup}
                 restoreAt={restoreAt}
                 restoreConfirmation={restoreConfirmation}
                 restoreJob={restoreJob}
@@ -1377,6 +1405,7 @@ export function App() {
                 onStartLive={startLiveRestore}
                 onStartDryRun={startDryRunRestore}
                 onTargetChange={setRestoreTargetID}
+                onQueueVerification={queueBackupVerification}
                 onVerify={verifyBackupMetadata}
               />
             </aside>
@@ -2303,8 +2332,14 @@ function JobDetail({ job }: { job: Job | null }) {
         {job.restore_manifest_ids && job.restore_manifest_ids.length > 0 ? (
           <HealthRow label="Manifests" value={job.restore_manifest_ids.join(", ")} tone="bronze" />
         ) : null}
-        <HealthRow label="Dry run" value={job.restore_dry_run ? "yes" : "no"} tone="indigo" />
-        <HealthRow label="Replace" value={job.restore_replace_existing ? "yes" : "no"} tone="warning" />
+        {job.verify_backup_id ? <HealthRow label="Verify backup" value={job.verify_backup_id} tone="bronze" /> : null}
+        {job.verify_manifest_id ? <HealthRow label="Verify manifest" value={job.verify_manifest_id} tone="bronze" /> : null}
+        {job.verify_manifest_ids && job.verify_manifest_ids.length > 0 ? (
+          <HealthRow label="Verify chain" value={job.verify_manifest_ids.join(", ")} tone="bronze" />
+        ) : null}
+        {job.verify_level ? <HealthRow label="Verify level" value={job.verify_level} tone="indigo" /> : null}
+        {job.operation === "restore" ? <HealthRow label="Dry run" value={job.restore_dry_run ? "yes" : "no"} tone="indigo" /> : null}
+        {job.operation === "restore" ? <HealthRow label="Replace" value={job.restore_replace_existing ? "yes" : "no"} tone="warning" /> : null}
         {job.error ? <HealthRow label="Error" value={job.error} tone="warning" /> : null}
       </div>
     </section>
@@ -2315,6 +2350,8 @@ function BackupDetail({
   backup,
   backups,
   report,
+  verificationJob,
+  verifyingBackup,
   restoreAt,
   restoreConfirmation,
   restoreJob,
@@ -2330,11 +2367,14 @@ function BackupDetail({
   onStartLive,
   onStartDryRun,
   onTargetChange,
+  onQueueVerification,
   onVerify,
 }: {
   backup: Backup | null;
   backups: Backup[];
   report: BackupVerificationReport | null;
+  verificationJob: Job | null;
+  verifyingBackup: boolean;
   restoreAt: string;
   restoreConfirmation: string;
   restoreJob: Job | null;
@@ -2350,6 +2390,7 @@ function BackupDetail({
   onStartLive: () => Promise<void>;
   onStartDryRun: () => Promise<void>;
   onTargetChange: (value: string) => void;
+  onQueueVerification: (backup: Backup) => Promise<void>;
   onVerify: (backup: Backup) => void;
 }) {
   if (!backup) {
@@ -2378,6 +2419,16 @@ function BackupDetail({
           </Button>
         </div>
         {report && report.backupID === backup.id ? <BackupVerificationDetail report={report} /> : null}
+        <div className="mt-4 grid gap-2">
+          <Button className="h-8 text-xs" disabled={verifyingBackup || !backup.manifest_id} onClick={() => void onQueueVerification(backup)} type="button" variant="primary">
+            {verifyingBackup ? "Queuing chunk check" : "Queue chunk check"}
+          </Button>
+          {verificationJob && verificationJob.verify_backup_id === backup.id ? (
+            <div className="rounded-md border border-success/35 bg-success/10 px-3 py-2 text-xs text-success">
+              Chunk verification queued as {verificationJob.id}
+            </div>
+          ) : null}
+        </div>
       </div>
       <div className="mt-5 border-t border-line pt-4">
         <h3 className="text-sm font-semibold text-marble">Restore validation</h3>

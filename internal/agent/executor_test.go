@@ -234,6 +234,57 @@ func TestBackupExecutorRunsRestoreJob(t *testing.T) {
 	}
 }
 
+func TestBackupExecutorRunsChunkVerificationJob(t *testing.T) {
+	t.Parallel()
+
+	publicKey, privateKey, err := ed25519.GenerateKey(bytes.NewReader(bytes.Repeat([]byte{6}, 64)))
+	if err != nil {
+		t.Fatalf("GenerateKey() error = %v", err)
+	}
+	registry := drivers.NewRegistry()
+	driver := &executorFakeDriver{}
+	if err := registry.Register(driver); err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+	backend := storagetest.NewMemoryBackend("memory")
+	executor := BackupExecutor{
+		Drivers: registry,
+		Targets: map[core.ID]drivers.Target{
+			"target-1": {Name: "redis-prod", Driver: "fake"},
+		},
+		Backends: map[core.ID]storage.Backend{
+			"storage-1": backend,
+		},
+		PipelineFactory: testPipelineFactory(t),
+		PublicKey:       publicKey,
+		PrivateKey:      privateKey,
+		Clock:           core.NewFakeClock(time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)),
+	}
+	backup, err := executor.Execute(context.Background(), core.Job{
+		ID: "backup-job", Operation: core.JobOperationBackup, TargetID: "target-1", StorageID: "storage-1", Type: core.BackupTypeFull,
+	})
+	if err != nil {
+		t.Fatalf("Execute(backup) error = %v", err)
+	}
+	executor.Backups = map[core.ID]core.Backup{backup.ID: *backup}
+	verified, err := executor.Execute(context.Background(), core.Job{
+		ID:                "verify-job",
+		Operation:         core.JobOperationVerify,
+		TargetID:          "target-1",
+		StorageID:         "storage-1",
+		VerifyBackupID:    backup.ID,
+		VerifyManifestID:  backup.ManifestID,
+		VerifyManifestIDs: []core.ID{backup.ManifestID},
+		VerifyLevel:       core.JobVerificationChunk,
+	})
+	if err != nil {
+		t.Fatalf("Execute(verify) error = %v", err)
+	}
+	if verified != nil {
+		t.Fatalf("verify returned backup = %#v, want nil", verified)
+	}
+}
+
 func TestBackupExecutorRestoresManifestChain(t *testing.T) {
 	t.Parallel()
 

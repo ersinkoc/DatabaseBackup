@@ -87,7 +87,7 @@ func TestRunJobsListPassesFilters(t *testing.T) {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
 		query := r.URL.Query()
-		if query.Get("status") != "running" || query.Get("operation") != "backup" || query.Get("target_id") != "target-1" || query.Get("storage_id") != "storage-1" || query.Get("agent_id") != "agent-1" || query.Get("since") != "72h" || query.Get("until") != "2026-04-25T12:00:00Z" {
+		if query.Get("status") != "running" || query.Get("operation") != "backup" || query.Get("target_id") != "target-1" || query.Get("storage_id") != "storage-1" || query.Get("agent_id") != "agent-1" || query.Get("since") != "7d" || query.Get("until") != "2026-04-25T12:00:00Z" {
 			t.Fatalf("query = %s", r.URL.RawQuery)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -104,7 +104,7 @@ func TestRunJobsListPassesFilters(t *testing.T) {
 		"--target", "target-1",
 		"--storage", "storage-1",
 		"--agent", "agent-1",
-		"--since", "72h",
+		"--since", "7d",
 		"--until", "2026-04-25T12:00:00Z",
 	}); err != nil {
 		t.Fatalf("jobs list filters error = %v", err)

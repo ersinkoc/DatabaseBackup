@@ -101,7 +101,7 @@ kronos schedule tick
 kronos schedule remove --id schedule-1
 
 kronos jobs list
-kronos jobs list --status running --operation backup --target target-1 --agent agent-1 --since 2h
+kronos jobs list --status running --operation verify --target target-1 --agent agent-1 --since 2h
 kronos jobs inspect --id job-1
 kronos jobs cancel --id job-1
 kronos jobs retry --id job-1

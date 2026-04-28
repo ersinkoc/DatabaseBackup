@@ -2911,6 +2911,59 @@ func TestServerRestoreStartIncludesManifestChain(t *testing.T) {
 	}
 }
 
+func TestServerBackupVerifyEndpoint(t *testing.T) {
+	t.Parallel()
+
+	db, err := kvstore.Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	stores, err := newAPIStores(db)
+	if err != nil {
+		t.Fatalf("newAPIStores() error = %v", err)
+	}
+	now := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
+	for _, backup := range []core.Backup{
+		{ID: "full", TargetID: "target", StorageID: "storage", JobID: "job-1", Type: core.BackupTypeFull, ManifestID: "manifest-full", StartedAt: now.Add(-2 * time.Hour), EndedAt: now.Add(-2 * time.Hour)},
+		{ID: "incr", ParentID: "full", TargetID: "target", StorageID: "storage", JobID: "job-2", Type: core.BackupTypeIncremental, ManifestID: "manifest-incr", StartedAt: now.Add(-time.Hour), EndedAt: now.Add(-time.Hour)},
+	} {
+		if err := stores.backups.Save(backup); err != nil {
+			t.Fatalf("Save(%s) error = %v", backup.ID, err)
+		}
+	}
+	server := httptest.NewServer(newServerHandlerWithStores(nil, nil, stores))
+	defer server.Close()
+
+	resp, err := server.Client().Post(server.URL+"/api/v1/backups/incr/verify", "application/json", strings.NewReader(`{"level":"chunk"}`))
+	if err != nil {
+		t.Fatalf("POST backup verify error = %v", err)
+	}
+	var body bytes.Buffer
+	if _, err := body.ReadFrom(resp.Body); err != nil {
+		t.Fatalf("ReadFrom(backup verify) error = %v", err)
+	}
+	resp.Body.Close()
+	text := body.String()
+	if resp.StatusCode != http.StatusOK || !strings.Contains(text, `"operation":"verify"`) || !strings.Contains(text, `"verify_backup_id":"incr"`) || !strings.Contains(text, `"verify_level":"chunk"`) || !strings.Contains(text, `"verify_manifest_ids":["manifest-full","manifest-incr"]`) {
+		t.Fatalf("backup verify status=%d body=%q", resp.StatusCode, text)
+	}
+	jobs, err := stores.jobs.List()
+	if err != nil {
+		t.Fatalf("List(jobs) error = %v", err)
+	}
+	if len(jobs) != 1 || jobs[0].Operation != core.JobOperationVerify || jobs[0].VerifyBackupID != "incr" || jobs[0].VerifyManifestID != "manifest-incr" || jobs[0].VerifyLevel != core.JobVerificationChunk {
+		t.Fatalf("jobs = %#v", jobs)
+	}
+	events, err := stores.audit.List(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("List(audit) error = %v", err)
+	}
+	if len(events) != 1 || events[0].Action != "backup.verify.requested" || events[0].ResourceID != jobs[0].ID {
+		t.Fatalf("audit events = %#v", events)
+	}
+}
+
 func TestServerRetentionPolicyCRUD(t *testing.T) {
 	t.Parallel()
 
@@ -3547,6 +3600,7 @@ func TestServerRejectsBadRequestsAndMethods(t *testing.T) {
 		{method: http.MethodPost, path: "/api/v1/tokens", body: `{`, status: http.StatusBadRequest},
 		{method: http.MethodPost, path: "/api/v1/auth/verify", body: `{`, status: http.StatusUnauthorized},
 		{method: http.MethodPost, path: "/api/v1/backups/now", body: `{`, status: http.StatusBadRequest},
+		{method: http.MethodPost, path: "/api/v1/backups/missing/verify", body: `{`, status: http.StatusBadRequest},
 		{method: http.MethodGet, path: "/api/v1/jobs?since=not-time", status: http.StatusBadRequest},
 		{method: http.MethodGet, path: "/api/v1/backups?since=not-time", status: http.StatusBadRequest},
 		{method: http.MethodGet, path: "/api/v1/audit?since=not-time", status: http.StatusBadRequest},

@@ -957,6 +957,11 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 				return
 			}
 			handleProtectBackup(w, r, stores.backups, stores.audit, core.ID(id), false)
+		case r.Method == http.MethodPost && action == "verify":
+			if !requireScope(w, r, stores.tokens, "backup:write") {
+				return
+			}
+			handleBackupVerify(w, r, stores.backups, stores.jobs, stores.audit, core.ID(id))
 		default:
 			methodNotAllowed(w, http.MethodGet, http.MethodPost)
 		}
@@ -2338,6 +2343,10 @@ type backupNowRequest struct {
 	ParentID  core.ID         `json:"parent_id,omitempty"`
 }
 
+type backupVerifyRequest struct {
+	Level core.JobVerificationLevel `json:"level,omitempty"`
+}
+
 type claimJobResponse struct {
 	Job *core.Job `json:"job,omitempty"`
 }
@@ -2701,8 +2710,8 @@ func handleFinishJob(w http.ResponseWriter, r *http.Request, jobs *control.JobSt
 		http.Error(w, "backup metadata requires succeeded status", http.StatusBadRequest)
 		return
 	}
-	if request.Backup != nil && current.Operation == core.JobOperationRestore {
-		http.Error(w, "restore jobs cannot attach backup metadata", http.StatusBadRequest)
+	if request.Backup != nil && current.Operation != "" && current.Operation != core.JobOperationBackup {
+		http.Error(w, "non-backup jobs cannot attach backup metadata", http.StatusBadRequest)
 		return
 	}
 	if request.Backup != nil && backups == nil {
@@ -2990,6 +2999,84 @@ func handleProtectBackup(w http.ResponseWriter, r *http.Request, store *control.
 		return
 	}
 	writeJSON(w, backup)
+}
+
+func handleBackupVerify(w http.ResponseWriter, r *http.Request, backups *control.BackupStore, jobs *control.JobStore, auditLog *kaudit.Log, id core.ID) {
+	if backups == nil {
+		http.Error(w, "backup store is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	if jobs == nil {
+		http.Error(w, "job store is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	var request backupVerifyRequest
+	if err := decodeJSONRequest(w, r, &request); err != nil {
+		http.Error(w, "invalid backup verify request", http.StatusBadRequest)
+		return
+	}
+	level := request.Level
+	if level == "" {
+		level = core.JobVerificationChunk
+	}
+	if level != core.JobVerificationManifest && level != core.JobVerificationChunk {
+		http.Error(w, "unsupported verification level", http.StatusBadRequest)
+		return
+	}
+	list, err := backups.List()
+	if err != nil {
+		http.Error(w, "list backups", http.StatusInternalServerError)
+		return
+	}
+	plan, err := krestore.BuildPlan(list, krestore.Request{BackupID: id})
+	if err != nil {
+		if errors.Is(err, core.ErrNotFound) {
+			http.NotFound(w, nil)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if len(plan.Steps) == 0 {
+		http.Error(w, "backup verification plan is empty", http.StatusBadRequest)
+		return
+	}
+	jobID, err := core.NewID(core.RealClock{})
+	if err != nil {
+		http.Error(w, "create verify job id", http.StatusInternalServerError)
+		return
+	}
+	selected := plan.Steps[len(plan.Steps)-1]
+	manifestIDs := make([]core.ID, 0, len(plan.Steps))
+	for _, step := range plan.Steps {
+		manifestIDs = append(manifestIDs, step.ManifestID)
+	}
+	job := core.Job{
+		ID:                jobID,
+		Operation:         core.JobOperationVerify,
+		TargetID:          plan.TargetID,
+		StorageID:         plan.StorageID,
+		Type:              selected.Type,
+		VerifyBackupID:    plan.BackupID,
+		VerifyManifestID:  selected.ManifestID,
+		VerifyManifestIDs: manifestIDs,
+		VerifyLevel:       level,
+		Status:            core.JobStatusQueued,
+		QueuedAt:          time.Now().UTC(),
+	}
+	if err := jobs.Save(job); err != nil {
+		http.Error(w, "save verify job", http.StatusInternalServerError)
+		return
+	}
+	if handleAuditAppendError(w, appendAuditEvent(r, auditLog, "backup.verify.requested", "job", job.ID, map[string]any{
+		"backup_id":    plan.BackupID,
+		"storage_id":   plan.StorageID,
+		"level":        level,
+		"manifest_ids": manifestIDs,
+	})) {
+		return
+	}
+	writeJSON(w, job)
 }
 
 type retentionPlanRequest struct {

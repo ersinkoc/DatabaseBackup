@@ -74,6 +74,18 @@ const (
 	JobOperationBackup JobOperation = "backup"
 	// JobOperationRestore restores a backup chain into a target.
 	JobOperationRestore JobOperation = "restore"
+	// JobOperationVerify verifies backup manifest signatures and stored chunks.
+	JobOperationVerify JobOperation = "verify"
+)
+
+// JobVerificationLevel identifies how deeply a verification job should inspect backup data.
+type JobVerificationLevel string
+
+const (
+	// JobVerificationManifest checks manifest signatures and referenced chunk presence.
+	JobVerificationManifest JobVerificationLevel = "manifest"
+	// JobVerificationChunk decrypts, decompresses, and hashes every referenced chunk.
+	JobVerificationChunk JobVerificationLevel = "chunk"
 )
 
 // NotificationEvent identifies an event that can trigger an outbound notification.
@@ -142,26 +154,30 @@ type Schedule struct {
 
 // Job records a single unit of scheduled or manual work.
 type Job struct {
-	ID                     ID           `json:"id"`
-	Operation              JobOperation `json:"operation,omitempty"`
-	ScheduleID             ID           `json:"schedule_id,omitempty"`
-	TargetID               ID           `json:"target_id"`
-	StorageID              ID           `json:"storage_id"`
-	Type                   BackupType   `json:"type,omitempty"`
-	AgentID                string       `json:"agent_id,omitempty"`
-	ParentBackupID         ID           `json:"parent_backup_id,omitempty"`
-	RestoreBackupID        ID           `json:"restore_backup_id,omitempty"`
-	RestoreManifestID      ID           `json:"restore_manifest_id,omitempty"`
-	RestoreManifestIDs     []ID         `json:"restore_manifest_ids,omitempty"`
-	RestoreTargetID        ID           `json:"restore_target_id,omitempty"`
-	RestoreAt              time.Time    `json:"restore_at,omitempty"`
-	RestoreDryRun          bool         `json:"restore_dry_run,omitempty"`
-	RestoreReplaceExisting bool         `json:"restore_replace_existing,omitempty"`
-	Status                 JobStatus    `json:"status"`
-	QueuedAt               time.Time    `json:"queued_at"`
-	StartedAt              time.Time    `json:"started_at,omitempty"`
-	EndedAt                time.Time    `json:"ended_at,omitempty"`
-	Error                  string       `json:"error,omitempty"`
+	ID                     ID                   `json:"id"`
+	Operation              JobOperation         `json:"operation,omitempty"`
+	ScheduleID             ID                   `json:"schedule_id,omitempty"`
+	TargetID               ID                   `json:"target_id"`
+	StorageID              ID                   `json:"storage_id"`
+	Type                   BackupType           `json:"type,omitempty"`
+	AgentID                string               `json:"agent_id,omitempty"`
+	ParentBackupID         ID                   `json:"parent_backup_id,omitempty"`
+	RestoreBackupID        ID                   `json:"restore_backup_id,omitempty"`
+	RestoreManifestID      ID                   `json:"restore_manifest_id,omitempty"`
+	RestoreManifestIDs     []ID                 `json:"restore_manifest_ids,omitempty"`
+	RestoreTargetID        ID                   `json:"restore_target_id,omitempty"`
+	RestoreAt              time.Time            `json:"restore_at,omitempty"`
+	RestoreDryRun          bool                 `json:"restore_dry_run,omitempty"`
+	RestoreReplaceExisting bool                 `json:"restore_replace_existing,omitempty"`
+	VerifyBackupID         ID                   `json:"verify_backup_id,omitempty"`
+	VerifyManifestID       ID                   `json:"verify_manifest_id,omitempty"`
+	VerifyManifestIDs      []ID                 `json:"verify_manifest_ids,omitempty"`
+	VerifyLevel            JobVerificationLevel `json:"verify_level,omitempty"`
+	Status                 JobStatus            `json:"status"`
+	QueuedAt               time.Time            `json:"queued_at"`
+	StartedAt              time.Time            `json:"started_at,omitempty"`
+	EndedAt                time.Time            `json:"ended_at,omitempty"`
+	Error                  string               `json:"error,omitempty"`
 }
 
 // Backup describes a committed backup manifest.

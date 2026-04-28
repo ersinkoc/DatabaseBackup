@@ -405,7 +405,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [backup, restore]
+            enum: [backup, restore, verify]
         - name: target_id
           in: query
           required: false
@@ -616,6 +616,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Backup"
+        "404":
+          description: Backup not found
+  /api/v1/backups/{id}/verify:
+    post:
+      summary: Enqueue backup verification
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BackupVerifyRequest"
+      responses:
+        "200":
+          description: Queued verification job
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          description: Invalid backup verify request
         "404":
           description: Backup not found
   /api/v1/backups/{id}/unprotect:
@@ -1666,6 +1688,13 @@ components:
           type: integer
         protected:
           type: boolean
+    BackupVerifyRequest:
+      type: object
+      properties:
+        level:
+          type: string
+          enum: [manifest, chunk]
+          default: chunk
     RestorePreviewRequest:
       type: object
       required: [backup_id]
@@ -1695,7 +1724,7 @@ components:
           type: string
         operation:
           type: string
-          enum: [backup, restore]
+          enum: [backup, restore, verify]
         schedule_id:
           type: string
         target_id:
@@ -1726,6 +1755,17 @@ components:
           type: boolean
         restore_replace_existing:
           type: boolean
+        verify_backup_id:
+          type: string
+        verify_manifest_id:
+          type: string
+        verify_manifest_ids:
+          type: array
+          items:
+            type: string
+        verify_level:
+          type: string
+          enum: [manifest, chunk]
         status:
           type: string
           enum: [queued, running, finalizing, succeeded, failed, canceled]

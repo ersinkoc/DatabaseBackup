@@ -144,7 +144,7 @@ func TestOpenAPIDocumentsBackupProtectionNotFoundResponses(t *testing.T) {
 		t.Fatalf("ReadFile(openapi.yaml) error = %v", err)
 	}
 	text := string(data)
-	for _, want := range []string{"/api/v1/backups/{id}/protect", "Enable manual protection", "/api/v1/backups/{id}/unprotect", "Disable manual protection", "Backup not found"} {
+	for _, want := range []string{"/api/v1/backups/{id}/protect", "Enable manual protection", "/api/v1/backups/{id}/verify", "Enqueue backup verification", "/api/v1/backups/{id}/unprotect", "Disable manual protection", "Backup not found"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("openapi.yaml missing %q", want)
 		}
@@ -174,7 +174,7 @@ func TestOpenAPIDocumentsInvalidWriteResponses(t *testing.T) {
 		t.Fatalf("ReadFile(openapi.yaml) error = %v", err)
 	}
 	text := string(data)
-	for _, want := range []string{"Invalid token request", "Invalid token prune request", "Invalid grant request", "Invalid backup request", "Invalid retention plan request", "Invalid retention apply request", "Invalid retention policy", "Invalid notification rule", "Invalid target", "Invalid storage", "Invalid schedule"} {
+	for _, want := range []string{"Invalid token request", "Invalid token prune request", "Invalid grant request", "Invalid backup request", "Invalid backup verify request", "Invalid retention plan request", "Invalid retention apply request", "Invalid retention policy", "Invalid notification rule", "Invalid target", "Invalid storage", "Invalid schedule"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("openapi.yaml missing %q", want)
 		}
@@ -193,6 +193,7 @@ func TestOpenAPIWriteOperationsDocumentBadRequests(t *testing.T) {
 		{path: "/api/v1/tokens/prune", method: "post"},
 		{path: "/api/v1/users/{id}/grant", method: "post"},
 		{path: "/api/v1/backups/now", method: "post"},
+		{path: "/api/v1/backups/{id}/verify", method: "post"},
 		{path: "/api/v1/retention/plan", method: "post"},
 		{path: "/api/v1/retention/apply", method: "post"},
 		{path: "/api/v1/retention/policies", method: "post"},
