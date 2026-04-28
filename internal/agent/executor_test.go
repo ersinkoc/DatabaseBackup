@@ -47,12 +47,13 @@ func TestBackupExecutorRunsFullBackupAndCommitsManifest(t *testing.T) {
 		PrivateKey:      privateKey,
 		Clock:           clock,
 	}
-	backup, err := executor.Execute(context.Background(), core.Job{
+	result, err := executor.Execute(context.Background(), core.Job{
 		ID: "job-1", TargetID: "target-1", StorageID: "storage-1", Type: core.BackupTypeFull,
 	})
 	if err != nil {
 		t.Fatalf("Execute() error = %v", err)
 	}
+	backup := result.Backup
 	if backup == nil || backup.JobID != "job-1" || backup.TargetID != "target-1" || backup.ManifestID.IsZero() || backup.ChunkCount == 0 {
 		t.Fatalf("backup = %#v", backup)
 	}
@@ -141,19 +142,21 @@ func TestBackupExecutorRunsIncrementalBackupWithParent(t *testing.T) {
 		PrivateKey:      privateKey,
 		Clock:           clock,
 	}
-	parent, err := executor.Execute(context.Background(), core.Job{
+	parentResult, err := executor.Execute(context.Background(), core.Job{
 		ID: "parent-job", Operation: core.JobOperationBackup, TargetID: "target-1", StorageID: "storage-1", Type: core.BackupTypeFull,
 	})
 	if err != nil {
 		t.Fatalf("Execute(parent) error = %v", err)
 	}
+	parent := parentResult.Backup
 	executor.Backups = map[core.ID]core.Backup{parent.ID: *parent}
-	incr, err := executor.Execute(context.Background(), core.Job{
+	incrResult, err := executor.Execute(context.Background(), core.Job{
 		ID: "incr-job", Operation: core.JobOperationBackup, TargetID: "target-1", StorageID: "storage-1", Type: core.BackupTypeIncremental, ParentBackupID: parent.ID,
 	})
 	if err != nil {
 		t.Fatalf("Execute(incremental) error = %v", err)
 	}
+	incr := incrResult.Backup
 	if incr == nil || incr.Type != core.BackupTypeIncremental || incr.ParentID != parent.ID || driver.incrementalParent != parent.ID.String() {
 		t.Fatalf("incremental backup=%#v parent=%#v incrementalParent=%q", incr, parent, driver.incrementalParent)
 	}
@@ -203,12 +206,13 @@ func TestBackupExecutorRunsRestoreJob(t *testing.T) {
 		PrivateKey:      privateKey,
 		Clock:           clock,
 	}
-	backup, err := executor.Execute(context.Background(), core.Job{
+	backupResult, err := executor.Execute(context.Background(), core.Job{
 		ID: "backup-job", Operation: core.JobOperationBackup, TargetID: "source-target", StorageID: "storage-1", Type: core.BackupTypeFull,
 	})
 	if err != nil {
 		t.Fatalf("Execute(backup) error = %v", err)
 	}
+	backup := backupResult.Backup
 	restored, err := executor.Execute(context.Background(), core.Job{
 		ID:                     "restore-job",
 		Operation:              core.JobOperationRestore,
@@ -223,8 +227,8 @@ func TestBackupExecutorRunsRestoreJob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute(restore) error = %v", err)
 	}
-	if restored != nil {
-		t.Fatalf("restore returned backup = %#v, want nil", restored)
+	if restored.Backup != nil || restored.Verification != nil {
+		t.Fatalf("restore returned result = %#v, want empty", restored)
 	}
 	if len(driver.restored) != 2 || string(driver.restored[0].Payload) != "alpha" || !driver.restored[1].Done {
 		t.Fatalf("restored records = %#v", driver.restored)
@@ -260,12 +264,13 @@ func TestBackupExecutorRunsChunkVerificationJob(t *testing.T) {
 		PrivateKey:      privateKey,
 		Clock:           core.NewFakeClock(time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)),
 	}
-	backup, err := executor.Execute(context.Background(), core.Job{
+	backupResult, err := executor.Execute(context.Background(), core.Job{
 		ID: "backup-job", Operation: core.JobOperationBackup, TargetID: "target-1", StorageID: "storage-1", Type: core.BackupTypeFull,
 	})
 	if err != nil {
 		t.Fatalf("Execute(backup) error = %v", err)
 	}
+	backup := backupResult.Backup
 	executor.Backups = map[core.ID]core.Backup{backup.ID: *backup}
 	verified, err := executor.Execute(context.Background(), core.Job{
 		ID:                "verify-job",
@@ -280,8 +285,8 @@ func TestBackupExecutorRunsChunkVerificationJob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute(verify) error = %v", err)
 	}
-	if verified != nil {
-		t.Fatalf("verify returned backup = %#v, want nil", verified)
+	if verified.Backup != nil || verified.Verification == nil || verified.Verification.VerifiedChunks == 0 || verified.Verification.RestoredBytes == 0 {
+		t.Fatalf("verify result = %#v, want chunk verification report", verified)
 	}
 }
 
@@ -313,19 +318,21 @@ func TestBackupExecutorRestoresManifestChain(t *testing.T) {
 		PrivateKey:      privateKey,
 		Clock:           clock,
 	}
-	full, err := executor.Execute(context.Background(), core.Job{
+	fullResult, err := executor.Execute(context.Background(), core.Job{
 		ID: "full-job", Operation: core.JobOperationBackup, TargetID: "source-target", StorageID: "storage-1", Type: core.BackupTypeFull,
 	})
 	if err != nil {
 		t.Fatalf("Execute(full) error = %v", err)
 	}
+	full := fullResult.Backup
 	driver.payload = "bravo"
-	incr, err := executor.Execute(context.Background(), core.Job{
+	incrResult, err := executor.Execute(context.Background(), core.Job{
 		ID: "incr-job", Operation: core.JobOperationBackup, TargetID: "source-target", StorageID: "storage-1", Type: core.BackupTypeFull,
 	})
 	if err != nil {
 		t.Fatalf("Execute(incr fixture) error = %v", err)
 	}
+	incr := incrResult.Backup
 	driver.restored = nil
 	_, err = executor.Execute(context.Background(), core.Job{
 		ID:                     "restore-job",

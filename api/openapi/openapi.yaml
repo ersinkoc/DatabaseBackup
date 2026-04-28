@@ -1511,6 +1511,8 @@ components:
           type: string
         backup:
           $ref: "#/components/schemas/Backup"
+        verification:
+          $ref: "#/components/schemas/VerificationReport"
     CreateTokenRequest:
       type: object
       required: [name, user_id, scopes]
@@ -1766,6 +1768,8 @@ components:
         verify_level:
           type: string
           enum: [manifest, chunk]
+        verify_report:
+          $ref: "#/components/schemas/VerificationReport"
         status:
           type: string
           enum: [queued, running, finalizing, succeeded, failed, canceled]
@@ -1780,6 +1784,28 @@ components:
           format: date-time
         error:
           type: string
+    VerificationReport:
+      type: object
+      properties:
+        backup_id:
+          type: string
+        level:
+          type: string
+          enum: [manifest, chunk]
+        manifest_ids:
+          type: array
+          items:
+            type: string
+        objects:
+          type: integer
+        chunks:
+          type: integer
+        verified_chunks:
+          type: integer
+        stored_bytes:
+          type: integer
+        restored_bytes:
+          type: integer
     RestoreStartResponse:
       type: object
       required: [job, plan]

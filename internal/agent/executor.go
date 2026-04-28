@@ -113,15 +113,17 @@ func OpenStorageBackend(item core.Storage) (storage.Backend, error) {
 	}
 }
 
-// Execute runs one backup job and returns metadata for the control plane.
-func (e BackupExecutor) Execute(ctx context.Context, job core.Job) (*core.Backup, error) {
+// Execute runs one job and returns operation-specific metadata for the control plane.
+func (e BackupExecutor) Execute(ctx context.Context, job core.Job) (core.JobResult, error) {
 	switch job.Operation {
 	case core.JobOperationRestore:
-		return nil, e.executeRestore(ctx, job)
+		return core.JobResult{}, e.executeRestore(ctx, job)
 	case core.JobOperationVerify:
-		return nil, e.executeVerify(ctx, job)
+		report, err := e.executeVerify(ctx, job)
+		return core.JobResult{Verification: report}, err
 	}
-	return e.executeBackup(ctx, job)
+	backup, err := e.executeBackup(ctx, job)
+	return core.JobResult{Backup: backup}, err
 }
 
 func localStorageRoot(raw string) (string, error) {
@@ -490,13 +492,13 @@ func (e BackupExecutor) executeRestore(ctx context.Context, job core.Job) error 
 	return err
 }
 
-func (e BackupExecutor) executeVerify(ctx context.Context, job core.Job) error {
+func (e BackupExecutor) executeVerify(ctx context.Context, job core.Job) (*core.VerificationReport, error) {
 	publicKey, err := e.publicKey()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if job.VerifyBackupID.IsZero() {
-		return fmt.Errorf("verify backup id is required")
+		return nil, fmt.Errorf("verify backup id is required")
 	}
 	storageID := job.StorageID
 	manifestID := job.VerifyManifestID
@@ -510,60 +512,75 @@ func (e BackupExecutor) executeVerify(ctx context.Context, job core.Job) error {
 		}
 	}
 	if storageID.IsZero() {
-		return fmt.Errorf("verify storage id is required")
+		return nil, fmt.Errorf("verify storage id is required")
 	}
 	if len(manifestIDs) == 0 && !manifestID.IsZero() {
 		manifestIDs = append(manifestIDs, manifestID)
 	}
 	if len(manifestIDs) == 0 {
-		return fmt.Errorf("verify manifest ids are required")
+		return nil, fmt.Errorf("verify manifest ids are required")
 	}
 	backend, ok := e.Backends[storageID]
 	if !ok {
-		return fmt.Errorf("storage %q is not configured on agent", storageID)
+		return nil, fmt.Errorf("storage %q is not configured on agent", storageID)
 	}
 	level := job.VerifyLevel
 	if level == "" {
 		level = core.JobVerificationChunk
+	}
+	report := core.VerificationReport{
+		BackupID:    job.VerifyBackupID,
+		Level:       level,
+		ManifestIDs: append([]core.ID(nil), manifestIDs...),
 	}
 	switch level {
 	case core.JobVerificationManifest:
 		for _, manifestID := range manifestIDs {
 			committed, _, err := repository.LoadManifest(ctx, backend, string(manifestID), publicKey)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			if _, err := verify.Manifest(ctx, backend, committed, publicKey); err != nil {
-				return err
+			manifestReport, err := verify.Manifest(ctx, backend, committed, publicKey)
+			if err != nil {
+				return nil, err
 			}
+			report.Objects += manifestReport.Objects
+			report.Chunks += manifestReport.Chunks
+			report.StoredBytes += manifestReport.StoredBytes
 		}
 	case core.JobVerificationChunk:
 		if e.PipelineFactory == nil {
-			return fmt.Errorf("pipeline factory is required")
+			return nil, fmt.Errorf("pipeline factory is required")
 		}
 		pipeline, err := e.PipelineFactory(backend)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if pipeline == nil {
-			return fmt.Errorf("pipeline factory returned nil pipeline")
+			return nil, fmt.Errorf("pipeline factory returned nil pipeline")
 		}
 		if pipeline.Cipher == nil {
-			return fmt.Errorf("pipeline cipher is required")
+			return nil, fmt.Errorf("pipeline cipher is required")
 		}
 		for _, manifestID := range manifestIDs {
 			committed, _, err := repository.LoadManifest(ctx, backend, string(manifestID), publicKey)
 			if err != nil {
-				return err
+				return nil, err
 			}
-			if _, err := verify.Chunks(ctx, pipeline, committed, publicKey); err != nil {
-				return err
+			chunkReport, err := verify.Chunks(ctx, pipeline, committed, publicKey)
+			if err != nil {
+				return nil, err
 			}
+			report.Objects += chunkReport.Objects
+			report.Chunks += chunkReport.Chunks
+			report.VerifiedChunks += chunkReport.VerifiedChunks
+			report.StoredBytes += chunkReport.StoredBytes
+			report.RestoredBytes += chunkReport.RestoredBytes
 		}
 	default:
-		return fmt.Errorf("unknown verification level %q", level)
+		return nil, fmt.Errorf("unknown verification level %q", level)
 	}
-	return nil
+	return &report, nil
 }
 
 func (e BackupExecutor) restoreRefs(ctx context.Context, backend storage.Backend, publicKey ed25519.PublicKey, manifestIDs []core.ID) ([]chunk.ChunkRef, error) {

@@ -108,8 +108,8 @@ func TestClientHeartbeatClaimFinish(t *testing.T) {
 	if job == nil || job.ID != "job-1" || job.Status != core.JobStatusRunning {
 		t.Fatalf("claimed job = %#v", job)
 	}
-	finished, err := client.Finish(context.Background(), "job-1", core.JobStatusSucceeded, "", &core.Backup{
-		ID: "backup-1", TargetID: "target", StorageID: "storage", JobID: "job-1", Type: core.BackupTypeFull, ManifestID: "manifest-1", StartedAt: now, EndedAt: now.Add(time.Minute),
+	finished, err := client.Finish(context.Background(), "job-1", core.JobStatusSucceeded, "", core.JobResult{
+		Backup: &core.Backup{ID: "backup-1", TargetID: "target", StorageID: "storage", JobID: "job-1", Type: core.BackupTypeFull, ManifestID: "manifest-1", StartedAt: now, EndedAt: now.Add(time.Minute)},
 	})
 	if err != nil {
 		t.Fatalf("Finish() error = %v", err)

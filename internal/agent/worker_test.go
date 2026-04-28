@@ -185,8 +185,8 @@ type staticExecutor struct {
 	err    error
 }
 
-func (e staticExecutor) Execute(context.Context, core.Job) (*core.Backup, error) {
-	return e.backup, e.err
+func (e staticExecutor) Execute(context.Context, core.Job) (core.JobResult, error) {
+	return core.JobResult{Backup: e.backup}, e.err
 }
 
 type syncingExecutor struct {
@@ -204,6 +204,6 @@ func (e *syncingExecutor) SyncResources(ctx context.Context, client *Client) err
 	return nil
 }
 
-func (e *syncingExecutor) Execute(context.Context, core.Job) (*core.Backup, error) {
-	return nil, nil
+func (e *syncingExecutor) Execute(context.Context, core.Job) (core.JobResult, error) {
+	return core.JobResult{}, nil
 }

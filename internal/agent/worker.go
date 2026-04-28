@@ -11,7 +11,7 @@ import (
 
 // Executor runs one claimed job on the agent host.
 type Executor interface {
-	Execute(ctx context.Context, job core.Job) (*core.Backup, error)
+	Execute(ctx context.Context, job core.Job) (core.JobResult, error)
 }
 
 // ResourceSyncer refreshes executor-side metadata before claims are evaluated.
@@ -91,14 +91,14 @@ func (w Worker) tick(ctx context.Context) error {
 }
 
 func (w Worker) execute(ctx context.Context, job core.Job) error {
-	backup, err := w.Executor.Execute(ctx, job)
+	result, err := w.Executor.Execute(ctx, job)
 	if err != nil {
-		_, finishErr := w.Client.Finish(ctx, job.ID, core.JobStatusFailed, err.Error(), nil)
+		_, finishErr := w.Client.Finish(ctx, job.ID, core.JobStatusFailed, err.Error(), core.JobResult{})
 		if finishErr != nil {
 			return fmt.Errorf("job %s failed: %v; finish failed: %w", job.ID, err, finishErr)
 		}
 		return nil
 	}
-	_, err = w.Client.Finish(ctx, job.ID, core.JobStatusSucceeded, "", backup)
+	_, err = w.Client.Finish(ctx, job.ID, core.JobStatusSucceeded, "", result)
 	return err
 }

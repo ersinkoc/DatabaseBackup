@@ -2964,6 +2964,59 @@ func TestServerBackupVerifyEndpoint(t *testing.T) {
 	}
 }
 
+func TestServerFinishVerifyJobPersistsReport(t *testing.T) {
+	t.Parallel()
+
+	db, err := kvstore.Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	stores, err := newAPIStores(db)
+	if err != nil {
+		t.Fatalf("newAPIStores() error = %v", err)
+	}
+	now := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
+	if err := stores.jobs.Save(core.Job{
+		ID:                "verify-job",
+		Operation:         core.JobOperationVerify,
+		TargetID:          "target",
+		StorageID:         "storage",
+		VerifyBackupID:    "backup-1",
+		VerifyManifestID:  "manifest-1",
+		VerifyManifestIDs: []core.ID{"manifest-1"},
+		VerifyLevel:       core.JobVerificationChunk,
+		Status:            core.JobStatusRunning,
+		QueuedAt:          now,
+		StartedAt:         now,
+	}); err != nil {
+		t.Fatalf("Save(verify job) error = %v", err)
+	}
+	server := httptest.NewServer(newServerHandlerWithStores(nil, nil, stores))
+	defer server.Close()
+
+	resp, err := server.Client().Post(server.URL+"/api/v1/jobs/verify-job/finish", "application/json", strings.NewReader(`{"status":"succeeded","verification":{"objects":2,"chunks":4,"verified_chunks":4,"stored_bytes":128,"restored_bytes":256}}`))
+	if err != nil {
+		t.Fatalf("POST verify finish error = %v", err)
+	}
+	var body bytes.Buffer
+	if _, err := body.ReadFrom(resp.Body); err != nil {
+		t.Fatalf("ReadFrom(verify finish) error = %v", err)
+	}
+	resp.Body.Close()
+	text := body.String()
+	if resp.StatusCode != http.StatusOK || !strings.Contains(text, `"verify_report"`) || !strings.Contains(text, `"verified_chunks":4`) || !strings.Contains(text, `"backup_id":"backup-1"`) {
+		t.Fatalf("verify finish status=%d body=%q", resp.StatusCode, text)
+	}
+	job, ok, err := stores.jobs.Get("verify-job")
+	if err != nil || !ok {
+		t.Fatalf("Get(verify-job) ok=%v err=%v", ok, err)
+	}
+	if job.VerifyReport == nil || job.VerifyReport.Level != core.JobVerificationChunk || job.VerifyReport.RestoredBytes != 256 || len(job.VerifyReport.ManifestIDs) != 1 {
+		t.Fatalf("VerifyReport = %#v", job.VerifyReport)
+	}
+}
+
 func TestServerRetentionPolicyCRUD(t *testing.T) {
 	t.Parallel()
 

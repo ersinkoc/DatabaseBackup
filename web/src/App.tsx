@@ -120,7 +120,19 @@ type Job = {
   verify_manifest_id?: string;
   verify_manifest_ids?: string[];
   verify_level?: string;
+  verify_report?: VerificationReport;
   error?: string;
+};
+
+type VerificationReport = {
+  backup_id?: string;
+  level?: string;
+  manifest_ids?: string[];
+  objects?: number;
+  chunks?: number;
+  verified_chunks?: number;
+  stored_bytes?: number;
+  restored_bytes?: number;
 };
 
 type Backup = {
@@ -2338,6 +2350,7 @@ function JobDetail({ job }: { job: Job | null }) {
           <HealthRow label="Verify chain" value={job.verify_manifest_ids.join(", ")} tone="bronze" />
         ) : null}
         {job.verify_level ? <HealthRow label="Verify level" value={job.verify_level} tone="indigo" /> : null}
+        {job.verify_report ? <VerificationReportDetail report={job.verify_report} /> : null}
         {job.operation === "restore" ? <HealthRow label="Dry run" value={job.restore_dry_run ? "yes" : "no"} tone="indigo" /> : null}
         {job.operation === "restore" ? <HealthRow label="Replace" value={job.restore_replace_existing ? "yes" : "no"} tone="warning" /> : null}
         {job.error ? <HealthRow label="Error" value={job.error} tone="warning" /> : null}
@@ -2533,6 +2546,18 @@ function BackupVerificationDetail({ report }: { report: BackupVerificationReport
         <HealthRow key={check.label} label={check.label} value={check.value} tone={check.ok ? "success" : "warning"} />
       ))}
     </div>
+  );
+}
+
+function VerificationReportDetail({ report }: { report: VerificationReport }) {
+  return (
+    <>
+      <HealthRow label="Objects checked" value={metricValue(report.objects, false)} tone="success" />
+      <HealthRow label="Chunks checked" value={metricValue(report.chunks, false)} tone="success" />
+      {typeof report.verified_chunks === "number" ? <HealthRow label="Chunks restored" value={metricValue(report.verified_chunks, false)} tone="success" /> : null}
+      {typeof report.stored_bytes === "number" ? <HealthRow label="Stored bytes" value={formatBytes(report.stored_bytes)} tone="bronze" /> : null}
+      {typeof report.restored_bytes === "number" ? <HealthRow label="Restored bytes" value={formatBytes(report.restored_bytes)} tone="indigo" /> : null}
+    </>
   );
 }
 

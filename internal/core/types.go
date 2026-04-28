@@ -88,6 +88,24 @@ const (
 	JobVerificationChunk JobVerificationLevel = "chunk"
 )
 
+// JobResult carries operation-specific output from an agent back to the control plane.
+type JobResult struct {
+	Backup       *Backup             `json:"backup,omitempty"`
+	Verification *VerificationReport `json:"verification,omitempty"`
+}
+
+// VerificationReport summarizes manifest or chunk verification work completed by an agent.
+type VerificationReport struct {
+	BackupID       ID                   `json:"backup_id"`
+	Level          JobVerificationLevel `json:"level"`
+	ManifestIDs    []ID                 `json:"manifest_ids,omitempty"`
+	Objects        int                  `json:"objects"`
+	Chunks         int                  `json:"chunks"`
+	VerifiedChunks int                  `json:"verified_chunks,omitempty"`
+	StoredBytes    int64                `json:"stored_bytes"`
+	RestoredBytes  int64                `json:"restored_bytes,omitempty"`
+}
+
 // NotificationEvent identifies an event that can trigger an outbound notification.
 type NotificationEvent string
 
@@ -173,6 +191,7 @@ type Job struct {
 	VerifyManifestID       ID                   `json:"verify_manifest_id,omitempty"`
 	VerifyManifestIDs      []ID                 `json:"verify_manifest_ids,omitempty"`
 	VerifyLevel            JobVerificationLevel `json:"verify_level,omitempty"`
+	VerifyReport           *VerificationReport  `json:"verify_report,omitempty"`
 	Status                 JobStatus            `json:"status"`
 	QueuedAt               time.Time            `json:"queued_at"`
 	StartedAt              time.Time            `json:"started_at,omitempty"`

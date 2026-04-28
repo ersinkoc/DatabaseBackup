@@ -61,13 +61,14 @@ func (c *Client) Claim(ctx context.Context) (*core.Job, error) {
 	return response.Job, nil
 }
 
-// Finish records a terminal job status and optional successful backup metadata.
-func (c *Client) Finish(ctx context.Context, id core.ID, status core.JobStatus, message string, backup *core.Backup) (core.Job, error) {
+// Finish records a terminal job status and optional operation result metadata.
+func (c *Client) Finish(ctx context.Context, id core.ID, status core.JobStatus, message string, result core.JobResult) (core.Job, error) {
 	var job core.Job
 	err := c.postJSON(ctx, "/api/v1/jobs/"+url.PathEscape(string(id))+"/finish", finishRequest{
-		Status: status,
-		Error:  message,
-		Backup: backup,
+		Status:       status,
+		Error:        message,
+		Backup:       result.Backup,
+		Verification: result.Verification,
 	}, &job)
 	return job, err
 }
@@ -227,9 +228,10 @@ type claimResponse struct {
 }
 
 type finishRequest struct {
-	Status core.JobStatus `json:"status"`
-	Error  string         `json:"error,omitempty"`
-	Backup *core.Backup   `json:"backup,omitempty"`
+	Status       core.JobStatus           `json:"status"`
+	Error        string                   `json:"error,omitempty"`
+	Backup       *core.Backup             `json:"backup,omitempty"`
+	Verification *core.VerificationReport `json:"verification,omitempty"`
 }
 
 type targetsResponse struct {

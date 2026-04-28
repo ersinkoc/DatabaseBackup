@@ -2352,9 +2352,10 @@ type claimJobResponse struct {
 }
 
 type finishJobRequest struct {
-	Status core.JobStatus `json:"status"`
-	Error  string         `json:"error,omitempty"`
-	Backup *core.Backup   `json:"backup,omitempty"`
+	Status       core.JobStatus           `json:"status"`
+	Error        string                   `json:"error,omitempty"`
+	Backup       *core.Backup             `json:"backup,omitempty"`
+	Verification *core.VerificationReport `json:"verification,omitempty"`
 }
 
 func handleBackupNow(w http.ResponseWriter, r *http.Request, store *control.JobStore, auditLog *kaudit.Log) {
@@ -2718,6 +2719,14 @@ func handleFinishJob(w http.ResponseWriter, r *http.Request, jobs *control.JobSt
 		http.Error(w, "backup store is not configured", http.StatusServiceUnavailable)
 		return
 	}
+	if request.Verification != nil && request.Status != core.JobStatusSucceeded {
+		http.Error(w, "verification report requires succeeded status", http.StatusBadRequest)
+		return
+	}
+	if request.Verification != nil && current.Operation != core.JobOperationVerify {
+		http.Error(w, "verification reports require verify jobs", http.StatusBadRequest)
+		return
+	}
 	job, err := orchestrator.Finish(id, request.Status, request.Error)
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
@@ -2754,12 +2763,32 @@ func handleFinishJob(w http.ResponseWriter, r *http.Request, jobs *control.JobSt
 		}
 		backupID = backup.ID
 	}
+	if request.Verification != nil {
+		report := *request.Verification
+		if report.BackupID.IsZero() {
+			report.BackupID = job.VerifyBackupID
+		}
+		if report.Level == "" {
+			report.Level = job.VerifyLevel
+		}
+		if len(report.ManifestIDs) == 0 {
+			report.ManifestIDs = append([]core.ID(nil), job.VerifyManifestIDs...)
+		}
+		job.VerifyReport = &report
+		if err := jobs.Save(job); err != nil {
+			http.Error(w, "save verification report", http.StatusInternalServerError)
+			return
+		}
+	}
 	metadata := map[string]any{"status": request.Status}
 	if request.Error != "" {
 		metadata["error"] = request.Error
 	}
 	if !backupID.IsZero() {
 		metadata["backup_id"] = backupID
+	}
+	if request.Verification != nil {
+		metadata["verification"] = request.Verification
 	}
 	notificationCtx, cancelNotifications := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancelNotifications()
