@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -892,6 +894,11 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 				return
 			}
 			handleGetJob(w, stores.jobs, core.ID(id))
+		case r.Method == http.MethodGet && action == "evidence":
+			if !requireScope(w, r, stores.tokens, "job:read") {
+				return
+			}
+			handleGetJobEvidence(w, stores.jobs, core.ID(id))
 		case r.Method == http.MethodPost && action == "cancel":
 			if !requireScope(w, r, stores.tokens, "job:write") {
 				return
@@ -2695,6 +2702,23 @@ func handleGetJob(w http.ResponseWriter, store *control.JobStore, id core.ID) {
 	writeJSON(w, job)
 }
 
+func handleGetJobEvidence(w http.ResponseWriter, store *control.JobStore, id core.ID) {
+	if store == nil {
+		http.Error(w, "job store is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	job, ok, err := store.Get(id)
+	if err != nil {
+		http.Error(w, "get job", http.StatusInternalServerError)
+		return
+	}
+	if !ok || job.EvidenceArtifact == nil {
+		http.NotFound(w, nil)
+		return
+	}
+	writeJSON(w, job.EvidenceArtifact)
+}
+
 func handleFinishJob(w http.ResponseWriter, r *http.Request, jobs *control.JobStore, backups *control.BackupStore, auditLog *kaudit.Log, notifications *control.NotificationRuleStore, id core.ID) {
 	if jobs == nil {
 		http.Error(w, "job store is not configured", http.StatusServiceUnavailable)
@@ -2870,6 +2894,18 @@ func handleFinishJob(w http.ResponseWriter, r *http.Request, jobs *control.JobSt
 			return
 		}
 	}
+	if job.Operation == core.JobOperationRestore && (job.RestoreReport != nil || job.FailureEvidence != nil) {
+		artifact, err := buildRestoreEvidenceArtifact(job)
+		if err != nil {
+			http.Error(w, "build restore evidence artifact", http.StatusInternalServerError)
+			return
+		}
+		job.EvidenceArtifact = artifact
+		if err := jobs.Save(job); err != nil {
+			http.Error(w, "save restore evidence artifact", http.StatusInternalServerError)
+			return
+		}
+	}
 	metadata := map[string]any{"status": request.Status}
 	if request.Error != "" {
 		metadata["error"] = request.Error
@@ -2886,6 +2922,12 @@ func handleFinishJob(w http.ResponseWriter, r *http.Request, jobs *control.JobSt
 	if request.Failure != nil {
 		metadata["failure"] = request.Failure
 	}
+	if job.EvidenceArtifact != nil {
+		metadata["evidence_artifact"] = map[string]any{
+			"id":     job.EvidenceArtifact.ID,
+			"sha256": job.EvidenceArtifact.SHA256,
+		}
+	}
 	notificationCtx, cancelNotifications := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancelNotifications()
 	deliveries := control.NotificationDispatcher{Store: notifications}.DispatchJobTerminal(notificationCtx, job)
@@ -2896,6 +2938,51 @@ func handleFinishJob(w http.ResponseWriter, r *http.Request, jobs *control.JobSt
 		return
 	}
 	writeJSON(w, job)
+}
+
+func buildRestoreEvidenceArtifact(job core.Job) (*core.EvidenceArtifact, error) {
+	manifestIDs := append([]core.ID(nil), job.RestoreManifestIDs...)
+	if len(manifestIDs) == 0 && !job.RestoreManifestID.IsZero() {
+		manifestIDs = []core.ID{job.RestoreManifestID}
+	}
+	targetID := job.RestoreTargetID
+	if targetID.IsZero() {
+		targetID = job.TargetID
+	}
+	payload := &core.RestoreEvidence{
+		Operation:       job.Operation,
+		Status:          job.Status,
+		BackupID:        job.RestoreBackupID,
+		TargetID:        targetID,
+		StorageID:       job.StorageID,
+		ManifestIDs:     manifestIDs,
+		RestoreAt:       job.RestoreAt,
+		DryRun:          job.RestoreDryRun,
+		ReplaceExisting: job.RestoreReplaceExisting,
+		QueuedAt:        job.QueuedAt,
+		StartedAt:       job.StartedAt,
+		EndedAt:         job.EndedAt,
+		Error:           job.Error,
+		Report:          job.RestoreReport,
+		Failure:         job.FailureEvidence,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	sum := sha256.Sum256(data)
+	createdAt := job.EndedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
+	}
+	return &core.EvidenceArtifact{
+		ID:        core.ID(fmt.Sprintf("%s-restore-evidence", job.ID)),
+		JobID:     job.ID,
+		Kind:      "restore",
+		SHA256:    hex.EncodeToString(sum[:]),
+		CreatedAt: createdAt,
+		Restore:   payload,
+	}, nil
 }
 
 func handleCancelJob(w http.ResponseWriter, r *http.Request, store *control.JobStore, auditLog *kaudit.Log, id core.ID) {

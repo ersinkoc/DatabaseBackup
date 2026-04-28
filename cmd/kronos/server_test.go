@@ -2172,7 +2172,7 @@ func TestServerFinishRestoreJobRejectsBackupMetadata(t *testing.T) {
 	}
 	resp.Body.Close()
 	text := body.String()
-	if resp.StatusCode != http.StatusOK || !strings.Contains(text, `"restore_report"`) || !strings.Contains(text, `"restored_bytes":256`) || !strings.Contains(text, `"backup_id":"backup-1"`) || !strings.Contains(text, `"dry_run":true`) {
+	if resp.StatusCode != http.StatusOK || !strings.Contains(text, `"restore_report"`) || !strings.Contains(text, `"evidence_artifact"`) || !strings.Contains(text, `"restored_bytes":256`) || !strings.Contains(text, `"backup_id":"backup-1"`) || !strings.Contains(text, `"dry_run":true`) {
 		t.Fatalf("POST restore finish status=%d body=%q", resp.StatusCode, text)
 	}
 	job, ok, err := stores.jobs.Get("restore-job")
@@ -2181,6 +2181,21 @@ func TestServerFinishRestoreJobRejectsBackupMetadata(t *testing.T) {
 	}
 	if job.RestoreReport == nil || job.RestoreReport.BackupID != "backup-1" || job.RestoreReport.RestoredBytes != 256 || !job.RestoreReport.DryRun {
 		t.Fatalf("restore report = %#v", job.RestoreReport)
+	}
+	if job.EvidenceArtifact == nil || job.EvidenceArtifact.SHA256 == "" || job.EvidenceArtifact.Restore == nil || job.EvidenceArtifact.Restore.Report == nil {
+		t.Fatalf("restore evidence artifact = %#v", job.EvidenceArtifact)
+	}
+	resp, err = server.Client().Get(server.URL + "/api/v1/jobs/restore-job/evidence")
+	if err != nil {
+		t.Fatalf("GET restore evidence error = %v", err)
+	}
+	body.Reset()
+	if _, err := body.ReadFrom(resp.Body); err != nil {
+		t.Fatalf("ReadFrom(restore evidence) error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body.String(), `"sha256"`) || !strings.Contains(body.String(), `"restore"`) || !strings.Contains(body.String(), `"restored_bytes":256`) {
+		t.Fatalf("restore evidence status=%d body=%q", resp.StatusCode, body.String())
 	}
 }
 
@@ -2224,7 +2239,7 @@ func TestServerFinishRestoreJobPersistsFailureEvidence(t *testing.T) {
 	}
 	resp.Body.Close()
 	text := body.String()
-	if resp.StatusCode != http.StatusOK || !strings.Contains(text, `"failure_evidence"`) || !strings.Contains(text, `"stage":"driver"`) || !strings.Contains(text, `"backup_id":"backup-1"`) {
+	if resp.StatusCode != http.StatusOK || !strings.Contains(text, `"failure_evidence"`) || !strings.Contains(text, `"evidence_artifact"`) || !strings.Contains(text, `"stage":"driver"`) || !strings.Contains(text, `"backup_id":"backup-1"`) {
 		t.Fatalf("restore failure status=%d body=%q", resp.StatusCode, text)
 	}
 	job, ok, err := stores.jobs.Get("restore-job")
@@ -2233,6 +2248,21 @@ func TestServerFinishRestoreJobPersistsFailureEvidence(t *testing.T) {
 	}
 	if job.FailureEvidence == nil || job.FailureEvidence.Operation != core.JobOperationRestore || job.FailureEvidence.TargetID != "restore-target" || len(job.FailureEvidence.ManifestIDs) != 2 || job.FailureEvidence.At.IsZero() {
 		t.Fatalf("failure evidence = %#v", job.FailureEvidence)
+	}
+	if job.EvidenceArtifact == nil || job.EvidenceArtifact.SHA256 == "" || job.EvidenceArtifact.Restore == nil || job.EvidenceArtifact.Restore.Failure == nil {
+		t.Fatalf("failure evidence artifact = %#v", job.EvidenceArtifact)
+	}
+	resp, err = server.Client().Get(server.URL + "/api/v1/jobs/restore-job/evidence")
+	if err != nil {
+		t.Fatalf("GET restore failure evidence error = %v", err)
+	}
+	body.Reset()
+	if _, err := body.ReadFrom(resp.Body); err != nil {
+		t.Fatalf("ReadFrom(restore failure evidence) error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.Contains(body.String(), `"sha256"`) || !strings.Contains(body.String(), `"failure"`) || !strings.Contains(body.String(), `"restore boom"`) {
+		t.Fatalf("restore failure evidence status=%d body=%q", resp.StatusCode, body.String())
 	}
 }
 

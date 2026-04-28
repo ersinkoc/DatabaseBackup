@@ -78,8 +78,8 @@ This repository currently has the Phase 0 foundation in place and active Phase
   verification, chunk verification queueing, and verification result display,
   backup verification history, restore preview plus guarded dry-run/live
   restore queueing, restore job history with restore outcome summaries and
-  failure evidence, schedule pause/resume, job cancel/retry, and backup
-  protect/unprotect actions, a Vite build pipeline, and
+  hash-addressed failure/evidence artifacts, schedule pause/resume, job
+  cancel/retry, and backup protect/unprotect actions, a Vite build pipeline, and
   deployment-safe cache headers
 - agent/server: heartbeat endpoint, list/inspect APIs, in-memory agent
   registry, and heartbeat-only or worker-mode agent process
@@ -100,8 +100,8 @@ This repository currently has the Phase 0 foundation in place and active Phase
   retention policy CRUD and plan/apply with dry-run support
 - restore API: restore preview plans that validate backup parent chains,
   enqueue restore jobs with dry-run and replace-existing restore options, and
-  persist restore outcome summaries and failure evidence with backup-scoped
-  job filtering
+  persist restore outcome summaries and hash-addressed evidence artifacts with
+  backup-scoped job filtering and `/api/v1/jobs/{id}/evidence` export
 - notification API: webhook rule CRUD for terminal job events with optional HMAC
   payload signatures and bounded delivery retries
 - token API: scoped API token create/list/verify/revoke/prune with hashed verifier

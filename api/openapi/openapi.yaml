@@ -498,6 +498,20 @@ paths:
                 $ref: "#/components/schemas/Job"
         "404":
           description: Job not found
+  /api/v1/jobs/{id}/evidence:
+    get:
+      summary: Export a job evidence artifact
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Hash-addressed evidence artifact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceArtifact"
+        "404":
+          description: Job or evidence artifact not found
   /api/v1/jobs/{id}/cancel:
     post:
       summary: Cancel a queued or running job
@@ -1777,6 +1791,8 @@ components:
           $ref: "#/components/schemas/RestoreReport"
         failure_evidence:
           $ref: "#/components/schemas/FailureEvidence"
+        evidence_artifact:
+          $ref: "#/components/schemas/EvidenceArtifact"
         verify_backup_id:
           type: string
         verify_manifest_id:
@@ -1804,6 +1820,63 @@ components:
           format: date-time
         error:
           type: string
+    EvidenceArtifact:
+      type: object
+      properties:
+        id:
+          type: string
+        job_id:
+          type: string
+        kind:
+          type: string
+        sha256:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        restore:
+          $ref: "#/components/schemas/RestoreEvidence"
+    RestoreEvidence:
+      type: object
+      properties:
+        operation:
+          type: string
+          enum: [backup, restore, verify]
+        status:
+          type: string
+          enum: [queued, running, finalizing, succeeded, failed, canceled]
+        backup_id:
+          type: string
+        target_id:
+          type: string
+        storage_id:
+          type: string
+        manifest_ids:
+          type: array
+          items:
+            type: string
+        restore_at:
+          type: string
+          format: date-time
+        dry_run:
+          type: boolean
+        replace_existing:
+          type: boolean
+        queued_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
+        error:
+          type: string
+        report:
+          $ref: "#/components/schemas/RestoreReport"
+        failure:
+          $ref: "#/components/schemas/FailureEvidence"
     FailureEvidence:
       type: object
       properties:

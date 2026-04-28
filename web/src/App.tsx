@@ -123,7 +123,16 @@ type Job = {
   verify_level?: string;
   verify_report?: VerificationReport;
   failure_evidence?: FailureEvidence;
+  evidence_artifact?: EvidenceArtifact;
   error?: string;
+};
+
+type EvidenceArtifact = {
+  id?: string;
+  job_id?: string;
+  kind?: string;
+  sha256?: string;
+  created_at?: string;
 };
 
 type FailureEvidence = {
@@ -2390,6 +2399,7 @@ function JobDetail({ job }: { job: Job | null }) {
         {job.restore_report ? <RestoreReportDetail report={job.restore_report} /> : null}
         {job.verify_report ? <VerificationReportDetail report={job.verify_report} /> : null}
         {job.failure_evidence ? <FailureEvidenceDetail evidence={job.failure_evidence} /> : null}
+        {job.evidence_artifact ? <EvidenceArtifactDetail artifact={job.evidence_artifact} jobID={job.id} /> : null}
         {job.operation === "restore" ? <HealthRow label="Dry run" value={job.restore_dry_run ? "yes" : "no"} tone="indigo" /> : null}
         {job.operation === "restore" ? <HealthRow label="Replace" value={job.restore_replace_existing ? "yes" : "no"} tone="warning" /> : null}
         {job.error ? <HealthRow label="Error" value={job.error} tone="warning" /> : null}
@@ -2601,6 +2611,7 @@ function BackupRestoreHistory({ jobs }: { jobs: Job[] }) {
             <HealthRow label="Replace" value={job.restore_replace_existing ? "yes" : "no"} tone={job.restore_replace_existing ? "warning" : "success"} />
             {job.restore_report ? <RestoreReportDetail report={job.restore_report} /> : null}
             {job.failure_evidence ? <FailureEvidenceDetail evidence={job.failure_evidence} /> : null}
+            {job.evidence_artifact ? <EvidenceArtifactDetail artifact={job.evidence_artifact} jobID={job.id} /> : null}
             {job.error ? <HealthRow label="Error" value={job.error} tone="warning" /> : null}
           </div>
         </div>
@@ -2627,6 +2638,15 @@ function FailureEvidenceDetail({ evidence }: { evidence: FailureEvidence }) {
       <HealthRow label="Failure message" value={evidence.message || "-"} tone="warning" />
       {evidence.at ? <HealthRow label="Failure time" value={formatDateTime(evidence.at) ?? evidence.at} tone="warning" /> : null}
       {evidence.manifest_ids && evidence.manifest_ids.length > 0 ? <HealthRow label="Failure chain" value={evidence.manifest_ids.join(", ")} tone="bronze" /> : null}
+    </>
+  );
+}
+
+function EvidenceArtifactDetail({ artifact, jobID }: { artifact: EvidenceArtifact; jobID: string }) {
+  return (
+    <>
+      <HealthRow label="Evidence SHA256" value={artifact.sha256 || "-"} tone="success" />
+      <HealthRow label="Evidence export" value={`/api/v1/jobs/${encodeURIComponent(jobID)}/evidence`} tone="bronze" />
     </>
   );
 }

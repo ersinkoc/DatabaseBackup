@@ -108,6 +108,35 @@ type FailureEvidence struct {
 	At          time.Time    `json:"at,omitempty"`
 }
 
+// EvidenceArtifact is a portable, hash-addressed evidence bundle for completed work.
+type EvidenceArtifact struct {
+	ID        ID               `json:"id"`
+	JobID     ID               `json:"job_id"`
+	Kind      string           `json:"kind"`
+	SHA256    string           `json:"sha256"`
+	CreatedAt time.Time        `json:"created_at"`
+	Restore   *RestoreEvidence `json:"restore,omitempty"`
+}
+
+// RestoreEvidence is the exportable payload for restore validation evidence.
+type RestoreEvidence struct {
+	Operation       JobOperation     `json:"operation,omitempty"`
+	Status          JobStatus        `json:"status"`
+	BackupID        ID               `json:"backup_id,omitempty"`
+	TargetID        ID               `json:"target_id,omitempty"`
+	StorageID       ID               `json:"storage_id,omitempty"`
+	ManifestIDs     []ID             `json:"manifest_ids,omitempty"`
+	RestoreAt       time.Time        `json:"restore_at,omitempty"`
+	DryRun          bool             `json:"dry_run,omitempty"`
+	ReplaceExisting bool             `json:"replace_existing,omitempty"`
+	QueuedAt        time.Time        `json:"queued_at,omitempty"`
+	StartedAt       time.Time        `json:"started_at,omitempty"`
+	EndedAt         time.Time        `json:"ended_at,omitempty"`
+	Error           string           `json:"error,omitempty"`
+	Report          *RestoreReport   `json:"report,omitempty"`
+	Failure         *FailureEvidence `json:"failure,omitempty"`
+}
+
 // RestoreReport summarizes restore work completed by an agent.
 type RestoreReport struct {
 	BackupID      ID    `json:"backup_id"`
@@ -215,6 +244,7 @@ type Job struct {
 	RestoreReplaceExisting bool                 `json:"restore_replace_existing,omitempty"`
 	RestoreReport          *RestoreReport       `json:"restore_report,omitempty"`
 	FailureEvidence        *FailureEvidence     `json:"failure_evidence,omitempty"`
+	EvidenceArtifact       *EvidenceArtifact    `json:"evidence_artifact,omitempty"`
 	VerifyBackupID         ID                   `json:"verify_backup_id,omitempty"`
 	VerifyManifestID       ID                   `json:"verify_manifest_id,omitempty"`
 	VerifyManifestIDs      []ID                 `json:"verify_manifest_ids,omitempty"`
