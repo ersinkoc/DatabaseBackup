@@ -411,6 +411,7 @@ export function App() {
   const [restoreReplaceExisting, setRestoreReplaceExisting] = useState(false);
   const [restorePlan, setRestorePlan] = useState<RestorePlan | null>(null);
   const [restoreJob, setRestoreJob] = useState<Job | null>(null);
+  const [restoreJobHistory, setRestoreJobHistory] = useState<Job[]>([]);
   const [restoring, setRestoring] = useState<"preview" | "start" | "live" | null>(null);
   const [backupRunForm, setBackupRunForm] = useState<BackupRunForm>(emptyBackupRunForm);
   const [backupRunJob, setBackupRunJob] = useState<Job | null>(null);
@@ -586,11 +587,13 @@ export function App() {
     setLoadingBackupID(backup.id);
     setDetailError(null);
     try {
-      const [detail, verificationJobs] = await Promise.all([
+      const [detail, restoreJobs, verificationJobs] = await Promise.all([
         requestJSON<Backup>(`/api/v1/backups/${encodeURIComponent(backup.id)}`, apiToken),
+        requestJSON<JobListResponse>(`/api/v1/jobs?operation=restore&restore_backup_id=${encodeURIComponent(backup.id)}`, apiToken),
         requestJSON<JobListResponse>(`/api/v1/jobs?operation=verify&verify_backup_id=${encodeURIComponent(backup.id)}`, apiToken),
       ]);
       setSelectedBackup(detail);
+      setRestoreJobHistory(sortJobs(restoreJobs.jobs ?? []).slice(0, 5));
       setBackupVerificationHistory(sortJobs(verificationJobs.jobs ?? []).slice(0, 5));
       setRestoreTargetID(detail.target_id || "");
       setRestoreAt("");
@@ -1035,6 +1038,7 @@ export function App() {
       });
       setRestorePlan(response.plan);
       setRestoreJob(response.job);
+      setRestoreJobHistory((current) => sortJobs([response.job, ...current.filter((job) => job.id !== response.job.id)]).slice(0, 5));
       setJobs((current) => sortJobs([response.job, ...current.filter((job) => job.id !== response.job.id)]).slice(0, 8));
       setOverview((current) => updateOverviewJobCounts(current, "", response.job.status));
     } catch (err) {
@@ -1058,6 +1062,7 @@ export function App() {
       });
       setRestorePlan(response.plan);
       setRestoreJob(response.job);
+      setRestoreJobHistory((current) => sortJobs([response.job, ...current.filter((job) => job.id !== response.job.id)]).slice(0, 5));
       setJobs((current) => sortJobs([response.job, ...current.filter((job) => job.id !== response.job.id)]).slice(0, 8));
       setOverview((current) => updateOverviewJobCounts(current, "", response.job.status));
     } catch (err) {
@@ -1411,6 +1416,7 @@ export function App() {
                 verifyingBackup={verifyingBackup}
                 restoreAt={restoreAt}
                 restoreConfirmation={restoreConfirmation}
+                restoreHistory={restoreJobHistory}
                 restoreJob={restoreJob}
                 restorePlan={restorePlan}
                 restoreReplaceExisting={restoreReplaceExisting}
@@ -2375,6 +2381,7 @@ function BackupDetail({
   verifyingBackup,
   restoreAt,
   restoreConfirmation,
+  restoreHistory,
   restoreJob,
   restorePlan,
   restoreReplaceExisting,
@@ -2399,6 +2406,7 @@ function BackupDetail({
   verifyingBackup: boolean;
   restoreAt: string;
   restoreConfirmation: string;
+  restoreHistory: Job[];
   restoreJob: Job | null;
   restorePlan: RestorePlan | null;
   restoreReplaceExisting: boolean;
@@ -2528,6 +2536,7 @@ function BackupDetail({
             {restoreJob.restore_dry_run ? "Dry-run restore" : "Restore"} queued as {restoreJob.id}
           </div>
         ) : null}
+        {restoreHistory.length > 0 ? <BackupRestoreHistory jobs={restoreHistory} /> : null}
       </div>
     </section>
   );
@@ -2544,6 +2553,30 @@ function RestorePlanDetail({ plan }: { plan: RestorePlan }) {
         <HealthRow key={`${step.backup_id}-${index}`} label={`Step ${index + 1}`} value={`${step.type || "backup"} ${step.backup_id}`} tone="bronze" />
       ))}
       {plan.warnings && plan.warnings.length > 0 ? <HealthRow label="Warnings" value={plan.warnings.join(", ")} tone="warning" /> : null}
+    </div>
+  );
+}
+
+function BackupRestoreHistory({ jobs }: { jobs: Job[] }) {
+  return (
+    <div className="mt-4 grid gap-3">
+      <h4 className="text-xs font-semibold uppercase text-muted">Restore history</h4>
+      {jobs.map((job) => (
+        <div key={job.id} className="rounded-md border border-line bg-surface px-3 py-2">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-mono text-xs text-marble">{job.id}</span>
+            <span className={`rounded px-2 py-1 text-[11px] font-semibold ${statusClass[job.status] ?? "bg-surface text-muted"}`}>{job.status}</span>
+          </div>
+          <div className="mt-2 grid gap-2">
+            <HealthRow label="Mode" value={job.restore_dry_run ? "dry run" : "live"} tone={job.restore_dry_run ? "success" : "warning"} />
+            <HealthRow label="Target" value={job.restore_target_id || job.target_id || "-"} tone="bronze" />
+            <HealthRow label="Queued" value={formatDateTime(job.queued_at) ?? "-"} tone="indigo" />
+            {job.restore_at ? <HealthRow label="At" value={formatDateTime(job.restore_at) ?? job.restore_at} tone="indigo" /> : null}
+            <HealthRow label="Replace" value={job.restore_replace_existing ? "yes" : "no"} tone={job.restore_replace_existing ? "warning" : "success"} />
+            {job.error ? <HealthRow label="Error" value={job.error} tone="warning" /> : null}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

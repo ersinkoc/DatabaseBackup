@@ -29,7 +29,7 @@ cancel/retry, target/storage/schedule/retention create/update editing, guarded
 target/storage deletion, manual backup drill queueing, backup metadata
 verification, byte-level backup verification queueing, verification result
 display, backup verification history, restore preview plus guarded dry-run/live
-restore queueing, and backup protection actions, and
+restore queueing, restore job history, and backup protection actions, and
 multi-instance control-plane operation is still roadmap work.
 MySQL/MariaDB
 now has a `mysqldump`/`mysql` logical MVP with deterministic unit coverage and
@@ -149,8 +149,8 @@ executes `kronos version`.
 1. Add broader MongoDB version/recovery coverage, including authenticated
    targets and larger archive restore drills.
 2. Extend PostgreSQL hardening around broader upgrade rehearsal evidence.
-3. Expand the WebUI beyond backup verification history into richer restore
-   validation workflows.
+3. Expand restore validation into richer job outcome summaries and failure
+   evidence capture.
 4. Production deployment hardening for single-replica Kubernetes and external
    secret management.
 5. Run a signed-tag release rehearsal and archive checksum, signature, and

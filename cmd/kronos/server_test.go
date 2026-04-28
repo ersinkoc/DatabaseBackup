@@ -1683,6 +1683,9 @@ func TestServerJobsEndpoint(t *testing.T) {
 	if err := store.Save(core.Job{ID: "job-3", Operation: core.JobOperationVerify, AgentID: "agent-1", TargetID: "target-1", StorageID: "storage-1", VerifyBackupID: "backup-1", VerifyLevel: core.JobVerificationChunk, Status: core.JobStatusSucceeded, QueuedAt: now.Add(-2 * time.Hour)}); err != nil {
 		t.Fatalf("Save(job-3) error = %v", err)
 	}
+	if err := store.Save(core.Job{ID: "job-4", Operation: core.JobOperationRestore, AgentID: "agent-1", TargetID: "restore-target", StorageID: "storage-1", RestoreBackupID: "backup-1", RestoreManifestID: "manifest-1", RestoreDryRun: true, Status: core.JobStatusSucceeded, QueuedAt: now.Add(-3 * time.Hour)}); err != nil {
+		t.Fatalf("Save(job-4) error = %v", err)
+	}
 	server := httptest.NewServer(newServerHandlerWithStores(nil, nil, apiStores{jobs: store}))
 	defer server.Close()
 
@@ -1721,6 +1724,18 @@ func TestServerJobsEndpoint(t *testing.T) {
 	resp.Body.Close()
 	if !strings.Contains(body.String(), `"id":"job-3"`) || strings.Contains(body.String(), `"id":"job-1"`) {
 		t.Fatalf("backup verification jobs body = %q", body.String())
+	}
+	resp, err = server.Client().Get(server.URL + "/api/v1/jobs?operation=restore&restore_backup_id=backup-1")
+	if err != nil {
+		t.Fatalf("GET backup restore jobs error = %v", err)
+	}
+	body.Reset()
+	if _, err := body.ReadFrom(resp.Body); err != nil {
+		t.Fatalf("ReadFrom(backup restore jobs) error = %v", err)
+	}
+	resp.Body.Close()
+	if !strings.Contains(body.String(), `"id":"job-4"`) || strings.Contains(body.String(), `"id":"job-1"`) {
+		t.Fatalf("backup restore jobs body = %q", body.String())
 	}
 	resp, err = server.Client().Get(server.URL + "/api/v1/jobs?since=not-a-duration")
 	if err != nil {

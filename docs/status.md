@@ -168,7 +168,8 @@ broad multi-database production suite. The largest remaining areas are:
   deletion, manual backup drill queueing, backup metadata verification,
   byte-level backup verification queueing, verification result display, backup
   verification history, restore preview plus guarded dry-run/live restore
-  queueing, job cancel/retry, and backup protection actions.
+  queueing, restore job history, job cancel/retry, and backup protection
+  actions.
 - Richer notification channels and hook execution surfaces from the product
   plan.
 - Broader production hardening around auth integrations and multi-instance
@@ -179,8 +180,8 @@ broad multi-database production suite. The largest remaining areas are:
 1. Add broader MongoDB version/recovery coverage, including authenticated
    targets and larger archive restore drills.
 2. Extend PostgreSQL hardening around broader upgrade rehearsal evidence.
-3. Expand the WebUI beyond backup verification history into richer restore
-   workflows.
+3. Expand restore validation into richer job outcome summaries and failure
+   evidence capture.
 4. Add additional notification channels and hook execution surfaces.
 5. Run a signed-tag release rehearsal and archive checksum, signature, and
    attestation verification evidence.

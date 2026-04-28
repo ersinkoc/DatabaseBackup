@@ -2600,25 +2600,27 @@ func targetHasActiveJob(jobs []core.Job, candidate core.Job) bool {
 }
 
 type jobListFilters struct {
-	Status         core.JobStatus
-	Operation      core.JobOperation
-	TargetID       core.ID
-	StorageID      core.ID
-	AgentID        string
-	VerifyBackupID core.ID
-	Since          time.Time
-	Until          time.Time
+	Status          core.JobStatus
+	Operation       core.JobOperation
+	TargetID        core.ID
+	StorageID       core.ID
+	AgentID         string
+	RestoreBackupID core.ID
+	VerifyBackupID  core.ID
+	Since           time.Time
+	Until           time.Time
 }
 
 func parseJobListFilters(r *http.Request) (jobListFilters, error) {
 	query := r.URL.Query()
 	filters := jobListFilters{
-		Status:         core.JobStatus(query.Get("status")),
-		Operation:      core.JobOperation(query.Get("operation")),
-		TargetID:       core.ID(query.Get("target_id")),
-		StorageID:      core.ID(query.Get("storage_id")),
-		AgentID:        query.Get("agent_id"),
-		VerifyBackupID: core.ID(query.Get("verify_backup_id")),
+		Status:          core.JobStatus(query.Get("status")),
+		Operation:       core.JobOperation(query.Get("operation")),
+		TargetID:        core.ID(query.Get("target_id")),
+		StorageID:       core.ID(query.Get("storage_id")),
+		AgentID:         query.Get("agent_id"),
+		RestoreBackupID: core.ID(query.Get("restore_backup_id")),
+		VerifyBackupID:  core.ID(query.Get("verify_backup_id")),
 	}
 	var err error
 	if query.Get("since") != "" {
@@ -2655,6 +2657,9 @@ func filterJobs(jobs []core.Job, filters jobListFilters) []core.Job {
 			continue
 		}
 		if filters.AgentID != "" && job.AgentID != filters.AgentID {
+			continue
+		}
+		if filters.RestoreBackupID != "" && job.RestoreBackupID != filters.RestoreBackupID {
 			continue
 		}
 		if filters.VerifyBackupID != "" && job.VerifyBackupID != filters.VerifyBackupID {

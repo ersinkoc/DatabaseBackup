@@ -421,6 +421,12 @@ paths:
           required: false
           schema:
             type: string
+        - name: restore_backup_id
+          in: query
+          required: false
+          description: Filter restore jobs for one backup.
+          schema:
+            type: string
         - name: verify_backup_id
           in: query
           required: false

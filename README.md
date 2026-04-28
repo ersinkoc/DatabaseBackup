@@ -62,8 +62,8 @@ This repository currently has the Phase 0 foundation in place and active Phase
   generation
 - backup listing filters by target, storage, type, protection state, and
   timestamp windows such as `--since 7d`
-- job listing filters by status, operation, target, storage, agent, and queued
-  time windows
+- job listing filters by status, operation, target, storage, agent,
+  restore/verification backup ID, and queued time windows
 - audit listing, tailing, and searching filters by actor, action, resource, and
   occurred-at windows
 - server: config-loading HTTP skeleton with `/healthz`, `/readyz`, `/metrics`,
@@ -77,8 +77,8 @@ This repository currently has the Phase 0 foundation in place and active Phase
   target/storage deletion, manual backup drill queueing, backup metadata
   verification, chunk verification queueing, and verification result display,
   backup verification history, restore preview plus guarded dry-run/live
-  restore queueing, schedule pause/resume, job cancel/retry, and backup
-  protect/unprotect actions, a Vite build pipeline, and
+  restore queueing, restore job history, schedule pause/resume, job
+  cancel/retry, and backup protect/unprotect actions, a Vite build pipeline, and
   deployment-safe cache headers
 - agent/server: heartbeat endpoint, list/inspect APIs, in-memory agent
   registry, and heartbeat-only or worker-mode agent process
@@ -97,8 +97,9 @@ This repository currently has the Phase 0 foundation in place and active Phase
 - backups API: list/inspect/protect/unprotect, verification job queueing with
   persisted verification reports, verification job filtering, plus server-side
   retention policy CRUD and plan/apply with dry-run support
-- restore API: restore preview plans that validate backup parent chains and
-  enqueue restore jobs with dry-run and replace-existing restore options
+- restore API: restore preview plans that validate backup parent chains,
+  enqueue restore jobs with dry-run and replace-existing restore options, and
+  filter restore jobs by backup
 - notification API: webhook rule CRUD for terminal job events with optional HMAC
   payload signatures and bounded delivery retries
 - token API: scoped API token create/list/verify/revoke/prune with hashed verifier
