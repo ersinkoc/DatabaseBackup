@@ -58,7 +58,7 @@ func TestKubernetesManifestsExist(t *testing.T) {
 	t.Parallel()
 
 	root := filepath.Join("..", "deploy", "kubernetes")
-	for _, name := range []string{"namespace.yaml", "configmap.yaml", "pvc.yaml", "deployment.yaml", "service.yaml", "agent-deployment.yaml", "networkpolicy.yaml"} {
+	for _, name := range []string{"namespace.yaml", "configmap.yaml", "pvc.yaml", "deployment.yaml", "service.yaml", "agent-deployment.yaml", "networkpolicy.yaml", "pdb.yaml"} {
 		path := filepath.Join(root, name)
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -69,6 +69,37 @@ func TestKubernetesManifestsExist(t *testing.T) {
 			if !strings.Contains(text, want) {
 				t.Fatalf("%s missing %q", path, want)
 			}
+		}
+	}
+}
+
+func TestKubernetesControlPlaneDocumentsSingleReplicaBoundary(t *testing.T) {
+	t.Parallel()
+
+	read := func(path string) string {
+		t.Helper()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(%s) error = %v", path, err)
+		}
+		return string(data)
+	}
+	deployment := read(filepath.Join("..", "deploy", "kubernetes", "deployment.yaml"))
+	for _, want := range []string{"replicas: 1", "type: Recreate", "claimName: kronos-state"} {
+		if !strings.Contains(deployment, want) {
+			t.Fatalf("deployment.yaml missing %q", want)
+		}
+	}
+	pdb := read(filepath.Join("..", "deploy", "kubernetes", "pdb.yaml"))
+	for _, want := range []string{"kind: PodDisruptionBudget", "minAvailable: 1"} {
+		if !strings.Contains(pdb, want) {
+			t.Fatalf("pdb.yaml missing %q", want)
+		}
+	}
+	readme := read(filepath.Join("..", "deploy", "kubernetes", "README.md"))
+	for _, want := range []string{"single-replica", "strategy: Recreate", "PodDisruptionBudget", "External Secrets Operator"} {
+		if !strings.Contains(readme, want) {
+			t.Fatalf("deploy/kubernetes/README.md missing %q", want)
 		}
 	}
 }

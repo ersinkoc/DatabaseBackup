@@ -92,7 +92,10 @@ example agent Deployment starts at `replicas: 0`; create
 `kronos-agent-secrets`, then scale agents deliberately. Scale workers by adding
 agents, not by adding control-plane replicas. Use Kubernetes Secrets or an
 external secret injector for manifest signing keys, chunk keys, tokens, and
-repository credentials.
+repository credentials. The example control-plane Deployment uses `strategy:
+Recreate`, a single PVC, and a `PodDisruptionBudget` with `minAvailable: 1`;
+planned node drains may need an explicit maintenance window because Kronos
+does not yet support multiple active control-plane writers.
 
 ## Hot Standby Agents
 

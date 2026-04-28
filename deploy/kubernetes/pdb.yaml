@@ -1,0 +1,14 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kronos-control-plane
+  namespace: kronos
+  labels:
+    app.kubernetes.io/name: kronos
+    app.kubernetes.io/component: control-plane
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kronos
+      app.kubernetes.io/component: control-plane

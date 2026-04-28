@@ -1,8 +1,9 @@
 # Kubernetes Deployment Example
 
-These manifests are a production-oriented starting point for a single Kronos
+These manifests are a production-oriented starting point for one Kronos
 control-plane replica with persistent embedded state and an opt-in worker agent
-Deployment.
+Deployment. The control plane is deliberately single-replica while it uses
+`state.db` on a PVC.
 
 Apply the example:
 
@@ -32,11 +33,16 @@ Before using this in production:
 - Replace the sample `kronos.yaml` with your targets, storages, schedules, and
   auth settings.
 - Keep `replicas: 1` unless the state backend is moved to a shared,
-  concurrency-safe service.
+  concurrency-safe service. The example uses `strategy: Recreate` and a
+  `PodDisruptionBudget` with `minAvailable: 1` to avoid concurrent writers to
+  the embedded state database and to make voluntary disruption explicit.
 - Configure backup repository credentials with Kubernetes Secrets or external
   secret injection. See
   [Cloud Secret Integration](../../docs/cloud-secrets.md) for managed secret
   store patterns.
+- Treat `kronos-agent-secrets` as a delivery target, not the source of truth.
+  Prefer External Secrets Operator or CSI Secret Store sync from the managed
+  secret manager used by your platform.
 - Keep agent `replicas` and `--capacity` aligned with each database target's
   safe backup concurrency.
 - Review the included NetworkPolicy and tighten allowed namespaces/pods for

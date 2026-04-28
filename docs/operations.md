@@ -8,7 +8,9 @@ For topology selection, start with
 [Deployment Topologies](deployment-topologies.md). For Kubernetes deployments,
 start from [deploy/kubernetes](../deploy/kubernetes/README.md) and replace the
 image, configuration, secrets, and network policy with your
-environment-specific controls.
+environment-specific controls. The Kubernetes control-plane example is a hard
+single-replica topology while Kronos uses embedded PVC-backed state; scale
+agents for more work capacity, not the control-plane Deployment.
 
 ## Preflight
 

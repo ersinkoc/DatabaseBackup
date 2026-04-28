@@ -175,8 +175,9 @@ broad multi-database production suite. The largest remaining areas are:
   actions.
 - Richer notification channels and hook execution surfaces from the product
   plan.
-- Broader production hardening around auth integrations and multi-instance
-  operational patterns.
+- Broader production hardening around auth integrations and future
+  multi-instance operational patterns. The current Kubernetes manifests now
+  document and enforce the supported single-replica control-plane boundary.
 
 ## Next Best Work
 
@@ -186,5 +187,5 @@ broad multi-database production suite. The largest remaining areas are:
 3. Add additional notification channels and hook execution surfaces.
 4. Run a signed-tag release rehearsal and archive checksum, signature, and
    attestation verification evidence.
-5. Add cloud-specific deployment manifests for common managed Kubernetes
+5. Add cloud-specific deployment overlays for common managed Kubernetes
    environments.
