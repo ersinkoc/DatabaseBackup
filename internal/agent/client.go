@@ -68,6 +68,7 @@ func (c *Client) Finish(ctx context.Context, id core.ID, status core.JobStatus, 
 		Status:       status,
 		Error:        message,
 		Backup:       result.Backup,
+		Restore:      result.Restore,
 		Verification: result.Verification,
 	}, &job)
 	return job, err
@@ -231,6 +232,7 @@ type finishRequest struct {
 	Status       core.JobStatus           `json:"status"`
 	Error        string                   `json:"error,omitempty"`
 	Backup       *core.Backup             `json:"backup,omitempty"`
+	Restore      *core.RestoreReport      `json:"restore,omitempty"`
 	Verification *core.VerificationReport `json:"verification,omitempty"`
 }
 

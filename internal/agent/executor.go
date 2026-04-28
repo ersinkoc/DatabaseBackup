@@ -117,7 +117,8 @@ func OpenStorageBackend(item core.Storage) (storage.Backend, error) {
 func (e BackupExecutor) Execute(ctx context.Context, job core.Job) (core.JobResult, error) {
 	switch job.Operation {
 	case core.JobOperationRestore:
-		return core.JobResult{}, e.executeRestore(ctx, job)
+		report, err := e.executeRestore(ctx, job)
+		return core.JobResult{Restore: report}, err
 	case core.JobOperationVerify:
 		report, err := e.executeVerify(ctx, job)
 		return core.JobResult{Verification: report}, err
@@ -420,19 +421,19 @@ func (e BackupExecutor) runBackupEngine(ctx context.Context, driver drivers.Driv
 	return result, parent.ID, err
 }
 
-func (e BackupExecutor) executeRestore(ctx context.Context, job core.Job) error {
+func (e BackupExecutor) executeRestore(ctx context.Context, job core.Job) (*core.RestoreReport, error) {
 	if e.Drivers == nil {
-		return fmt.Errorf("driver registry is required")
+		return nil, fmt.Errorf("driver registry is required")
 	}
 	if e.PipelineFactory == nil {
-		return fmt.Errorf("pipeline factory is required")
+		return nil, fmt.Errorf("pipeline factory is required")
 	}
 	publicKey, err := e.publicKey()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if job.RestoreBackupID.IsZero() {
-		return fmt.Errorf("restore backup id is required")
+		return nil, fmt.Errorf("restore backup id is required")
 	}
 	targetID := job.RestoreTargetID
 	if targetID.IsZero() {
@@ -440,7 +441,7 @@ func (e BackupExecutor) executeRestore(ctx context.Context, job core.Job) error 
 	}
 	target, ok := e.Targets[targetID]
 	if !ok {
-		return fmt.Errorf("restore target %q is not configured on agent", targetID)
+		return nil, fmt.Errorf("restore target %q is not configured on agent", targetID)
 	}
 	storageID := job.StorageID
 	manifestID := job.RestoreManifestID
@@ -457,31 +458,31 @@ func (e BackupExecutor) executeRestore(ctx context.Context, job core.Job) error 
 		manifestIDs = append(manifestIDs, manifestID)
 	}
 	if storageID.IsZero() {
-		return fmt.Errorf("restore storage id is required")
+		return nil, fmt.Errorf("restore storage id is required")
 	}
 	if len(manifestIDs) == 0 {
-		return fmt.Errorf("restore manifest ids are required")
+		return nil, fmt.Errorf("restore manifest ids are required")
 	}
 	backend, ok := e.Backends[storageID]
 	if !ok {
-		return fmt.Errorf("storage %q is not configured on agent", storageID)
+		return nil, fmt.Errorf("storage %q is not configured on agent", storageID)
 	}
 	driver, ok := e.Drivers.Get(target.Driver)
 	if !ok {
-		return fmt.Errorf("target driver %q is not implemented in this build; registered target drivers: %s", target.Driver, strings.Join(e.Drivers.Names(), ", "))
+		return nil, fmt.Errorf("target driver %q is not implemented in this build; registered target drivers: %s", target.Driver, strings.Join(e.Drivers.Names(), ", "))
 	}
 	pipeline, err := e.PipelineFactory(backend)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if pipeline == nil {
-		return fmt.Errorf("pipeline factory returned nil pipeline")
+		return nil, fmt.Errorf("pipeline factory returned nil pipeline")
 	}
-	refs, err := e.restoreRefs(ctx, backend, publicKey, manifestIDs)
+	refs, report, err := e.restoreRefs(ctx, backend, publicKey, manifestIDs)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, err = engine.Restore(ctx, driver, target, pipeline, refs, drivers.RestoreOptions{
+	stats, err := engine.Restore(ctx, driver, target, pipeline, refs, drivers.RestoreOptions{
 		ReplaceExisting: job.RestoreReplaceExisting,
 		DryRun:          job.RestoreDryRun,
 		Metadata: map[string]string{
@@ -489,7 +490,15 @@ func (e BackupExecutor) executeRestore(ctx context.Context, job core.Job) error 
 			"job_id":    string(job.ID),
 		},
 	})
-	return err
+	if err != nil {
+		return nil, err
+	}
+	report.BackupID = job.RestoreBackupID
+	report.TargetID = targetID
+	report.ManifestIDs = append([]core.ID(nil), manifestIDs...)
+	report.RestoredBytes = stats.BytesIn
+	report.DryRun = job.RestoreDryRun
+	return report, nil
 }
 
 func (e BackupExecutor) executeVerify(ctx context.Context, job core.Job) (*core.VerificationReport, error) {
@@ -583,23 +592,29 @@ func (e BackupExecutor) executeVerify(ctx context.Context, job core.Job) (*core.
 	return &report, nil
 }
 
-func (e BackupExecutor) restoreRefs(ctx context.Context, backend storage.Backend, publicKey ed25519.PublicKey, manifestIDs []core.ID) ([]chunk.ChunkRef, error) {
+func (e BackupExecutor) restoreRefs(ctx context.Context, backend storage.Backend, publicKey ed25519.PublicKey, manifestIDs []core.ID) ([]chunk.ChunkRef, *core.RestoreReport, error) {
 	var refs []chunk.ChunkRef
+	report := &core.RestoreReport{}
 	for _, manifestID := range manifestIDs {
 		if manifestID.IsZero() {
-			return nil, fmt.Errorf("restore manifest id is required")
+			return nil, nil, fmt.Errorf("restore manifest id is required")
 		}
 		committed, _, err := repository.LoadManifest(ctx, backend, string(manifestID), publicKey)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		manifestRefs, err := manifestRefs(committed)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		report.Objects += len(committed.Objects)
+		for _, ref := range manifestRefs {
+			report.StoredBytes += ref.StoredSize
 		}
 		refs = append(refs, manifestRefs...)
 	}
-	return refs, nil
+	report.Chunks = len(refs)
+	return refs, report, nil
 }
 
 func (e BackupExecutor) publicKey() (ed25519.PublicKey, error) {

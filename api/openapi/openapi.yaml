@@ -1523,6 +1523,8 @@ components:
           type: string
         backup:
           $ref: "#/components/schemas/Backup"
+        restore:
+          $ref: "#/components/schemas/RestoreReport"
         verification:
           $ref: "#/components/schemas/VerificationReport"
     CreateTokenRequest:
@@ -1769,6 +1771,8 @@ components:
           type: boolean
         restore_replace_existing:
           type: boolean
+        restore_report:
+          $ref: "#/components/schemas/RestoreReport"
         verify_backup_id:
           type: string
         verify_manifest_id:
@@ -1796,6 +1800,27 @@ components:
           format: date-time
         error:
           type: string
+    RestoreReport:
+      type: object
+      properties:
+        backup_id:
+          type: string
+        target_id:
+          type: string
+        manifest_ids:
+          type: array
+          items:
+            type: string
+        objects:
+          type: integer
+        chunks:
+          type: integer
+        stored_bytes:
+          type: integer
+        restored_bytes:
+          type: integer
+        dry_run:
+          type: boolean
     VerificationReport:
       type: object
       properties:

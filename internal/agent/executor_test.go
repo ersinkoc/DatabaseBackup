@@ -227,8 +227,11 @@ func TestBackupExecutorRunsRestoreJob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute(restore) error = %v", err)
 	}
-	if restored.Backup != nil || restored.Verification != nil {
-		t.Fatalf("restore returned result = %#v, want empty", restored)
+	if restored.Backup != nil || restored.Verification != nil || restored.Restore == nil {
+		t.Fatalf("restore returned result = %#v, want restore report", restored)
+	}
+	if restored.Restore.BackupID != backup.ID || restored.Restore.TargetID != "restore-target" || !restored.Restore.DryRun || restored.Restore.Objects != 1 || restored.Restore.Chunks != 1 || restored.Restore.StoredBytes <= 0 || restored.Restore.RestoredBytes <= 0 {
+		t.Fatalf("restore report = %#v", restored.Restore)
 	}
 	if len(driver.restored) != 2 || string(driver.restored[0].Payload) != "alpha" || !driver.restored[1].Done {
 		t.Fatalf("restored records = %#v", driver.restored)
@@ -334,7 +337,7 @@ func TestBackupExecutorRestoresManifestChain(t *testing.T) {
 	}
 	incr := incrResult.Backup
 	driver.restored = nil
-	_, err = executor.Execute(context.Background(), core.Job{
+	restored, err := executor.Execute(context.Background(), core.Job{
 		ID:                     "restore-job",
 		Operation:              core.JobOperationRestore,
 		TargetID:               "restore-target",
@@ -348,6 +351,9 @@ func TestBackupExecutorRestoresManifestChain(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("Execute(chain restore) error = %v", err)
+	}
+	if restored.Restore == nil || restored.Restore.Objects != 2 || restored.Restore.Chunks != 2 || len(restored.Restore.ManifestIDs) != 2 {
+		t.Fatalf("chain restore report = %#v", restored.Restore)
 	}
 	if len(driver.restored) != 4 || string(driver.restored[0].Payload) != "alpha" || string(driver.restored[2].Payload) != "bravo" {
 		t.Fatalf("restored chain records = %#v", driver.restored)

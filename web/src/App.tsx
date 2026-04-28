@@ -116,12 +116,24 @@ type Job = {
   restore_at?: string;
   restore_dry_run?: boolean;
   restore_replace_existing?: boolean;
+  restore_report?: RestoreReport;
   verify_backup_id?: string;
   verify_manifest_id?: string;
   verify_manifest_ids?: string[];
   verify_level?: string;
   verify_report?: VerificationReport;
   error?: string;
+};
+
+type RestoreReport = {
+  backup_id?: string;
+  target_id?: string;
+  manifest_ids?: string[];
+  objects?: number;
+  chunks?: number;
+  stored_bytes?: number;
+  restored_bytes?: number;
+  dry_run?: boolean;
 };
 
 type VerificationReport = {
@@ -2363,6 +2375,7 @@ function JobDetail({ job }: { job: Job | null }) {
           <HealthRow label="Verify chain" value={job.verify_manifest_ids.join(", ")} tone="bronze" />
         ) : null}
         {job.verify_level ? <HealthRow label="Verify level" value={job.verify_level} tone="indigo" /> : null}
+        {job.restore_report ? <RestoreReportDetail report={job.restore_report} /> : null}
         {job.verify_report ? <VerificationReportDetail report={job.verify_report} /> : null}
         {job.operation === "restore" ? <HealthRow label="Dry run" value={job.restore_dry_run ? "yes" : "no"} tone="indigo" /> : null}
         {job.operation === "restore" ? <HealthRow label="Replace" value={job.restore_replace_existing ? "yes" : "no"} tone="warning" /> : null}
@@ -2573,11 +2586,23 @@ function BackupRestoreHistory({ jobs }: { jobs: Job[] }) {
             <HealthRow label="Queued" value={formatDateTime(job.queued_at) ?? "-"} tone="indigo" />
             {job.restore_at ? <HealthRow label="At" value={formatDateTime(job.restore_at) ?? job.restore_at} tone="indigo" /> : null}
             <HealthRow label="Replace" value={job.restore_replace_existing ? "yes" : "no"} tone={job.restore_replace_existing ? "warning" : "success"} />
+            {job.restore_report ? <RestoreReportDetail report={job.restore_report} /> : null}
             {job.error ? <HealthRow label="Error" value={job.error} tone="warning" /> : null}
           </div>
         </div>
       ))}
     </div>
+  );
+}
+
+function RestoreReportDetail({ report }: { report: RestoreReport }) {
+  return (
+    <>
+      <HealthRow label="Objects restored" value={metricValue(report.objects, false)} tone="success" />
+      <HealthRow label="Chunks restored" value={metricValue(report.chunks, false)} tone="success" />
+      {typeof report.stored_bytes === "number" ? <HealthRow label="Stored bytes" value={formatBytes(report.stored_bytes)} tone="bronze" /> : null}
+      {typeof report.restored_bytes === "number" ? <HealthRow label="Restored bytes" value={formatBytes(report.restored_bytes)} tone="indigo" /> : null}
+    </>
   );
 }
 

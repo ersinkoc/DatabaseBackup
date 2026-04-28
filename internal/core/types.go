@@ -91,7 +91,20 @@ const (
 // JobResult carries operation-specific output from an agent back to the control plane.
 type JobResult struct {
 	Backup       *Backup             `json:"backup,omitempty"`
+	Restore      *RestoreReport      `json:"restore,omitempty"`
 	Verification *VerificationReport `json:"verification,omitempty"`
+}
+
+// RestoreReport summarizes restore work completed by an agent.
+type RestoreReport struct {
+	BackupID      ID    `json:"backup_id"`
+	TargetID      ID    `json:"target_id,omitempty"`
+	ManifestIDs   []ID  `json:"manifest_ids,omitempty"`
+	Objects       int   `json:"objects"`
+	Chunks        int   `json:"chunks"`
+	StoredBytes   int64 `json:"stored_bytes"`
+	RestoredBytes int64 `json:"restored_bytes"`
+	DryRun        bool  `json:"dry_run,omitempty"`
 }
 
 // VerificationReport summarizes manifest or chunk verification work completed by an agent.
@@ -187,6 +200,7 @@ type Job struct {
 	RestoreAt              time.Time            `json:"restore_at,omitempty"`
 	RestoreDryRun          bool                 `json:"restore_dry_run,omitempty"`
 	RestoreReplaceExisting bool                 `json:"restore_replace_existing,omitempty"`
+	RestoreReport          *RestoreReport       `json:"restore_report,omitempty"`
 	VerifyBackupID         ID                   `json:"verify_backup_id,omitempty"`
 	VerifyManifestID       ID                   `json:"verify_manifest_id,omitempty"`
 	VerifyManifestIDs      []ID                 `json:"verify_manifest_ids,omitempty"`

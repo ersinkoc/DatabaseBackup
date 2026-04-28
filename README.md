@@ -77,8 +77,9 @@ This repository currently has the Phase 0 foundation in place and active Phase
   target/storage deletion, manual backup drill queueing, backup metadata
   verification, chunk verification queueing, and verification result display,
   backup verification history, restore preview plus guarded dry-run/live
-  restore queueing, restore job history, schedule pause/resume, job
-  cancel/retry, and backup protect/unprotect actions, a Vite build pipeline, and
+  restore queueing, restore job history with restore outcome summaries,
+  schedule pause/resume, job cancel/retry, and backup protect/unprotect
+  actions, a Vite build pipeline, and
   deployment-safe cache headers
 - agent/server: heartbeat endpoint, list/inspect APIs, in-memory agent
   registry, and heartbeat-only or worker-mode agent process
@@ -99,7 +100,7 @@ This repository currently has the Phase 0 foundation in place and active Phase
   retention policy CRUD and plan/apply with dry-run support
 - restore API: restore preview plans that validate backup parent chains,
   enqueue restore jobs with dry-run and replace-existing restore options, and
-  filter restore jobs by backup
+  persist restore outcome summaries with backup-scoped job filtering
 - notification API: webhook rule CRUD for terminal job events with optional HMAC
   payload signatures and bounded delivery retries
 - token API: scoped API token create/list/verify/revoke/prune with hashed verifier

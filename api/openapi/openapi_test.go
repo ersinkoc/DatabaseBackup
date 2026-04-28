@@ -144,7 +144,7 @@ func TestOpenAPIDocumentsBackupProtectionNotFoundResponses(t *testing.T) {
 		t.Fatalf("ReadFile(openapi.yaml) error = %v", err)
 	}
 	text := string(data)
-	for _, want := range []string{"/api/v1/backups/{id}/protect", "Enable manual protection", "/api/v1/backups/{id}/verify", "Enqueue backup verification", "VerificationReport", "verify_report", "restore_backup_id", "verify_backup_id", "/api/v1/backups/{id}/unprotect", "Disable manual protection", "Backup not found"} {
+	for _, want := range []string{"/api/v1/backups/{id}/protect", "Enable manual protection", "/api/v1/backups/{id}/verify", "Enqueue backup verification", "RestoreReport", "restore_report", "VerificationReport", "verify_report", "restore_backup_id", "verify_backup_id", "/api/v1/backups/{id}/unprotect", "Disable manual protection", "Backup not found"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("openapi.yaml missing %q", want)
 		}

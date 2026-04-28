@@ -2355,6 +2355,7 @@ type finishJobRequest struct {
 	Status       core.JobStatus           `json:"status"`
 	Error        string                   `json:"error,omitempty"`
 	Backup       *core.Backup             `json:"backup,omitempty"`
+	Restore      *core.RestoreReport      `json:"restore,omitempty"`
 	Verification *core.VerificationReport `json:"verification,omitempty"`
 }
 
@@ -2737,6 +2738,14 @@ func handleFinishJob(w http.ResponseWriter, r *http.Request, jobs *control.JobSt
 		http.Error(w, "verification reports require verify jobs", http.StatusBadRequest)
 		return
 	}
+	if request.Restore != nil && request.Status != core.JobStatusSucceeded {
+		http.Error(w, "restore report requires succeeded status", http.StatusBadRequest)
+		return
+	}
+	if request.Restore != nil && current.Operation != core.JobOperationRestore {
+		http.Error(w, "restore reports require restore jobs", http.StatusBadRequest)
+		return
+	}
 	job, err := orchestrator.Finish(id, request.Status, request.Error)
 	if err != nil {
 		if errors.Is(err, core.ErrNotFound) {
@@ -2790,6 +2799,30 @@ func handleFinishJob(w http.ResponseWriter, r *http.Request, jobs *control.JobSt
 			return
 		}
 	}
+	if request.Restore != nil {
+		report := *request.Restore
+		if report.BackupID.IsZero() {
+			report.BackupID = job.RestoreBackupID
+		}
+		if report.TargetID.IsZero() {
+			report.TargetID = job.RestoreTargetID
+		}
+		if report.TargetID.IsZero() {
+			report.TargetID = job.TargetID
+		}
+		if len(report.ManifestIDs) == 0 {
+			report.ManifestIDs = append([]core.ID(nil), job.RestoreManifestIDs...)
+		}
+		if len(report.ManifestIDs) == 0 && !job.RestoreManifestID.IsZero() {
+			report.ManifestIDs = []core.ID{job.RestoreManifestID}
+		}
+		report.DryRun = job.RestoreDryRun
+		job.RestoreReport = &report
+		if err := jobs.Save(job); err != nil {
+			http.Error(w, "save restore report", http.StatusInternalServerError)
+			return
+		}
+	}
 	metadata := map[string]any{"status": request.Status}
 	if request.Error != "" {
 		metadata["error"] = request.Error
@@ -2799,6 +2832,9 @@ func handleFinishJob(w http.ResponseWriter, r *http.Request, jobs *control.JobSt
 	}
 	if request.Verification != nil {
 		metadata["verification"] = request.Verification
+	}
+	if request.Restore != nil {
+		metadata["restore"] = request.Restore
 	}
 	notificationCtx, cancelNotifications := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancelNotifications()

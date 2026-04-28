@@ -2146,7 +2146,7 @@ func TestServerFinishRestoreJobRejectsBackupMetadata(t *testing.T) {
 	now := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
 	if err := stores.jobs.Save(core.Job{
 		ID: "restore-job", Operation: core.JobOperationRestore, TargetID: "target", StorageID: "storage",
-		RestoreBackupID: "backup-1", RestoreManifestID: "manifest-1", Status: core.JobStatusRunning, QueuedAt: now, StartedAt: now,
+		RestoreBackupID: "backup-1", RestoreManifestID: "manifest-1", RestoreDryRun: true, Status: core.JobStatusRunning, QueuedAt: now, StartedAt: now,
 	}); err != nil {
 		t.Fatalf("Save(restore job) error = %v", err)
 	}
@@ -2162,13 +2162,25 @@ func TestServerFinishRestoreJobRejectsBackupMetadata(t *testing.T) {
 		t.Fatalf("POST restore finish with backup status = %d, want 400", resp.StatusCode)
 	}
 
-	resp, err = server.Client().Post(server.URL+"/api/v1/jobs/restore-job/finish", "application/json", strings.NewReader(`{"status":"succeeded"}`))
+	resp, err = server.Client().Post(server.URL+"/api/v1/jobs/restore-job/finish", "application/json", strings.NewReader(`{"status":"succeeded","restore":{"objects":2,"chunks":4,"stored_bytes":128,"restored_bytes":256}}`))
 	if err != nil {
 		t.Fatalf("POST restore finish error = %v", err)
 	}
+	var body bytes.Buffer
+	if _, err := body.ReadFrom(resp.Body); err != nil {
+		t.Fatalf("ReadFrom(restore finish) error = %v", err)
+	}
 	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("POST restore finish status = %d, want 200", resp.StatusCode)
+	text := body.String()
+	if resp.StatusCode != http.StatusOK || !strings.Contains(text, `"restore_report"`) || !strings.Contains(text, `"restored_bytes":256`) || !strings.Contains(text, `"backup_id":"backup-1"`) || !strings.Contains(text, `"dry_run":true`) {
+		t.Fatalf("POST restore finish status=%d body=%q", resp.StatusCode, text)
+	}
+	job, ok, err := stores.jobs.Get("restore-job")
+	if err != nil || !ok {
+		t.Fatalf("Get(restore-job) ok=%v err=%v", ok, err)
+	}
+	if job.RestoreReport == nil || job.RestoreReport.BackupID != "backup-1" || job.RestoreReport.RestoredBytes != 256 || !job.RestoreReport.DryRun {
+		t.Fatalf("restore report = %#v", job.RestoreReport)
 	}
 }
 
