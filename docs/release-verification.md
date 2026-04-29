@@ -68,4 +68,14 @@ Record the release tag, binary filename, SHA-256 digest, Git commit,
 verification operator, verification time, cosign result, and attestation result.
 Keep the record with the same retention policy as deployment approvals.
 
+To archive the local checksum and signature verification logs plus artifact
+digests, run:
+
+```bash
+./scripts/archive-release-evidence.sh bin release-evidence/<tag>
+```
+
+Set `GH_ATTESTATION_REPO=ersinkoc/Kronos` to include GitHub provenance and SBOM
+attestation verification output in the same evidence directory.
+
 Do not promote a release if any checksum, signature, or attestation check fails.

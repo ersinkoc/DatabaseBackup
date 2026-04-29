@@ -1,4 +1,4 @@
-.PHONY: help build test lint fmt vet vuln bench integration e2e ui release release-all provenance sbom sign-release verify-signatures verify-release smoke-release production-check clean check
+.PHONY: help build test lint fmt vet vuln bench integration e2e ui release release-all provenance sbom sign-release verify-signatures verify-release archive-release-evidence smoke-release production-check clean check
 
 BIN := bin/kronos
 GO ?= go
@@ -32,6 +32,7 @@ help:
 		'  sign-release Sign release binaries and metadata with cosign keyless signing' \
 		'  verify-signatures Verify cosign keyless release signatures' \
 		'  verify-release Verify release binaries, checksums, and metadata' \
+		'  archive-release-evidence Archive checksum/signature/attestation verification logs' \
 		'  smoke-release Execute the host release artifact and completion output' \
 		'  production-check Run the release-readiness gate without requiring make recursion' \
 		'  clean        Remove generated artifacts' \
@@ -89,6 +90,9 @@ verify-signatures:
 verify-release:
 	./scripts/verify-release.sh bin
 
+archive-release-evidence:
+	./scripts/archive-release-evidence.sh bin release-evidence
+
 smoke-release:
 	GO=$(GO) ./scripts/smoke-release.sh bin
 
@@ -114,6 +118,7 @@ check:
 	sh -n scripts/build.sh
 	sh -n scripts/release.sh
 	sh -n scripts/provenance.sh
+	sh -n scripts/archive-release-evidence.sh
 	sh -n scripts/sign-release.sh
 	sh -n scripts/sbom.sh
 	sh -n scripts/verify-signatures.sh
