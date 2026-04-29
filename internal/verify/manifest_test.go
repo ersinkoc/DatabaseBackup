@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,6 +52,9 @@ func TestManifestVerificationRejectsMissingChunk(t *testing.T) {
 	report, err := Manifest(context.Background(), backend, m, publicKey)
 	if err == nil {
 		t.Fatal("Manifest() error = nil, want missing chunk")
+	}
+	if !strings.Contains(err.Error(), "data/missing") {
+		t.Fatalf("Manifest() error = %q, want missing chunk key", err)
 	}
 	if len(report.MissingChunks) != 1 || report.MissingChunks[0] != "data/missing" {
 		t.Fatalf("MissingChunks = %v", report.MissingChunks)

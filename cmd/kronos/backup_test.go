@@ -82,6 +82,59 @@ func TestRunBackupVerify(t *testing.T) {
 	}
 }
 
+func TestRunBackupVerifyReportsMissingChunkKey(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	repo := filepath.Join(dir, "repo")
+	if _, err := local.New("local", repo); err != nil {
+		t.Fatalf("local.New() error = %v", err)
+	}
+
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey() error = %v", err)
+	}
+	m := manifest.New()
+	m.BackupID = "backup-1"
+	m.Target = "target"
+	m.Driver = manifest.Driver{Name: "postgres", Version: "17"}
+	m.Type = core.BackupTypeFull
+	m.StartedAt = time.Now().UTC()
+	m.FinishedAt = m.StartedAt
+	m.Encryption = manifest.Encryption{Algorithm: "aes-256-gcm", KeyID: "k1"}
+	m.Objects = []manifest.Object{{
+		Schema: "public",
+		Name:   "users",
+		Chunks: []manifest.ChunkRef{{Hash: "abc", Key: "data/missing/chunk", Size: 7, StoredSize: 7}},
+	}}
+	if err := m.Sign(privateKey); err != nil {
+		t.Fatalf("Sign() error = %v", err)
+	}
+	data, err := m.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	manifestPath := filepath.Join(dir, "manifest.json")
+	if err := os.WriteFile(manifestPath, data, 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var out bytes.Buffer
+	err = run(context.Background(), &out, []string{
+		"backup", "verify",
+		"--manifest", manifestPath,
+		"--public-key", hex.EncodeToString(publicKey),
+		"--storage-local", repo,
+	})
+	if err == nil {
+		t.Fatal("backup verify missing chunk error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), "data/missing/chunk") {
+		t.Fatalf("backup verify missing chunk error = %q, want chunk key", err)
+	}
+}
+
 func TestRunBackupVerifyManifestKey(t *testing.T) {
 	t.Parallel()
 
@@ -218,6 +271,88 @@ func TestRunBackupVerifyChunkLevel(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), `"ok":true`) || !strings.Contains(out.String(), `"level":"chunk"`) || !strings.Contains(out.String(), `"verified_chunks":`) {
 		t.Fatalf("backup verify --level chunk output = %q", out.String())
+	}
+}
+
+func TestRunBackupVerifyChunkLevelRejectsCorruptHash(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	repo := filepath.Join(dir, "repo")
+	backend, err := local.New("local", repo)
+	if err != nil {
+		t.Fatalf("local.New() error = %v", err)
+	}
+	chunkKey := bytes.Repeat([]byte{8}, 32)
+	cipher, err := kcrypto.NewAES256GCM(chunkKey)
+	if err != nil {
+		t.Fatalf("NewAES256GCM() error = %v", err)
+	}
+	compressor, err := kcompress.New(kcompress.AlgorithmNone)
+	if err != nil {
+		t.Fatalf("compress.New() error = %v", err)
+	}
+	chunker, err := chunk.NewFastCDC(4, 8, 16)
+	if err != nil {
+		t.Fatalf("NewFastCDC() error = %v", err)
+	}
+	pipeline := &chunk.Pipeline{
+		Chunker:     chunker,
+		Compressor:  compressor,
+		Cipher:      cipher,
+		KeyID:       "k1",
+		Backend:     backend,
+		Concurrency: 2,
+	}
+	refs, _, err := pipeline.Feed(context.Background(), bytes.NewReader([]byte("chunk corruption drill")))
+	if err != nil {
+		t.Fatalf("Feed() error = %v", err)
+	}
+
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey() error = %v", err)
+	}
+	chunks := make([]manifest.ChunkRef, 0, len(refs))
+	for _, ref := range refs {
+		chunks = append(chunks, manifest.ChunkFromPipeline(ref))
+	}
+	chunks[0].Hash = chunk.HashBytes([]byte("wrong")).String()
+	m := manifest.New()
+	m.BackupID = "backup-1"
+	m.Target = "target"
+	m.Driver = manifest.Driver{Name: "redis", Version: "7.2"}
+	m.Type = core.BackupTypeFull
+	m.StartedAt = time.Now().UTC()
+	m.FinishedAt = m.StartedAt
+	m.Encryption = manifest.Encryption{Algorithm: "aes-256-gcm", KeyID: "k1"}
+	m.Objects = []manifest.Object{{Name: "stream", Chunks: chunks}}
+	if err := m.Sign(privateKey); err != nil {
+		t.Fatalf("Sign() error = %v", err)
+	}
+	data, err := m.Marshal()
+	if err != nil {
+		t.Fatalf("Marshal() error = %v", err)
+	}
+	manifestPath := filepath.Join(dir, "manifest.json")
+	if err := os.WriteFile(manifestPath, data, 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	var out bytes.Buffer
+	err = run(context.Background(), &out, []string{
+		"backup", "verify",
+		"--manifest", manifestPath,
+		"--level", "chunk",
+		"--chunk-key", hex.EncodeToString(chunkKey),
+		"--public-key", hex.EncodeToString(publicKey),
+		"--storage-local", repo,
+	})
+	if err == nil {
+		t.Fatal("backup verify corrupt chunk error = nil, want error")
+	}
+	if !strings.Contains(err.Error(), `verify object "stream" chunks`) || !strings.Contains(err.Error(), "message authentication failed") {
+		t.Fatalf("backup verify corrupt chunk error = %q, want object authentication failure", err)
 	}
 }
 

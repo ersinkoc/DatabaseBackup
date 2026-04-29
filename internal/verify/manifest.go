@@ -54,7 +54,7 @@ func Manifest(ctx context.Context, backend storage.Backend, m manifest.Manifest,
 		}
 	}
 	if len(report.MissingChunks) > 0 {
-		return report, fmt.Errorf("manifest references %d missing chunks", len(report.MissingChunks))
+		return report, fmt.Errorf("manifest references %d missing chunks: %s", len(report.MissingChunks), summarizeChunkKeys(report.MissingChunks))
 	}
 	return report, nil
 }
@@ -82,4 +82,12 @@ func Chunks(ctx context.Context, pipeline *chunk.Pipeline, m manifest.Manifest, 
 		chunkReport.RestoredBytes += stats.BytesIn
 	}
 	return chunkReport, nil
+}
+
+func summarizeChunkKeys(keys []string) string {
+	const maxKeys = 3
+	if len(keys) <= maxKeys {
+		return fmt.Sprint(keys)
+	}
+	return fmt.Sprintf("%v and %d more", keys[:maxKeys], len(keys)-maxKeys)
 }
