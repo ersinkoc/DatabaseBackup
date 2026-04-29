@@ -3,9 +3,16 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"io"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -4048,6 +4055,123 @@ func TestServerTimeoutSettings(t *testing.T) {
 	if got := maxRequestBodyBytes(&config.Config{Server: config.ServerConfig{MaxRequestBodyBytes: 1234}}); got != 1234 {
 		t.Fatalf("max request body bytes = %d, want 1234", got)
 	}
+}
+
+func TestServerTLSConfig(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	certPath, keyPath := writeSelfSignedCertificate(t, dir, "server", false)
+	caPath, _ := writeSelfSignedCertificate(t, dir, "client-ca", true)
+
+	cfg := &config.Config{Server: config.ServerConfig{TLS: config.TLSConfig{Cert: certPath, Key: keyPath}}}
+	tlsConfig, err := serverTLSConfig(cfg)
+	if err != nil {
+		t.Fatalf("serverTLSConfig() error = %v", err)
+	}
+	if tlsConfig == nil || len(tlsConfig.Certificates) != 1 || tlsConfig.MinVersion != tls.VersionTLS12 || tlsConfig.ClientAuth != tls.NoClientCert {
+		t.Fatalf("serverTLSConfig() = %#v", tlsConfig)
+	}
+
+	cfg.Server.TLS.ClientCA = caPath
+	tlsConfig, err = serverTLSConfig(cfg)
+	if err != nil {
+		t.Fatalf("serverTLSConfig(mtls) error = %v", err)
+	}
+	if tlsConfig.ClientAuth != tls.RequireAndVerifyClientCert || tlsConfig.ClientCAs == nil {
+		t.Fatalf("serverTLSConfig(mtls) ClientAuth=%v ClientCAs=%v", tlsConfig.ClientAuth, tlsConfig.ClientCAs)
+	}
+
+	if _, err := serverTLSConfig(&config.Config{Server: config.ServerConfig{TLS: config.TLSConfig{ClientCA: caPath}}}); err == nil {
+		t.Fatal("serverTLSConfig(client CA without cert/key) error = nil, want error")
+	}
+}
+
+func TestControlTLSHTTPClient(t *testing.T) {
+	t.Parallel()
+
+	client, err := controlTLSHTTPClient("", "", "")
+	if err != nil {
+		t.Fatalf("controlTLSHTTPClient(empty) error = %v", err)
+	}
+	if client != http.DefaultClient {
+		t.Fatalf("controlTLSHTTPClient(empty) = %#v, want http.DefaultClient", client)
+	}
+
+	dir := t.TempDir()
+	certPath, keyPath := writeSelfSignedCertificate(t, dir, "agent", false)
+	caPath, _ := writeSelfSignedCertificate(t, dir, "control-ca", true)
+
+	client, err = controlTLSHTTPClient(certPath, keyPath, caPath)
+	if err != nil {
+		t.Fatalf("controlTLSHTTPClient() error = %v", err)
+	}
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("client transport = %T, want *http.Transport", client.Transport)
+	}
+	if transport.TLSClientConfig == nil {
+		t.Fatal("TLSClientConfig is nil")
+	}
+	if transport.TLSClientConfig.MinVersion != tls.VersionTLS12 {
+		t.Fatalf("MinVersion = %d, want %d", transport.TLSClientConfig.MinVersion, tls.VersionTLS12)
+	}
+	if len(transport.TLSClientConfig.Certificates) != 1 {
+		t.Fatalf("certificates = %d, want 1", len(transport.TLSClientConfig.Certificates))
+	}
+	if transport.TLSClientConfig.RootCAs == nil {
+		t.Fatal("RootCAs is nil")
+	}
+
+	if _, err := controlTLSHTTPClient(certPath, "", ""); err == nil {
+		t.Fatal("controlTLSHTTPClient(cert without key) error = nil, want error")
+	}
+	badCAPath := filepath.Join(dir, "bad-ca.pem")
+	if err := os.WriteFile(badCAPath, []byte("not pem"), 0o600); err != nil {
+		t.Fatalf("WriteFile(bad CA) error = %v", err)
+	}
+	if _, err := controlTLSHTTPClient("", "", badCAPath); err == nil {
+		t.Fatal("controlTLSHTTPClient(bad CA) error = nil, want error")
+	}
+}
+
+func writeSelfSignedCertificate(t *testing.T, dir string, name string, isCA bool) (string, string) {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("GenerateKey() error = %v", err)
+	}
+	serial, err := rand.Int(rand.Reader, big.NewInt(1<<62))
+	if err != nil {
+		t.Fatalf("serial rand.Int() error = %v", err)
+	}
+	template := x509.Certificate{
+		SerialNumber:          serial,
+		Subject:               pkix.Name{CommonName: name},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		BasicConstraintsValid: true,
+		DNSNames:              []string{"localhost"},
+	}
+	if isCA {
+		template.IsCA = true
+		template.KeyUsage |= x509.KeyUsageCertSign
+	}
+	der, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("CreateCertificate() error = %v", err)
+	}
+	certPath := filepath.Join(dir, name+"-cert.pem")
+	keyPath := filepath.Join(dir, name+"-key.pem")
+	if err := os.WriteFile(certPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600); err != nil {
+		t.Fatalf("WriteFile(cert) error = %v", err)
+	}
+	if err := os.WriteFile(keyPath, pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)}), 0o600); err != nil {
+		t.Fatalf("WriteFile(key) error = %v", err)
+	}
+	return certPath, keyPath
 }
 
 func TestServerRejectsBadRequestsAndMethods(t *testing.T) {

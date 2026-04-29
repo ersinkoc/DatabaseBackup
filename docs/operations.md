@@ -59,6 +59,31 @@ environment secret after the initial admin token is safely stored.
 decoding; timeout fields map directly to Go HTTP server read-header, read,
 write, and idle timeouts.
 
+For direct TLS on the Kronos control plane, set both certificate paths under
+`server.tls`. Add `client_ca` when agents must present client certificates; the
+server then requires and verifies a client certificate on every control-plane
+connection:
+
+```yaml
+server:
+  listen: "0.0.0.0:8500"
+  tls:
+    cert: "/etc/kronos/tls/server.crt"
+    key: "/etc/kronos/tls/server.key"
+    client_ca: "/etc/kronos/tls/agent-ca.crt"
+```
+
+Agents connect to a TLS-enabled control plane by using an `https://` server URL.
+For mTLS enrollment, provide the agent certificate/key pair and the server CA by
+flag or environment variable:
+
+```bash
+export KRONOS_TLS_CERT=/etc/kronos/tls/agent.crt
+export KRONOS_TLS_KEY=/etc/kronos/tls/agent.key
+export KRONOS_TLS_CA=/etc/kronos/tls/server-ca.crt
+./bin/kronos agent --work --server https://kronos.example.com:8500 --token "$KRONOS_TOKEN" --key-id prod-2026
+```
+
 Monitor `kronos_auth_rate_limited_total` on `/metrics` for rejected token
 verification attempts. A steady increase usually means callers need backoff,
 token reuse, or a larger verification budget.

@@ -47,7 +47,7 @@ fully production-grade.
 
 | Scope | Estimate | Notes |
 | --- | ---: | --- |
-| Implemented Redis/local/S3 path | 94% | Core pipeline, agent/server flow, lost-agent recovery, server restart recovery, restore planning, retention, audit, metrics, release scripts, single-replica Kubernetes examples, runbooks, a reusable production gate, and tagged worker/control-plane/Redis backup, restore, retention apply, and recovery E2E tests are in place. |
+| Implemented Redis/local/S3 path | 95% | Core pipeline, TLS/mTLS-capable agent/control-plane transport, lost-agent recovery, server restart recovery, restore planning, retention, audit, metrics, release scripts, single-replica Kubernetes examples, runbooks, a reusable production gate, and tagged worker/control-plane/Redis backup, restore, retention apply, and recovery E2E tests are in place. |
 | Broad multi-database product vision | 96% | Redis is executable, PostgreSQL now has a plain SQL logical driver MVP, optional global role metadata capture, full global restore coverage, worker pipeline smoke E2E coverage, CI conformance coverage across PostgreSQL 15, 16, and 17, a PostgreSQL 15-to-17 restore rehearsal, and a 10,000-row PostgreSQL restore drill. MySQL/MariaDB now has a `mysqldump`/`mysql` logical MVP with unit coverage, real-service MySQL 8.4 and MariaDB 11.4 conformance, bidirectional MySQL/MariaDB restore rehearsal coverage, and 10,000-row MySQL/MariaDB restore drills. MongoDB now has a `mongodump`/`mongorestore` archive MVP with unit coverage, authenticated real-service MongoDB 7.0 conformance, and an authenticated 10,000-document restore drill, while storage backends, WebUI workflows, broader MongoDB version/recovery coverage, and multi-instance deployment patterns remain roadmap work. |
 | Current repository release hygiene | 99% | Tests, vet, format checks, OpenAPI checks, release artifacts, provenance, SBOM metadata, GitHub build/SBOM attestations, keyless cosign signatures and verification, consumer release verification docs, CI govulncheck, release artifact smoke checks, PostgreSQL full global restore, PostgreSQL operator-scale restore, MySQL, MariaDB, bidirectional MySQL/MariaDB restore rehearsal conformance, 10,000-row MySQL/MariaDB restore drills, authenticated MongoDB service conformance, authenticated MongoDB operator-scale restore drill, the production check script, tagged backup/restore/retention/recovery E2E coverage, and Node 24-native GitHub Actions are present. The `golang.org/x/crypto` advisories are fixed. |
 
@@ -120,6 +120,10 @@ run.
   request IDs, security headers, and mutation audit events.
 - Optional state DB encryption for sensitive target/storage option values via
   `server.master_passphrase`.
+- Direct control-plane TLS with optional client-certificate verification through
+  `server.tls.cert`, `server.tls.key`, and `server.tls.client_ca`; agents can
+  provide `KRONOS_TLS_CA`, `KRONOS_TLS_CERT`, and `KRONOS_TLS_KEY` for private
+  CA trust and mTLS enrollment.
 - Agent-side resolution for full-value target/storage secret placeholders,
   CLI `*-ref` helper flags for managed resource credentials, and API
   validation that rejects malformed target/storage placeholder syntax.

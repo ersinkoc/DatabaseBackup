@@ -28,6 +28,7 @@ kronos --output pretty config inspect --config kronos.yaml
 kronos server --config kronos.yaml
 kronos agent --server http://127.0.0.1:8500 --token "$KRONOS_TOKEN" --capacity 2
 kronos agent --work --server http://127.0.0.1:8500 --token "$KRONOS_TOKEN" --manifest-private-key <ed25519-private-key-hex> --chunk-key <32-byte-hex-key> --key-id prod-2026
+kronos agent --work --server https://kronos.example.com:8500 --token "$KRONOS_TOKEN" --tls-cert /etc/kronos/tls/agent.crt --tls-key /etc/kronos/tls/agent.key --tls-ca /etc/kronos/tls/server-ca.crt --manifest-private-key <ed25519-private-key-hex> --chunk-key <32-byte-hex-key> --key-id prod-2026
 kronos agent list
 kronos agent inspect --id agent-1
 kronos metrics
@@ -41,6 +42,10 @@ kronos local --config kronos.yaml --work --manifest-private-key <ed25519-private
 claim jobs, execute backups/restores, and report terminal status. Worker tokens
 need `agent:write`, `job:write`, `target:read`, `storage:read`, and
 `backup:read`.
+
+Agent control-plane TLS can be configured with `--tls-ca` to trust a private
+server CA and `--tls-cert` plus `--tls-key` for mTLS enrollment. The same values
+can be supplied with `KRONOS_TLS_CA`, `KRONOS_TLS_CERT`, and `KRONOS_TLS_KEY`.
 
 ## Resources
 

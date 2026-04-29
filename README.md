@@ -213,6 +213,9 @@ Agents can use the same bearer secret through `KRONOS_TOKEN` or
 `--capacity <n>`. Worker agents need `agent:write`, `job:write`,
 `target:read`, `storage:read`, and `backup:read` for heartbeat, resource sync,
 claim, and finish calls.
+For TLS-enabled control planes, use an `https://` server URL. Agents trust a
+private server CA with `--tls-ca` or `KRONOS_TLS_CA`, and mTLS enrollment uses
+`--tls-cert`/`--tls-key` or `KRONOS_TLS_CERT`/`KRONOS_TLS_KEY`.
 
 Run `kronos agent --work` to claim and execute jobs. Worker mode syncs targets,
 storages, and backups from the control plane and needs a manifest signing key

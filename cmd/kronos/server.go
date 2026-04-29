@@ -5,6 +5,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -126,17 +128,28 @@ func serveControlPlaneWithOptions(ctx context.Context, out io.Writer, listenAddr
 	}()
 
 	registry := control.NewAgentRegistry(nil, 30*time.Second)
+	tlsConfig, err := serverTLSConfig(cfg)
+	if err != nil {
+		listener.Close()
+		return err
+	}
 	server := &http.Server{
 		Handler:           newServerHandlerWithStoresAuth(cfg, registry, stores, opts.InsecureNoAuth),
 		ReadHeaderTimeout: serverDuration(cfg, "read_header_timeout", defaultReadHeaderTimeout),
 		ReadTimeout:       serverDuration(cfg, "read_timeout", defaultReadTimeout),
 		WriteTimeout:      serverDuration(cfg, "write_timeout", defaultWriteTimeout),
 		IdleTimeout:       serverDuration(cfg, "idle_timeout", defaultIdleTimeout),
+		TLSConfig:         tlsConfig,
 	}
 	startSchedulerLoop(ctx, out, stores, registry, defaultSchedulerInterval)
 	errCh := make(chan error, 1)
 	go func() {
-		err := server.Serve(listener)
+		var err error
+		if tlsConfig != nil {
+			err = server.ServeTLS(listener, "", "")
+		} else {
+			err = server.Serve(listener)
+		}
 		if err == http.ErrServerClosed {
 			err = nil
 		}
@@ -621,6 +634,43 @@ func maxRequestBodyBytes(cfg *config.Config) int64 {
 		return cfg.Server.MaxRequestBodyBytes
 	}
 	return defaultMaxRequestBodyBytes
+}
+
+func serverTLSConfig(cfg *config.Config) (*tls.Config, error) {
+	if cfg == nil {
+		return nil, nil
+	}
+	certPath := strings.TrimSpace(cfg.Server.TLS.Cert)
+	keyPath := strings.TrimSpace(cfg.Server.TLS.Key)
+	clientCAPath := strings.TrimSpace(cfg.Server.TLS.ClientCA)
+	if certPath == "" && keyPath == "" && clientCAPath == "" {
+		return nil, nil
+	}
+	if certPath == "" || keyPath == "" {
+		return nil, fmt.Errorf("server.tls.cert and server.tls.key are required together")
+	}
+	certificate, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("load server tls certificate: %w", err)
+	}
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{certificate},
+		MinVersion:   tls.VersionTLS12,
+	}
+	if clientCAPath == "" {
+		return tlsConfig, nil
+	}
+	data, err := os.ReadFile(clientCAPath)
+	if err != nil {
+		return nil, fmt.Errorf("read server.tls.client_ca: %w", err)
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(data) {
+		return nil, fmt.Errorf("server.tls.client_ca does not contain PEM certificates")
+	}
+	tlsConfig.ClientCAs = pool
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	return tlsConfig, nil
 }
 
 func newAPIStores(db *kvstore.DB) (apiStores, error) {

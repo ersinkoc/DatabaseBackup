@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/kronos/kronos/internal/core"
@@ -186,6 +187,15 @@ func (c Config) Validate() error {
 	}
 	if c.Server.DataDir == "" {
 		errs = append(errs, errors.New("server.data_dir is required"))
+	}
+	tlsCert := strings.TrimSpace(c.Server.TLS.Cert)
+	tlsKey := strings.TrimSpace(c.Server.TLS.Key)
+	tlsClientCA := strings.TrimSpace(c.Server.TLS.ClientCA)
+	if (tlsCert == "") != (tlsKey == "") {
+		errs = append(errs, errors.New("server.tls.cert and server.tls.key are required together"))
+	}
+	if tlsClientCA != "" && (tlsCert == "" || tlsKey == "") {
+		errs = append(errs, errors.New("server.tls.client_ca requires server.tls.cert and server.tls.key"))
 	}
 	if c.Server.Auth.TokenVerifyRateLimit < 0 {
 		errs = append(errs, errors.New("server.auth.token_verify_rate_limit must be non-negative"))

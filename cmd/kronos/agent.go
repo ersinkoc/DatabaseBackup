@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -55,6 +57,9 @@ func runAgent(ctx context.Context, out io.Writer, args []string) error {
 	capacity := fs.Int("capacity", 1, "maximum concurrent jobs this agent can run")
 	interval := fs.Duration("heartbeat-interval", 10*time.Second, "heartbeat interval")
 	work := fs.Bool("work", false, "claim and execute jobs instead of heartbeat-only mode")
+	tlsCert := fs.String("tls-cert", os.Getenv("KRONOS_TLS_CERT"), "client certificate PEM for mTLS control-plane connections")
+	tlsKey := fs.String("tls-key", os.Getenv("KRONOS_TLS_KEY"), "client private key PEM for mTLS control-plane connections")
+	tlsCA := fs.String("tls-ca", os.Getenv("KRONOS_TLS_CA"), "CA certificate PEM for verifying the control plane")
 	manifestPrivateKey := fs.String("manifest-private-key", os.Getenv("KRONOS_MANIFEST_PRIVATE_KEY"), "hex-encoded Ed25519 private key for manifest signing")
 	chunkKey := fs.String("chunk-key", os.Getenv("KRONOS_CHUNK_KEY"), "hex-encoded 32-byte chunk encryption key")
 	chunkAlgorithm := fs.String("chunk-algorithm", kcrypto.AlgorithmAES256GCM, "chunk encryption algorithm")
@@ -77,6 +82,10 @@ func runAgent(ctx context.Context, out io.Writer, args []string) error {
 	if *capacity <= 0 {
 		return fmt.Errorf("--capacity must be greater than zero")
 	}
+	httpClient, err := controlTLSHTTPClient(*tlsCert, *tlsKey, *tlsCA)
+	if err != nil {
+		return err
+	}
 
 	if *configPath != "" {
 		fmt.Fprintf(out, "config=%s\n", *configPath)
@@ -88,7 +97,7 @@ func runAgent(ctx context.Context, out io.Writer, args []string) error {
 		Capacity: *capacity,
 	}
 	if *work {
-		return runAgentWorkerWithToken(ctx, http.DefaultClient, *serverAddr, heartbeat, *interval, *token, agentWorkerOptions{
+		return runAgentWorkerWithToken(ctx, httpClient, *serverAddr, heartbeat, *interval, *token, agentWorkerOptions{
 			ManifestPrivateKeyHex: *manifestPrivateKey,
 			ChunkKeyHex:           *chunkKey,
 			ChunkAlgorithm:        *chunkAlgorithm,
@@ -97,31 +106,79 @@ func runAgent(ctx context.Context, out io.Writer, args []string) error {
 		})
 	}
 	if *token != "" {
-		return runAgentHeartbeatWithToken(ctx, http.DefaultClient, *serverAddr, heartbeat, *interval, *token)
+		return runAgentHeartbeatWithToken(ctx, httpClient, *serverAddr, heartbeat, *interval, *token)
 	}
-	return runAgentHeartbeat(ctx, http.DefaultClient, *serverAddr, heartbeat, *interval)
+	return runAgentHeartbeat(ctx, httpClient, *serverAddr, heartbeat, *interval)
 }
 
 func runAgentList(ctx context.Context, out io.Writer, args []string) error {
 	fs := newFlagSet("agent list", out)
 	serverAddr := fs.String("server", "127.0.0.1:8500", "server address")
+	tlsCert := fs.String("tls-cert", os.Getenv("KRONOS_TLS_CERT"), "client certificate PEM for mTLS control-plane connections")
+	tlsKey := fs.String("tls-key", os.Getenv("KRONOS_TLS_KEY"), "client private key PEM for mTLS control-plane connections")
+	tlsCA := fs.String("tls-ca", os.Getenv("KRONOS_TLS_CA"), "CA certificate PEM for verifying the control plane")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	return getControlJSON(ctx, http.DefaultClient, *serverAddr, "/api/v1/agents", out)
+	httpClient, err := controlTLSHTTPClient(*tlsCert, *tlsKey, *tlsCA)
+	if err != nil {
+		return err
+	}
+	return getControlJSON(ctx, httpClient, *serverAddr, "/api/v1/agents", out)
 }
 
 func runAgentInspect(ctx context.Context, out io.Writer, args []string) error {
 	fs := newFlagSet("agent inspect", out)
 	serverAddr := fs.String("server", "127.0.0.1:8500", "server address")
 	id := fs.String("id", "", "agent id")
+	tlsCert := fs.String("tls-cert", os.Getenv("KRONOS_TLS_CERT"), "client certificate PEM for mTLS control-plane connections")
+	tlsKey := fs.String("tls-key", os.Getenv("KRONOS_TLS_KEY"), "client private key PEM for mTLS control-plane connections")
+	tlsCA := fs.String("tls-ca", os.Getenv("KRONOS_TLS_CA"), "CA certificate PEM for verifying the control plane")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *id == "" {
 		return fmt.Errorf("--id is required")
 	}
-	return getControlJSON(ctx, http.DefaultClient, *serverAddr, "/api/v1/agents/"+*id, out)
+	httpClient, err := controlTLSHTTPClient(*tlsCert, *tlsKey, *tlsCA)
+	if err != nil {
+		return err
+	}
+	return getControlJSON(ctx, httpClient, *serverAddr, "/api/v1/agents/"+*id, out)
+}
+
+func controlTLSHTTPClient(certPath string, keyPath string, caPath string) (*http.Client, error) {
+	certPath = strings.TrimSpace(certPath)
+	keyPath = strings.TrimSpace(keyPath)
+	caPath = strings.TrimSpace(caPath)
+	if certPath == "" && keyPath == "" && caPath == "" {
+		return http.DefaultClient, nil
+	}
+	if (certPath == "") != (keyPath == "") {
+		return nil, fmt.Errorf("--tls-cert and --tls-key are required together")
+	}
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+	if certPath != "" {
+		certificate, err := tls.LoadX509KeyPair(certPath, keyPath)
+		if err != nil {
+			return nil, fmt.Errorf("load agent tls certificate: %w", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{certificate}
+	}
+	if caPath != "" {
+		data, err := os.ReadFile(caPath)
+		if err != nil {
+			return nil, fmt.Errorf("read --tls-ca: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(data) {
+			return nil, fmt.Errorf("--tls-ca does not contain PEM certificates")
+		}
+		tlsConfig.RootCAs = pool
+	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = tlsConfig
+	return &http.Client{Transport: transport}, nil
 }
 
 func runAgentHeartbeat(ctx context.Context, client *http.Client, serverAddr string, heartbeat control.AgentHeartbeat, interval time.Duration) error {

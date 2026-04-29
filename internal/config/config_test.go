@@ -137,6 +137,18 @@ func TestValidateAuthRateLimitSettings(t *testing.T) {
 	if err := zeroTimeout.Validate(); err == nil || !strings.Contains(err.Error(), "write_timeout") {
 		t.Fatalf("Validate(zero write timeout) error = %v, want write_timeout", err)
 	}
+
+	missingTLSKey := base
+	missingTLSKey.Server.TLS.Cert = "/cert.pem"
+	if err := missingTLSKey.Validate(); err == nil || !strings.Contains(err.Error(), "server.tls.cert and server.tls.key") {
+		t.Fatalf("Validate(missing TLS key) error = %v, want tls cert/key error", err)
+	}
+
+	clientCAWithoutCert := base
+	clientCAWithoutCert.Server.TLS.ClientCA = "/ca.pem"
+	if err := clientCAWithoutCert.Validate(); err == nil || !strings.Contains(err.Error(), "client_ca") {
+		t.Fatalf("Validate(client CA without cert) error = %v, want client_ca error", err)
+	}
 }
 
 func TestValidateNotificationSettings(t *testing.T) {
