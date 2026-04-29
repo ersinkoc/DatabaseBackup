@@ -64,10 +64,16 @@ func TestDriverBackupFullUsesPgDumpPlainSQL(t *testing.T) {
 		t.Fatalf("calls = %#v", runner.calls)
 	}
 	args := strings.Join(runner.calls[0].args, " ")
-	for _, want := range []string{"--format=plain", "--no-owner", "--no-privileges", "--dbname", "postgres://backup:secret@db.example:5433/app?sslmode=require"} {
+	for _, want := range []string{"--format=plain", "--no-owner", "--no-privileges", "--dbname", "postgres://backup@db.example:5433/app?sslmode=require"} {
 		if !strings.Contains(args, want) {
 			t.Fatalf("pg_dump args = %q, missing %q", args, want)
 		}
+	}
+	if strings.Contains(args, "secret") {
+		t.Fatalf("pg_dump args leaked password: %q", args)
+	}
+	if got := strings.Join(runner.calls[0].env, " "); got != "PGPASSWORD=secret" {
+		t.Fatalf("pg_dump env = %q, want PGPASSWORD", got)
 	}
 	records := stream.Records()
 	if len(records) != 2 || records[0].Object.Kind != databaseObjectKind || records[0].Object.Name != "app" || string(records[0].Payload) != "create table public.users(id int);\n" || !records[1].Done {
@@ -99,10 +105,16 @@ func TestDriverBackupFullCanIncludeGlobals(t *testing.T) {
 		t.Fatalf("calls = %#v", runner.calls)
 	}
 	globalArgs := strings.Join(runner.calls[0].args, " ")
-	for _, want := range []string{"--globals-only", "--no-role-passwords", "--dbname", "postgres://backup:secret@db.example/app"} {
+	for _, want := range []string{"--globals-only", "--no-role-passwords", "--dbname", "postgres://backup@db.example/app"} {
 		if !strings.Contains(globalArgs, want) {
 			t.Fatalf("pg_dumpall args = %q, missing %q", globalArgs, want)
 		}
+	}
+	if strings.Contains(globalArgs, "secret") {
+		t.Fatalf("pg_dumpall args leaked password: %q", globalArgs)
+	}
+	if got := strings.Join(runner.calls[0].env, " "); got != "PGPASSWORD=secret" {
+		t.Fatalf("pg_dumpall env = %q, want PGPASSWORD", got)
 	}
 	records := stream.Records()
 	if len(records) != 4 || records[0].Object.Kind != globalsObjectKind || records[0].Object.Name != "globals" || string(records[0].Payload) != "create role kronos_restore;\n" || !records[1].Done || records[2].Object.Kind != databaseObjectKind || !records[3].Done {
@@ -252,10 +264,11 @@ type runnerCall struct {
 	name  string
 	args  []string
 	stdin []byte
+	env   []string
 }
 
-func (r *fakeRunner) Run(_ context.Context, name string, args []string, stdin []byte) ([]byte, error) {
-	r.calls = append(r.calls, runnerCall{name: name, args: append([]string(nil), args...), stdin: append([]byte(nil), stdin...)})
+func (r *fakeRunner) Run(_ context.Context, name string, args []string, stdin []byte, env []string) ([]byte, error) {
+	r.calls = append(r.calls, runnerCall{name: name, args: append([]string(nil), args...), stdin: append([]byte(nil), stdin...), env: append([]string(nil), env...)})
 	if r.err != nil {
 		return nil, r.err
 	}

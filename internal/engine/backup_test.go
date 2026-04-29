@@ -53,6 +53,42 @@ func TestBackupFullAndRestoreRoundTrip(t *testing.T) {
 	}
 }
 
+func TestBackupFullAndRestoreRoundTripLargeRecord(t *testing.T) {
+	t.Parallel()
+
+	compressor, err := kcompress.New(kcompress.AlgorithmNone)
+	if err != nil {
+		t.Fatalf("compress.New() error = %v", err)
+	}
+	cipher, err := kcrypto.NewAES256GCM(bytes.Repeat([]byte{5}, 32))
+	if err != nil {
+		t.Fatalf("NewAES256GCM() error = %v", err)
+	}
+	pipeline := &chunk.Pipeline{
+		Chunker:     mustEngineChunker(t),
+		Compressor:  compressor,
+		Cipher:      cipher,
+		KeyID:       "engine-key",
+		Backend:     storagetest.NewMemoryBackend("memory"),
+		Concurrency: 2,
+	}
+	payload := bytes.Repeat([]byte("x"), 128*1024)
+	driver := &fakeEngineDriver{fullPayload: payload}
+	result, err := BackupFull(context.Background(), driver, drivers.Target{Name: "target"}, pipeline)
+	if err != nil {
+		t.Fatalf("BackupFull() error = %v", err)
+	}
+	if _, err := Restore(context.Background(), driver, drivers.Target{Name: "target"}, pipeline, result.Chunks, drivers.RestoreOptions{}); err != nil {
+		t.Fatalf("Restore() error = %v", err)
+	}
+	if len(driver.restored) == 0 {
+		t.Fatal("restored records are empty")
+	}
+	if !bytes.Equal(driver.restored[0].Payload, payload) {
+		t.Fatalf("restored first payload length = %d, want %d", len(driver.restored[0].Payload), len(payload))
+	}
+}
+
 func TestBackupIncremental(t *testing.T) {
 	t.Parallel()
 
@@ -126,6 +162,7 @@ type fakeEngineDriver struct {
 	restored               []drivers.Record
 	incrementalParent      string
 	incrementalUnsupported bool
+	fullPayload            []byte
 }
 
 func (*fakeEngineDriver) Name() string { return "fake" }
@@ -134,9 +171,13 @@ func (*fakeEngineDriver) Version(context.Context, drivers.Target) (string, error
 
 func (*fakeEngineDriver) Test(context.Context, drivers.Target) error { return nil }
 
-func (*fakeEngineDriver) BackupFull(ctx context.Context, target drivers.Target, w drivers.RecordWriter) (drivers.ResumePoint, error) {
+func (d *fakeEngineDriver) BackupFull(ctx context.Context, target drivers.Target, w drivers.RecordWriter) (drivers.ResumePoint, error) {
 	obj := drivers.ObjectRef{Name: "object", Kind: "table"}
-	if err := w.WriteRecord(obj, []byte("row-1")); err != nil {
+	payload := []byte("row-1")
+	if len(d.fullPayload) > 0 {
+		payload = d.fullPayload
+	}
+	if err := w.WriteRecord(obj, payload); err != nil {
 		return drivers.ResumePoint{}, err
 	}
 	if err := w.FinishObject(obj, 1); err != nil {

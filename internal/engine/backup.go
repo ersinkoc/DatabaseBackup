@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -96,7 +95,7 @@ func Restore(ctx context.Context, driver drivers.Driver, target drivers.Target, 
 	reader, writer := io.Pipe()
 	resultCh := make(chan error, 1)
 	go func() {
-		recordReader := &jsonRecordReader{scanner: bufio.NewScanner(reader)}
+		recordReader := &jsonRecordReader{decoder: json.NewDecoder(reader)}
 		err := driver.Restore(ctx, target, recordReader, opts)
 		reader.Close()
 		resultCh <- err
@@ -144,18 +143,12 @@ func (w *jsonRecordWriter) write(record drivers.Record) error {
 }
 
 type jsonRecordReader struct {
-	scanner *bufio.Scanner
+	decoder *json.Decoder
 }
 
 func (r *jsonRecordReader) NextRecord() (drivers.Record, error) {
-	if !r.scanner.Scan() {
-		if err := r.scanner.Err(); err != nil {
-			return drivers.Record{}, err
-		}
-		return drivers.Record{}, io.EOF
-	}
 	var record drivers.Record
-	if err := json.Unmarshal(r.scanner.Bytes(), &record); err != nil {
+	if err := r.decoder.Decode(&record); err != nil {
 		return drivers.Record{}, err
 	}
 	return record, nil

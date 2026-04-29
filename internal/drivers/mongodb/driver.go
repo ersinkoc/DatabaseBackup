@@ -7,7 +7,9 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/kronos/kronos/internal/drivers"
@@ -48,8 +50,13 @@ func (d *Driver) Version(ctx context.Context, target drivers.Target) (string, er
 
 // Test validates that mongodump can connect to the target database.
 func (d *Driver) Test(ctx context.Context, target drivers.Target) error {
-	args := append(mongoDumpArgs(target), "--collection", connectionTestCollection(target))
-	_, err := d.run(ctx, "mongodump", args, nil)
+	args, cleanup, err := mongoDumpArgs(target)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	args = append(args, "--collection", connectionTestCollection(target))
+	_, err = d.run(ctx, "mongodump", args, nil)
 	return err
 }
 
@@ -59,7 +66,12 @@ func (d *Driver) BackupFull(ctx context.Context, target drivers.Target, w driver
 		return drivers.ResumePoint{}, fmt.Errorf("record writer is required")
 	}
 	database := databaseName(target)
-	payload, err := d.run(ctx, "mongodump", mongoDumpArgs(target), nil)
+	args, cleanup, err := mongoDumpArgs(target)
+	if err != nil {
+		return drivers.ResumePoint{}, err
+	}
+	defer cleanup()
+	payload, err := d.run(ctx, "mongodump", args, nil)
 	if err != nil {
 		return drivers.ResumePoint{}, err
 	}
@@ -106,10 +118,15 @@ func (d *Driver) Restore(ctx context.Context, target drivers.Target, r drivers.R
 		if !opts.ReplaceExisting {
 			return fmt.Errorf("mongodb restore requires replace_existing=true because archive restore can overwrite existing collections")
 		}
-		args := mongoRestoreArgs(target, record.Object.Name)
-		if _, err := d.run(ctx, "mongorestore", args, record.Payload); err != nil {
+		args, cleanup, err := mongoRestoreArgs(target, record.Object.Name)
+		if err != nil {
 			return err
 		}
+		if _, err := d.run(ctx, "mongorestore", args, record.Payload); err != nil {
+			cleanup()
+			return err
+		}
+		cleanup()
 	}
 }
 
@@ -144,22 +161,45 @@ func (execRunner) Run(ctx context.Context, name string, args []string, stdin []b
 	return out, nil
 }
 
-func mongoDumpArgs(target drivers.Target) []string {
-	return []string{"--uri", mongoURI(target), "--db", databaseName(target), "--archive"}
+func mongoDumpArgs(target drivers.Target) ([]string, func(), error) {
+	args, cleanup, err := mongoConnectionArgs(target)
+	if err != nil {
+		return nil, nil, err
+	}
+	return append(args, "--db", databaseName(target), "--archive"), cleanup, nil
 }
 
-func mongoRestoreArgs(target drivers.Target, sourceDatabase string) []string {
-	args := []string{"--uri", mongoURI(target), "--archive", "--drop"}
+func mongoRestoreArgs(target drivers.Target, sourceDatabase string) ([]string, func(), error) {
+	args, cleanup, err := mongoConnectionArgs(target)
+	if err != nil {
+		return nil, nil, err
+	}
+	args = append(args, "--archive", "--drop")
 	targetDatabase := databaseName(target)
 	if sourceDatabase != "" && targetDatabase != "" && sourceDatabase != targetDatabase {
 		args = append(args, "--nsFrom", sourceDatabase+".*", "--nsTo", targetDatabase+".*")
 	}
-	return args
+	return args, cleanup, nil
+}
+
+func mongoConnectionArgs(target drivers.Target) ([]string, func(), error) {
+	password := mongoPassword(target)
+	if strings.TrimSpace(password) == "" {
+		return []string{"--uri", mongoURI(target)}, func() {}, nil
+	}
+	path, err := writeMongoConfig(mongoURI(target), password)
+	if err != nil {
+		return nil, nil, err
+	}
+	cleanup := func() {
+		_ = os.Remove(path)
+	}
+	return []string{"--config", path}, cleanup, nil
 }
 
 func mongoURI(target drivers.Target) string {
 	if value := strings.TrimSpace(firstNonEmpty(target.Connection["uri"], target.Connection["dsn"], target.Options["uri"], target.Options["dsn"])); value != "" {
-		return value
+		return mongoURIWithoutPassword(value)
 	}
 	database := databaseName(target)
 	host, port := splitAddress(target.Connection["addr"])
@@ -181,10 +221,7 @@ func mongoURI(target drivers.Target) string {
 		Path:   "/" + database,
 	}
 	username := firstNonEmpty(target.Connection["username"], target.Connection["user"])
-	password := firstNonEmpty(target.Connection["password"], target.Options["password"])
-	if username != "" && password != "" {
-		u.User = url.UserPassword(username, password)
-	} else if username != "" {
+	if username != "" {
 		u.User = url.User(username)
 	}
 	query := u.Query()
@@ -200,6 +237,66 @@ func mongoURI(target drivers.Target) string {
 	}
 	u.RawQuery = query.Encode()
 	return u.String()
+}
+
+func writeMongoConfig(uri, password string) (string, error) {
+	file, err := os.CreateTemp("", "kronos-mongo-*.yaml")
+	if err != nil {
+		return "", err
+	}
+	path := file.Name()
+	if err := file.Chmod(0o600); err != nil {
+		file.Close()
+		os.Remove(path)
+		return "", err
+	}
+	content := "uri: " + strconv.Quote(uri) + "\npassword: " + strconv.Quote(password) + "\n"
+	if _, err := file.WriteString(content); err != nil {
+		file.Close()
+		os.Remove(path)
+		return "", err
+	}
+	if err := file.Close(); err != nil {
+		os.Remove(path)
+		return "", err
+	}
+	return path, nil
+}
+
+func mongoPassword(target drivers.Target) string {
+	password := firstNonEmpty(target.Connection["password"], target.Options["password"])
+	if strings.TrimSpace(password) != "" {
+		return password
+	}
+	for _, value := range []string{target.Connection["uri"], target.Connection["dsn"], target.Options["uri"], target.Options["dsn"]} {
+		if password := passwordFromURL(value); password != "" {
+			return password
+		}
+	}
+	return ""
+}
+
+func mongoURIWithoutPassword(value string) string {
+	u, err := url.Parse(value)
+	if err != nil || u.User == nil {
+		return value
+	}
+	username := u.User.Username()
+	if username == "" {
+		u.User = nil
+	} else {
+		u.User = url.User(username)
+	}
+	return u.String()
+}
+
+func passwordFromURL(value string) string {
+	u, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || u.User == nil {
+		return ""
+	}
+	password, _ := u.User.Password()
+	return password
 }
 
 func databaseName(target drivers.Target) string {

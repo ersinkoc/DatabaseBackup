@@ -3,6 +3,7 @@ package mongodb
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 
@@ -66,10 +67,16 @@ func TestDriverBackupFullUsesMongoDumpArchive(t *testing.T) {
 		t.Fatalf("calls = %#v", runner.calls)
 	}
 	args := strings.Join(runner.calls[0].args, " ")
-	for _, want := range []string{"--uri mongodb://backup:secret@mongo.example:27018/app?authSource=admin&tls=true", "--db app", "--archive"} {
+	for _, want := range []string{"--config ", "--db app", "--archive"} {
 		if !strings.Contains(args, want) {
 			t.Fatalf("mongodump args = %q, missing %q", args, want)
 		}
+	}
+	if strings.Contains(args, "secret") {
+		t.Fatalf("mongodump args leaked password: %q", args)
+	}
+	if !strings.Contains(runner.calls[0].config, `uri: "mongodb://backup@mongo.example:27018/app?authSource=admin&tls=true"`) || !strings.Contains(runner.calls[0].config, `password: "secret"`) {
+		t.Fatalf("mongodump config = %q", runner.calls[0].config)
 	}
 	records := stream.Records()
 	if len(records) != 2 || records[0].Object.Kind != databaseObjectKind || records[0].Object.Name != "app" || string(records[0].Payload) != "archive-bytes" || !records[1].Done {
@@ -178,13 +185,22 @@ type fakeRunner struct {
 }
 
 type runnerCall struct {
-	name  string
-	args  []string
-	stdin []byte
+	name   string
+	args   []string
+	stdin  []byte
+	config string
 }
 
 func (r *fakeRunner) Run(_ context.Context, name string, args []string, stdin []byte) ([]byte, error) {
-	r.calls = append(r.calls, runnerCall{name: name, args: append([]string(nil), args...), stdin: append([]byte(nil), stdin...)})
+	call := runnerCall{name: name, args: append([]string(nil), args...), stdin: append([]byte(nil), stdin...)}
+	for i := 0; i < len(args)-1; i++ {
+		if args[i] == "--config" {
+			data, _ := os.ReadFile(args[i+1])
+			call.config = string(data)
+			break
+		}
+	}
+	r.calls = append(r.calls, call)
 	if r.err != nil {
 		return nil, r.err
 	}

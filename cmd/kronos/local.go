@@ -22,6 +22,7 @@ func runLocal(ctx context.Context, out io.Writer, args []string) error {
 	dataDir := fs.String("data-dir", ".kronos", "local data directory")
 	listenAddr := fs.String("listen", "127.0.0.1:8500", "local WebUI listen address")
 	work := fs.Bool("work", false, "run an embedded worker agent")
+	devInsecure := fs.Bool("dev-insecure", false, "allow unauthenticated API requests; development only")
 	agentID := fs.String("id", "local", "local worker agent identifier")
 	capacity := fs.Int("capacity", 1, "maximum concurrent local worker jobs")
 	interval := fs.Duration("heartbeat-interval", 5*time.Second, "local worker heartbeat interval")
@@ -66,8 +67,9 @@ func runLocal(ctx context.Context, out io.Writer, args []string) error {
 	}
 	cfg.Server.Listen = *listenAddr
 	cfg.Server.DataDir = *dataDir
+	allowNoAuth := *devInsecure || isLoopbackListenAddress(*listenAddr)
 	if !*work {
-		return serveControlPlane(ctx, out, *listenAddr, cfg)
+		return serveControlPlaneWithOptions(ctx, out, *listenAddr, cfg, controlPlaneOptions{InsecureNoAuth: allowNoAuth})
 	}
 
 	localCtx, cancel := context.WithCancel(ctx)
@@ -98,7 +100,7 @@ func runLocal(ctx context.Context, out io.Writer, args []string) error {
 		}()
 		return nil
 	}
-	err := serveControlPlaneWithOptions(localCtx, out, *listenAddr, cfg, controlPlaneOptions{OnListen: startWorker})
+	err := serveControlPlaneWithOptions(localCtx, out, *listenAddr, cfg, controlPlaneOptions{OnListen: startWorker, InsecureNoAuth: allowNoAuth})
 	select {
 	case workerRunErr := <-workerErr:
 		if workerRunErr != nil && !errors.Is(workerRunErr, context.Canceled) {

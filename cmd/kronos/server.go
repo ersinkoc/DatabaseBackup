@@ -40,6 +40,7 @@ func runServer(ctx context.Context, out io.Writer, args []string) error {
 	fs := newFlagSet("server", out)
 	configPath := fs.String("config", "", "path to kronos YAML config")
 	listenAddr := fs.String("listen", "127.0.0.1:8500", "HTTP listen address")
+	devInsecure := fs.Bool("dev-insecure", false, "allow unauthenticated API requests; development only")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -61,15 +62,16 @@ func runServer(ctx context.Context, out io.Writer, args []string) error {
 			*listenAddr = cfg.Server.Listen
 		}
 	}
-	return serveControlPlane(ctx, out, *listenAddr, cfg)
+	return serveControlPlaneWithOptions(ctx, out, *listenAddr, cfg, controlPlaneOptions{InsecureNoAuth: *devInsecure})
 }
 
 type controlPlaneOptions struct {
-	OnListen func(addr string) error
+	OnListen       func(addr string) error
+	InsecureNoAuth bool
 }
 
 func serveControlPlane(ctx context.Context, out io.Writer, listenAddr string, cfg *config.Config) error {
-	return serveControlPlaneWithOptions(ctx, out, listenAddr, cfg, controlPlaneOptions{})
+	return serveControlPlaneWithOptions(ctx, out, listenAddr, cfg, controlPlaneOptions{InsecureNoAuth: true})
 }
 
 func serveControlPlaneWithOptions(ctx context.Context, out io.Writer, listenAddr string, cfg *config.Config, opts controlPlaneOptions) error {
@@ -113,7 +115,7 @@ func serveControlPlaneWithOptions(ctx context.Context, out io.Writer, listenAddr
 
 	registry := control.NewAgentRegistry(nil, 30*time.Second)
 	server := &http.Server{
-		Handler:           newServerHandlerWithStores(cfg, registry, stores),
+		Handler:           newServerHandlerWithStoresAuth(cfg, registry, stores, opts.InsecureNoAuth),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	startSchedulerLoop(ctx, out, stores, registry, defaultSchedulerInterval)
@@ -156,6 +158,19 @@ func serveControlPlaneWithOptions(ctx context.Context, out io.Writer, listenAddr
 	case err := <-errCh:
 		return err
 	}
+}
+
+func isLoopbackListenAddress(address string) bool {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		host = address
+	}
+	host = strings.Trim(host, "[]")
+	if host == "" || host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func startSchedulerLoop(ctx context.Context, out io.Writer, stores apiStores, registry *control.AgentRegistry, interval time.Duration) {
@@ -660,6 +675,10 @@ func cloneOptions(in map[string]any) map[string]any {
 }
 
 func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegistry, stores apiStores) http.Handler {
+	return newServerHandlerWithStoresAuth(cfg, registry, stores, true)
+}
+
+func newServerHandlerWithStoresAuth(cfg *config.Config, registry *control.AgentRegistry, stores apiStores, insecureNoAuth bool) http.Handler {
 	if registry == nil {
 		registry = control.NewAgentRegistry(nil, 30*time.Second)
 	}
@@ -1235,7 +1254,7 @@ func newServerHandlerWithStores(cfg *config.Config, registry *control.AgentRegis
 		}
 	})
 	mux.Handle("/", webui.Handler())
-	return withSecurityHeaders(withControlPlaneCacheHeaders(withRequestID(mux)))
+	return withSecurityHeaders(withControlPlaneCacheHeaders(withRequestID(withAuthPolicy(mux, insecureNoAuth))))
 }
 
 func allowMethods(w http.ResponseWriter, r *http.Request, methods ...string) bool {
@@ -2171,9 +2190,30 @@ func roleScopes(role core.RoleName) []string {
 	}
 }
 
+type authPolicyContextKey struct{}
+
+func withAuthPolicy(next http.Handler, insecureNoAuth bool) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), authPolicyContextKey{}, insecureNoAuth)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func allowInsecureNoAuth(r *http.Request) bool {
+	value, ok := r.Context().Value(authPolicyContextKey{}).(bool)
+	if !ok {
+		return true
+	}
+	return value
+}
+
 func requireScope(w http.ResponseWriter, r *http.Request, store *control.TokenStore, scope string) bool {
 	if strings.TrimSpace(r.Header.Get("Authorization")) == "" {
-		return true
+		if allowInsecureNoAuth(r) {
+			return true
+		}
+		http.Error(w, "authorization required", http.StatusUnauthorized)
+		return false
 	}
 	secret, ok := bearerToken(r)
 	if !ok {

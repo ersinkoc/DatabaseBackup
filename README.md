@@ -19,6 +19,7 @@ database backups. The product brief and build plan live in `.project/`:
 - [Cloud secret integration](docs/cloud-secrets.md)
 - [Project status](docs/status.md)
 - [Production readiness](docs/production-readiness.md)
+- [Driver MVP decision](docs/decisions/0002-external-tool-driver-mvp.md)
 - [Kubernetes example](deploy/kubernetes/README.md)
 
 This repository currently has the Phase 0 foundation in place and active Phase
@@ -110,6 +111,14 @@ This repository currently has the Phase 0 foundation in place and active Phase
 - user API: local user metadata create/list/get/delete plus role grants
 - HTTP hardening: request IDs, no-store control-plane responses, and baseline
   browser security headers for API/WebUI responses
+
+Important driver status: PostgreSQL, MySQL/MariaDB, and MongoDB are currently
+external-tool driver MVPs, not native wire-protocol implementations. Worker
+agents need the corresponding client tools installed. Passwords are no longer
+placed in process-visible command arguments for these tool-wrapper paths:
+PostgreSQL uses `PGPASSWORD`, MySQL/MariaDB uses `MYSQL_PWD`, and MongoDB uses
+a 0600 temporary `--config` file. Native protocol drivers and PITR remain
+roadmap work.
 
 ## Build
 

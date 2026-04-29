@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -25,7 +26,7 @@ type Driver struct {
 }
 
 type commandRunner interface {
-	Run(ctx context.Context, name string, args []string, stdin []byte) ([]byte, error)
+	Run(ctx context.Context, name string, args []string, stdin []byte, env []string) ([]byte, error)
 }
 
 type execRunner struct{}
@@ -42,7 +43,7 @@ func (d *Driver) Name() string {
 
 // Version returns the local pg_dump version string.
 func (d *Driver) Version(ctx context.Context, target drivers.Target) (string, error) {
-	out, err := d.run(ctx, "pg_dump", []string{"--version"}, nil)
+	out, err := d.run(ctx, "pg_dump", []string{"--version"}, nil, nil)
 	if err != nil {
 		return "", err
 	}
@@ -51,7 +52,7 @@ func (d *Driver) Version(ctx context.Context, target drivers.Target) (string, er
 
 // Test validates that pg_dump can connect and inspect schema metadata.
 func (d *Driver) Test(ctx context.Context, target drivers.Target) error {
-	_, err := d.run(ctx, "pg_dump", []string{"--schema-only", "--dbname", postgresDSN(target)}, nil)
+	_, err := d.run(ctx, "pg_dump", []string{"--schema-only", "--dbname", postgresDSN(target)}, nil, postgresEnv(target))
 	return err
 }
 
@@ -66,7 +67,7 @@ func (d *Driver) BackupFull(ctx context.Context, target drivers.Target, w driver
 			"--globals-only",
 			"--no-role-passwords",
 			"--dbname", postgresDSN(target),
-		}, nil)
+		}, nil, postgresEnv(target))
 		if err != nil {
 			return drivers.ResumePoint{}, err
 		}
@@ -84,7 +85,7 @@ func (d *Driver) BackupFull(ctx context.Context, target drivers.Target, w driver
 		"--no-owner",
 		"--no-privileges",
 		"--dbname", postgresDSN(target),
-	}, nil)
+	}, nil, postgresEnv(target))
 	if err != nil {
 		return drivers.ResumePoint{}, err
 	}
@@ -132,7 +133,7 @@ func (d *Driver) Restore(ctx context.Context, target drivers.Target, r drivers.R
 			return fmt.Errorf("postgres restore requires replace_existing=true because plain SQL restore can overwrite existing objects")
 		}
 		args := []string{"--single-transaction", "--set", "ON_ERROR_STOP=1", "--dbname", postgresDSN(target)}
-		if _, err := d.run(ctx, "psql", args, record.Payload); err != nil {
+		if _, err := d.run(ctx, "psql", args, record.Payload, postgresEnv(target)); err != nil {
 			return err
 		}
 	}
@@ -147,18 +148,21 @@ func (d *Driver) ReplayStream(context.Context, drivers.Target, drivers.StreamRea
 	return drivers.ErrIncrementalUnsupported
 }
 
-func (d *Driver) run(ctx context.Context, name string, args []string, stdin []byte) ([]byte, error) {
+func (d *Driver) run(ctx context.Context, name string, args []string, stdin []byte, env []string) ([]byte, error) {
 	runner := d.runner
 	if runner == nil {
 		runner = execRunner{}
 	}
-	return runner.Run(ctx, name, args, stdin)
+	return runner.Run(ctx, name, args, stdin, env)
 }
 
-func (execRunner) Run(ctx context.Context, name string, args []string, stdin []byte) ([]byte, error) {
+func (execRunner) Run(ctx context.Context, name string, args []string, stdin []byte, env []string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
+	}
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -175,7 +179,7 @@ func (execRunner) Run(ctx context.Context, name string, args []string, stdin []b
 
 func postgresDSN(target drivers.Target) string {
 	if value := strings.TrimSpace(target.Connection["dsn"]); value != "" {
-		return value
+		return postgresDSNWithoutPassword(value)
 	}
 	database := databaseName(target)
 	host, port := splitAddress(target.Connection["addr"])
@@ -197,10 +201,7 @@ func postgresDSN(target drivers.Target) string {
 		Path:   "/" + database,
 	}
 	username := target.Connection["username"]
-	password := target.Connection["password"]
-	if username != "" && password != "" {
-		u.User = url.UserPassword(username, password)
-	} else if username != "" {
+	if username != "" {
 		u.User = url.User(username)
 	}
 	query := u.Query()
@@ -215,6 +216,42 @@ func postgresDSN(target drivers.Target) string {
 	}
 	u.RawQuery = query.Encode()
 	return u.String()
+}
+
+func postgresEnv(target drivers.Target) []string {
+	password := firstNonEmpty(target.Connection["password"], target.Options["password"])
+	if password == "" {
+		if dsn := strings.TrimSpace(target.Connection["dsn"]); dsn != "" {
+			password = passwordFromURL(dsn)
+		}
+	}
+	if strings.TrimSpace(password) == "" {
+		return nil
+	}
+	return []string{"PGPASSWORD=" + password}
+}
+
+func postgresDSNWithoutPassword(value string) string {
+	u, err := url.Parse(value)
+	if err != nil || u.User == nil {
+		return value
+	}
+	username := u.User.Username()
+	if username == "" {
+		u.User = nil
+	} else {
+		u.User = url.User(username)
+	}
+	return u.String()
+}
+
+func passwordFromURL(value string) string {
+	u, err := url.Parse(value)
+	if err != nil || u.User == nil {
+		return ""
+	}
+	password, _ := u.User.Password()
+	return password
 }
 
 func databaseName(target drivers.Target) string {

@@ -264,6 +264,8 @@ groups:
    Set `KRONOS_POSTGRES_RESTORE_DSN` when restore verification should target a
    different database than the source. PostgreSQL non-dry-run restores require
    explicit replace-existing intent and run through `psql --single-transaction`.
+   Runtime commands strip password material from process-visible PostgreSQL URIs
+   and pass the password through `PGPASSWORD`.
    For role metadata coverage, add target option `include_globals=true`; the
    driver writes a separate `postgres_globals` stream from
    `pg_dumpall --globals-only --no-role-passwords` before the database stream.
@@ -283,6 +285,8 @@ groups:
    separate MongoDB service. MongoDB non-dry-run restores require explicit
    replace-existing intent and replay through `mongorestore --archive --drop`
    with namespace remapping when the source and target database names differ.
+   Runtime commands pass MongoDB secrets through a 0600 temporary Database Tools
+   `--config` file so process listings contain only the config path.
    Set `KRONOS_MONGODB_TEST_USER`, `KRONOS_MONGODB_TEST_PASSWORD`, and
    `KRONOS_MONGODB_TEST_AUTH_SOURCE` when the service requires authentication.
    The main CI workflow runs authenticated MongoDB 7.0 conformance and an

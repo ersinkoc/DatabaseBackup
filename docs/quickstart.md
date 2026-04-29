@@ -92,7 +92,9 @@ Register a Redis target. Adjust the endpoint if Redis is elsewhere:
 Redis/Valkey is the most complete executable database driver in this build.
 PostgreSQL also has a logical backup/restore MVP that shells out to `pg_dump`
 for full backups and `psql` for restores; install PostgreSQL client tools on
-worker agents before using it. Set target option `include_globals=true` when a
+worker agents before using it. The driver strips password material from
+process-visible `--dbname` arguments and passes the password through
+`PGPASSWORD`. Set target option `include_globals=true` when a
 backup should also capture PostgreSQL global role metadata through
 `pg_dumpall --globals-only --no-role-passwords`; the agent needs privileges to
 read those objects, and role passwords are intentionally excluded. PostgreSQL
@@ -105,12 +107,15 @@ target, plus a PostgreSQL 17 10,000-row restore drill. MySQL/MariaDB has a
 logical backup/restore MVP that
 shells out to `mysqldump` for full backups and `mysql` for restores; install
 matching MySQL or MariaDB client tools on worker agents before using it. MySQL
+passwords are passed through `MYSQL_PWD` rather than command arguments. MySQL
 restore also requires explicit replace-existing intent. CI exercises this path
 against real MySQL 8.4 and MariaDB 11.4 services with backup/restore
 rehearsals for indexed JSON data, plus bidirectional MySQL/MariaDB restore
 rehearsals and 10,000-row MySQL/MariaDB restore drills. MongoDB has a logical
 backup/restore MVP that shells out to `mongodump` and `mongorestore` archive
 streams; install MongoDB Database Tools on worker agents before using it.
+MongoDB passwords are written to a 0600 temporary Database Tools `--config`
+file so the process list contains only the config path, not the secret.
 MongoDB restores also require explicit replace-existing intent. CI exercises
 this path against MongoDB 7.0 with real-service backup/restore conformance and
 a 10,000-document restore drill.

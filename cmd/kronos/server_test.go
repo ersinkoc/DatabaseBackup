@@ -1453,6 +1453,40 @@ func TestServerBearerTokenScopeEnforcement(t *testing.T) {
 	}
 }
 
+func TestServerRequiresAuthorizationWhenInsecureNoAuthDisabled(t *testing.T) {
+	t.Parallel()
+
+	db, err := kvstore.Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	stores, err := newAPIStores(db)
+	if err != nil {
+		t.Fatalf("newAPIStores() error = %v", err)
+	}
+	server := httptest.NewServer(newServerHandlerWithStoresAuth(nil, nil, stores, false))
+	defer server.Close()
+
+	resp, err := server.Client().Get(server.URL + "/api/v1/backups")
+	if err != nil {
+		t.Fatalf("GET backups error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("GET backups status = %d, want 401", resp.StatusCode)
+	}
+
+	resp, err = server.Client().Get(server.URL + "/healthz")
+	if err != nil {
+		t.Fatalf("GET healthz error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET healthz status = %d, want 200", resp.StatusCode)
+	}
+}
+
 func TestServerSecretResourceReadsRequireAgentScope(t *testing.T) {
 	t.Parallel()
 

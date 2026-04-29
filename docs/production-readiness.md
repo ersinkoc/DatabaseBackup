@@ -1,6 +1,6 @@
 # Production Readiness
 
-Last reviewed from the repository state on April 27, 2026.
+Last reviewed from the repository state on April 29, 2026.
 
 Kronos is close to production-ready for the implemented Redis or Valkey backup
 path with local or S3-compatible storage. A PostgreSQL logical backup/restore
@@ -63,13 +63,19 @@ The gate checks formatting, runs `go vet`, runs the full Go test suite, builds
 the binary, validates shell scripts, validates bash completion syntax, and
 executes `kronos version`.
 
+Race testing requires CGO and a working C compiler such as `gcc` or `clang`.
+If the compiler is absent, `go test -race ./...` cannot start; run the normal
+test gate as a fallback, but do not treat that as equivalent to a clean race
+run.
+
 ## Production-Ready Strengths
 
 - Core streaming backup pipeline with chunking, compression, encryption
   envelopes, signed manifests, restore planning, and verification.
 - Redis/Valkey driver coverage with backup and restore paths.
 - PostgreSQL logical driver MVP using `pg_dump` for full backups and `psql` for
-  restores, with deterministic command-runner unit tests, tagged worker
+  restores, with password material stripped from process-visible `--dbname`
+  arguments and passed through `PGPASSWORD`, deterministic command-runner unit tests, tagged worker
   pipeline smoke E2E coverage, CI real-service conformance coverage across
   PostgreSQL 15, 16, and 17,
   extension-backed data, large object checks, indexed JSONB bulk restore
@@ -96,7 +102,8 @@ executes `kronos version`.
 - MongoDB logical driver MVP using `mongodump --archive` for full backups and
   `mongorestore --archive --drop` for restores, with unit coverage for target
   tests, archive records, namespace remapping, replace-existing guardrails,
-  dry-run behavior, and unsupported incremental/oplog paths. CI now runs
+  dry-run behavior, process-list password exposure avoidance through 0600
+  temporary Database Tools `--config` files, and unsupported incremental/oplog paths. CI now runs
   authenticated MongoDB 7.0 real-service conformance with archive
   backup/restore into a remapped database, indexed document count/checksum
   verification, and an authenticated 10,000-document restore drill across
