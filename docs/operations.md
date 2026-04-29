@@ -374,7 +374,7 @@ groups:
    To verify downloaded release signatures outside CI, install `cosign` and run:
 
    ```bash
-   COSIGN_CERTIFICATE_IDENTITY_REGEXP='https://github.com/ersinkoc/DatabaseBackup/.github/workflows/release.yml@refs/tags/v.*' \
+   COSIGN_CERTIFICATE_IDENTITY_REGEXP='https://github.com/ersinkoc/Kronos/.github/workflows/release.yml@refs/tags/v.*' \
      ./scripts/verify-signatures.sh bin
    ```
 

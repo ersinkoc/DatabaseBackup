@@ -10,7 +10,7 @@ Download the release assets for the target platform into one directory:
 
 ```bash
 mkdir -p bin
-gh release download <tag> --repo ersinkoc/DatabaseBackup --dir bin
+gh release download <tag> --repo ersinkoc/Kronos --dir bin
 ```
 
 For each binary, keep the matching `.sha256`, `.sig`, and `.pem` files. Keep
@@ -31,7 +31,7 @@ the release metadata files are present.
 Install `cosign`, then verify every binary and metadata payload:
 
 ```bash
-COSIGN_CERTIFICATE_IDENTITY_REGEXP='https://github.com/ersinkoc/DatabaseBackup/.github/workflows/release.yml@refs/tags/v.*' \
+COSIGN_CERTIFICATE_IDENTITY_REGEXP='https://github.com/ersinkoc/Kronos/.github/workflows/release.yml@refs/tags/v.*' \
   ./scripts/verify-signatures.sh bin
 ```
 
@@ -46,7 +46,7 @@ Use a recent GitHub CLI with `gh attestation verify` support:
 
 ```bash
 gh attestation verify bin/kronos-linux-amd64 \
-  --repo ersinkoc/DatabaseBackup \
+  --repo ersinkoc/Kronos \
   --signer-workflow .github/workflows/release.yml
 ```
 
@@ -56,7 +56,7 @@ attestation payload, request the SBOM predicate type and output JSON:
 
 ```bash
 gh attestation verify bin/kronos-linux-amd64 \
-  --repo ersinkoc/DatabaseBackup \
+  --repo ersinkoc/Kronos \
   --signer-workflow .github/workflows/release.yml \
   --predicate-type https://spdx.dev/Document \
   --format json
