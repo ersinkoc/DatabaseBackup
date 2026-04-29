@@ -16,6 +16,8 @@ func runUser(ctx context.Context, out io.Writer, args []string) error {
 	switch args[0] {
 	case "add":
 		return runUserAdd(ctx, out, args[1:])
+	case "bootstrap":
+		return runUserBootstrap(ctx, out, args[1:])
 	case "grant":
 		return runUserGrant(ctx, out, args[1:])
 	case "inspect":
@@ -27,6 +29,31 @@ func runUser(ctx context.Context, out io.Writer, args []string) error {
 	default:
 		return fmt.Errorf("unknown user subcommand %q", args[0])
 	}
+}
+
+func runUserBootstrap(ctx context.Context, out io.Writer, args []string) error {
+	fs := newFlagSet("user bootstrap", out)
+	serverAddr := fs.String("server", "127.0.0.1:8500", "server address")
+	id := fs.String("id", "", "admin user id")
+	email := fs.String("email", "", "admin user email")
+	displayName := fs.String("display-name", "", "admin display name")
+	tokenName := fs.String("token-name", "initial-admin", "initial admin token name")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *email == "" {
+		return fmt.Errorf("--email is required")
+	}
+	if *displayName == "" {
+		return fmt.Errorf("--display-name is required")
+	}
+	payload := map[string]any{
+		"id":           core.ID(*id),
+		"email":        *email,
+		"display_name": *displayName,
+		"token_name":   *tokenName,
+	}
+	return postControlJSON(ctx, http.DefaultClient, *serverAddr, "/api/v1/bootstrap/admin", payload, out)
 }
 
 func runUserAdd(ctx context.Context, out io.Writer, args []string) error {

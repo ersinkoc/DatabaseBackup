@@ -1695,6 +1695,69 @@ func TestServerUserEndpoints(t *testing.T) {
 	}
 }
 
+func TestServerBootstrapAdminCreatesFirstUserAndToken(t *testing.T) {
+	t.Parallel()
+
+	db, err := kvstore.Open(filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+	defer db.Close()
+	stores, err := newAPIStores(db)
+	if err != nil {
+		t.Fatalf("newAPIStores() error = %v", err)
+	}
+	server := httptest.NewServer(newServerHandlerWithStoresAuth(nil, nil, stores, false))
+	defer server.Close()
+
+	resp, err := server.Client().Post(server.URL+"/api/v1/bootstrap/admin", "application/json", strings.NewReader(`{"id":"admin","email":"admin@example.com","display_name":"Admin","token_name":"setup"}`))
+	if err != nil {
+		t.Fatalf("POST bootstrap admin error = %v", err)
+	}
+	var created bootstrapAdminResponse
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("Decode(bootstrap admin) error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST bootstrap admin status = %d, want 200", resp.StatusCode)
+	}
+	if created.User.ID != "admin" || created.User.Role != core.RoleAdmin || created.Token.Secret == "" || created.Token.Token.UserID != "admin" {
+		t.Fatalf("bootstrap response = %#v", created)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/api/v1/users", nil)
+	if err != nil {
+		t.Fatalf("NewRequest(users) error = %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+created.Token.Secret)
+	resp, err = server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("GET users with bootstrap token error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET users with bootstrap token status = %d, want 200", resp.StatusCode)
+	}
+
+	resp, err = server.Client().Post(server.URL+"/api/v1/bootstrap/admin", "application/json", strings.NewReader(`{"id":"admin2","email":"admin2@example.com","display_name":"Admin 2"}`))
+	if err != nil {
+		t.Fatalf("POST second bootstrap admin error = %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("POST second bootstrap status = %d, want 409", resp.StatusCode)
+	}
+
+	events, err := stores.audit.List(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("List(audit) error = %v", err)
+	}
+	if len(events) != 1 || events[0].Action != "bootstrap.admin_created" || events[0].ResourceID != "admin" {
+		t.Fatalf("audit events = %#v", events)
+	}
+}
+
 func TestServerJobsEndpoint(t *testing.T) {
 	t.Parallel()
 

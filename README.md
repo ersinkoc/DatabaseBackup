@@ -177,14 +177,16 @@ plain output in logs and scripts.
 
 ## API Tokens
 
-Create a scoped token and use it from the CLI. Local/no-token development mode
-still works without an `Authorization` header; when a bearer token is provided,
-the server enforces exact scopes plus `resource:*`, `admin:*`, or `*`.
+Bootstrap the first admin user and copy-once admin token, then create narrower
+scoped tokens for automation. The bootstrap endpoint only works while both the
+user and token stores are empty. After that, the server enforces exact scopes
+plus `resource:*`, `admin:*`, or `*`.
 
 ```bash
-./bin/kronos user add --id admin --email admin@example.com --display-name Admin --role admin
+./bin/kronos user bootstrap --id admin --email admin@example.com --display-name Admin --token-name initial-admin
+export KRONOS_TOKEN=<copy-once-admin-secret>
 ./bin/kronos token create --user admin --name ci --scope backup:read,backup:write
-export KRONOS_TOKEN=<copy-once-secret>
+export KRONOS_TOKEN=<copy-once-ci-secret>
 ./bin/kronos token verify
 ./bin/kronos --server http://127.0.0.1:8500 --token "$KRONOS_TOKEN" backup list
 ```

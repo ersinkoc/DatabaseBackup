@@ -218,7 +218,7 @@ Critical paths needing more coverage: corrupted/missing chunks, broader auth byp
 ### 🚫 Production Blockers
 
 1. The implementation violates the central no-shell-out database-driver requirement for PostgreSQL, MySQL/MariaDB, and MongoDB.
-2. Production auth is incomplete: no secure bootstrap/password/TOTP/OIDC/mTLS.
+2. Production auth is incomplete beyond initial bootstrap: no password login, enforced TOTP, OIDC, or mTLS.
 3. Secrets can persist in plaintext state and still have host-level exposure through env/temp-file patterns.
 4. PITR/incremental stream/replay paths are absent for the main SQL/document databases.
 5. PITR, gRPC, MCP, and several promised storage backends are missing.

@@ -54,18 +54,22 @@ In another terminal:
 
 ## 4. Create An Admin Token
 
-Local/no-token mode accepts unauthenticated requests, so bootstrap the first
-user and token from localhost:
+Bootstrap the first admin user and copy-once admin token:
 
 ```bash
-./bin/kronos user add --id admin --email admin@example.com --display-name Admin --role admin
-./bin/kronos token create --user admin --name local-cli --scope '*'
+./bin/kronos user bootstrap \
+  --id admin \
+  --email admin@example.com \
+  --display-name Admin \
+  --token-name local-cli
 export KRONOS_TOKEN=<copy-once-secret>
 ./bin/kronos token verify
 ```
 
 From this point on, the CLI sends the token automatically when
-`KRONOS_TOKEN` is set.
+`KRONOS_TOKEN` is set. The bootstrap endpoint only works while both the user
+and token stores are empty; later user and token changes require normal admin
+authorization.
 
 ## 5. Add Resources
 

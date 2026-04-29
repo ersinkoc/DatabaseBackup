@@ -684,6 +684,7 @@ func newServerHandlerWithStoresAuth(cfg *config.Config, registry *control.AgentR
 	}
 	startedAt := time.Now().UTC()
 	authLimiter := newAuthRateLimiter(authRateLimitSettings(cfg))
+	var bootstrapMu sync.Mutex
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		if !allowMethods(w, r, http.MethodGet, http.MethodHead) {
@@ -791,6 +792,14 @@ func newServerHandlerWithStoresAuth(cfg *config.Config, registry *control.AgentR
 			return
 		}
 		handleVerifyBearerToken(w, r, stores.tokens)
+	})
+	mux.HandleFunc("/api/v1/bootstrap/admin", func(w http.ResponseWriter, r *http.Request) {
+		if !allowMethods(w, r, http.MethodPost) {
+			return
+		}
+		bootstrapMu.Lock()
+		defer bootstrapMu.Unlock()
+		handleBootstrapAdmin(w, r, stores.users, stores.tokens, stores.audit)
 	})
 	mux.HandleFunc("/api/v1/tokens", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -2279,6 +2288,80 @@ func bearerToken(r *http.Request) (string, bool) {
 
 type grantUserRequest struct {
 	Role core.RoleName `json:"role"`
+}
+
+type bootstrapAdminRequest struct {
+	ID          core.ID `json:"id"`
+	Email       string  `json:"email"`
+	DisplayName string  `json:"display_name"`
+	TokenName   string  `json:"token_name"`
+}
+
+type bootstrapAdminResponse struct {
+	User  core.User            `json:"user"`
+	Token control.CreatedToken `json:"token"`
+}
+
+func handleBootstrapAdmin(w http.ResponseWriter, r *http.Request, users *control.UserStore, tokens *control.TokenStore, auditLog *kaudit.Log) {
+	if users == nil || tokens == nil {
+		http.Error(w, "bootstrap stores are not configured", http.StatusServiceUnavailable)
+		return
+	}
+	existingUsers, err := users.List()
+	if err != nil {
+		http.Error(w, "list users", http.StatusInternalServerError)
+		return
+	}
+	existingTokens, err := tokens.List()
+	if err != nil {
+		http.Error(w, "list tokens", http.StatusInternalServerError)
+		return
+	}
+	if len(existingUsers) > 0 || len(existingTokens) > 0 {
+		http.Error(w, "bootstrap is already complete", http.StatusConflict)
+		return
+	}
+	var request bootstrapAdminRequest
+	if err := decodeJSONRequest(w, r, &request); err != nil {
+		http.Error(w, "invalid bootstrap request", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(request.TokenName) == "" {
+		request.TokenName = "initial-admin"
+	}
+	now := time.Now().UTC()
+	user := core.User{
+		ID:          request.ID,
+		Email:       request.Email,
+		DisplayName: request.DisplayName,
+		Role:        core.RoleAdmin,
+	}
+	if user.ID.IsZero() {
+		id, err := core.NewID(core.RealClock{})
+		if err != nil {
+			http.Error(w, "create admin user id", http.StatusInternalServerError)
+			return
+		}
+		user.ID = id
+	}
+	user.CreatedAt, user.UpdatedAt = stampTimes(user.CreatedAt, now)
+	if err := users.Save(user); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	created, err := tokens.Create(request.TokenName, user.ID, roleScopes(core.RoleAdmin), time.Time{})
+	if err != nil {
+		_ = users.Delete(user.ID)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if handleAuditAppendError(w, appendAuditEvent(r, auditLog, "bootstrap.admin_created", "user", user.ID, map[string]any{
+		"token_id": created.Token.ID,
+		"role":     user.Role,
+	})) {
+		return
+	}
+	writeJSON(w, bootstrapAdminResponse{User: user, Token: created})
 }
 
 func handleListUsers(w http.ResponseWriter, store *control.UserStore) {

@@ -114,8 +114,9 @@ run.
 - Restore evidence artifacts are hash-addressed and stored independently from
   job records, so `/api/v1/jobs/{id}/evidence` remains available after job
   metadata pruning.
-- Scoped bearer tokens, role-capped token creation, token lifecycle operations,
-  request IDs, security headers, and mutation audit events.
+- First-admin bootstrap for empty user/token stores, scoped bearer tokens,
+  role-capped token creation, token lifecycle operations, request IDs, security
+  headers, and mutation audit events.
 - Health, readiness, metrics, OpenAPI, operations docs, deployment topology
   docs, single-replica Kubernetes deployment examples, restore drill docs,
   release verification docs, release scripts, provenance metadata, SBOM
