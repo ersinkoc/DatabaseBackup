@@ -95,6 +95,32 @@ func TestE2EWorkerRestoresRedisThroughControlPlane(t *testing.T) {
 	}
 }
 
+func TestE2EWorkerVerificationFailsWhenChunkMissing(t *testing.T) {
+	redisServer := startE2ERedisServer(t)
+	repoDir := t.TempDir()
+	stores := newE2EControlPlaneStores(t, redisServer.endpoint, repoDir)
+	server := httptest.NewServer(newServerHandlerWithStores(nil, nil, stores))
+	defer server.Close()
+
+	_, privateKey := newE2EKeys(t)
+	backupJob := enqueueE2EBackup(t, server, "target-redis", "storage-local")
+	done, cancel := startE2EWorker(t, server, privateKey, "agent-e2e")
+	backup := waitForE2EBackup(t, stores.backups, stores.jobs, done, backupJob.ID)
+	cancel()
+	expectE2EWorkerCanceled(t, done)
+
+	missingChunk := deleteFirstE2EChunkObject(t, repoDir)
+	verifyJob := enqueueE2EVerify(t, server, backup.ID, core.JobVerificationChunk)
+	done, cancel = startE2EWorker(t, server, privateKey, "agent-e2e")
+	failed := waitForE2EJobStatus(t, stores.jobs, done, verifyJob.ID, core.JobStatusFailed)
+	cancel()
+	expectE2EWorkerCanceled(t, done)
+
+	if failed.Operation != core.JobOperationVerify || !strings.Contains(failed.Error, missingChunk) {
+		t.Fatalf("failed verify job = %#v, want missing chunk %q", failed, missingChunk)
+	}
+}
+
 func TestE2EWorkerBacksUpAndRestoresPostgresThroughControlPlane(t *testing.T) {
 	restoreLog := installE2EPostgresTools(t)
 	repoDir := t.TempDir()
@@ -290,7 +316,7 @@ func TestE2EServerRestartFailsPersistedActiveJobs(t *testing.T) {
 	var out bytes.Buffer
 	err := serveControlPlaneWithOptions(ctx, &out, "127.0.0.1:0", &config.Config{
 		Server: config.ServerConfig{DataDir: dataDir},
-	}, controlPlaneOptions{OnListen: func(addr string) error {
+	}, controlPlaneOptions{InsecureNoAuth: true, OnListen: func(addr string) error {
 		defer cancel()
 		running := getE2EJob(t, "http://"+addr, "running-active")
 		if running.Status != core.JobStatusFailed || running.Error != "server_lost" {
@@ -374,6 +400,60 @@ func enqueueE2ERestore(t *testing.T, server *httptest.Server, backupID, targetID
 		t.Fatalf("restore response = %#v", response)
 	}
 	return response.Job
+}
+
+func enqueueE2EVerify(t *testing.T, server *httptest.Server, backupID core.ID, level core.JobVerificationLevel) core.Job {
+	t.Helper()
+
+	payload := fmt.Sprintf(`{"level":%q}`, level)
+	resp, err := server.Client().Post(server.URL+"/api/v1/backups/"+string(backupID)+"/verify", "application/json", strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("POST /api/v1/backups/%s/verify error = %v", backupID, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("POST /api/v1/backups/%s/verify status=%d body=%s", backupID, resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var job core.Job
+	if err := json.NewDecoder(resp.Body).Decode(&job); err != nil {
+		t.Fatalf("Decode(verify job) error = %v", err)
+	}
+	if job.ID.IsZero() || job.Operation != core.JobOperationVerify || job.VerifyLevel != level {
+		t.Fatalf("verify job = %#v", job)
+	}
+	return job
+}
+
+func deleteFirstE2EChunkObject(t *testing.T, repoDir string) string {
+	t.Helper()
+
+	dataDir := filepath.Join(repoDir, "data")
+	var deletedKey string
+	err := filepath.WalkDir(dataDir, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if strings.HasPrefix(entry.Name(), ".") {
+			return nil
+		}
+		rel, err := filepath.Rel(repoDir, path)
+		if err != nil {
+			return err
+		}
+		deletedKey = filepath.ToSlash(rel)
+		return os.Remove(path)
+	})
+	if err != nil {
+		t.Fatalf("delete first chunk object error = %v", err)
+	}
+	if deletedKey == "" {
+		t.Fatalf("no chunk object found under %s", dataDir)
+	}
+	return deletedKey
 }
 
 func seedE2EJobs(t *testing.T, dataDir string, jobs []core.Job) {
