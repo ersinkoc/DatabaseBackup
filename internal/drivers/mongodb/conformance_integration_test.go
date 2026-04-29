@@ -270,8 +270,13 @@ func queryMongoScalar(t *testing.T, ctx context.Context, target drivers.Target, 
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if value, ok := strings.CutPrefix(line, "KRONOS_RESULT:"); ok {
-			return strings.TrimSpace(value)
+		const marker = "KRONOS_RESULT:"
+		if index := strings.Index(line, marker); index >= 0 {
+			value := strings.TrimSpace(line[index+len(marker):])
+			if fields := strings.Fields(value); len(fields) > 0 {
+				return fields[0]
+			}
+			return value
 		}
 	}
 	return strings.TrimSpace(lines[len(lines)-1])
