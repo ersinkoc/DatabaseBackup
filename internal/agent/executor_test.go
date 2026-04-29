@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,7 @@ import (
 	kcrypto "github.com/kronos/kronos/internal/crypto"
 	"github.com/kronos/kronos/internal/drivers"
 	"github.com/kronos/kronos/internal/manifest"
+	"github.com/kronos/kronos/internal/secret"
 	"github.com/kronos/kronos/internal/storage"
 	"github.com/kronos/kronos/internal/storage/storagetest"
 )
@@ -382,7 +384,7 @@ func TestBackupExecutorSyncResources(t *testing.T) {
 				Driver:   core.TargetDriverRedis,
 				Endpoint: "127.0.0.1:6379",
 				Database: "0",
-				Options:  map[string]any{"tls": "disable", "username": "backup", "password": "secret"},
+				Options:  map[string]any{"tls": "disable", "username": "backup", "password": "${env:KRONOS_TEST_TARGET_PASSWORD}"},
 			}}})
 		case "/api/v1/storages":
 			writeTestJSON(t, w, storagesResponse{Storages: []core.Storage{{
@@ -390,6 +392,9 @@ func TestBackupExecutorSyncResources(t *testing.T) {
 				Name: "repo",
 				Kind: core.StorageKindLocal,
 				URI:  "file://" + storageRoot,
+				Options: map[string]any{
+					"secret_key": "${env:KRONOS_TEST_S3_SECRET}",
+				},
 			}}})
 		case "/api/v1/backups":
 			writeTestJSON(t, w, backupsResponse{Backups: []core.Backup{{
@@ -404,7 +409,16 @@ func TestBackupExecutorSyncResources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
-	executor := &BackupExecutor{}
+	executor := &BackupExecutor{SecretResolver: secret.ResolverFunc(func(ctx context.Context, ref secret.Reference) (string, error) {
+		switch ref.Path {
+		case "KRONOS_TEST_TARGET_PASSWORD":
+			return "secret", nil
+		case "KRONOS_TEST_S3_SECRET":
+			return "s3-secret", nil
+		default:
+			return "", core.WrapKind(core.ErrorKindNotFound, "lookup env", fmt.Errorf("environment variable %q is not set", ref.Path))
+		}
+	})}
 	if err := executor.SyncResources(context.Background(), client); err != nil {
 		t.Fatalf("SyncResources() error = %v", err)
 	}
@@ -412,11 +426,43 @@ func TestBackupExecutorSyncResources(t *testing.T) {
 	if target.Name != "redis" || target.Driver != "redis" || target.Connection["addr"] != "127.0.0.1:6379" || target.Connection["database"] != "0" || target.Connection["username"] != "backup" || target.Connection["password"] != "secret" || target.Options["tls"] != "disable" {
 		t.Fatalf("synced target = %#v", target)
 	}
+	if target.Options["password"] != "secret" {
+		t.Fatalf("target options password = %q, want resolved secret", target.Options["password"])
+	}
 	if backend := executor.Backends["storage-1"]; backend == nil || backend.Name() != "repo" {
 		t.Fatalf("synced backend = %#v", backend)
 	}
 	if backup := executor.Backups["backup-1"]; backup.ID != "backup-1" || backup.ManifestID != "manifest-1" {
 		t.Fatalf("synced backup = %#v", backup)
+	}
+}
+
+func TestBackupExecutorSyncResourcesRejectsMissingSecretReference(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/targets":
+			writeTestJSON(t, w, targetsResponse{Targets: []core.Target{{
+				ID: "target-1", Name: "redis", Driver: core.TargetDriverRedis, Endpoint: "127.0.0.1:6379",
+				Options: map[string]any{"password": "${env:KRONOS_MISSING_SECRET}"},
+			}}})
+		case "/api/v1/storages":
+			writeTestJSON(t, w, storagesResponse{Storages: nil})
+		case "/api/v1/backups":
+			writeTestJSON(t, w, backupsResponse{Backups: nil})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	client, err := NewClient(server.URL, server.Client())
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	err = (&BackupExecutor{}).SyncResources(context.Background(), client)
+	if err == nil || !strings.Contains(err.Error(), "target target-1 secrets") || !strings.Contains(err.Error(), "KRONOS_MISSING_SECRET") {
+		t.Fatalf("SyncResources() error = %v, want missing secret context", err)
 	}
 }
 

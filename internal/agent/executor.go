@@ -15,6 +15,7 @@ import (
 	"github.com/kronos/kronos/internal/engine"
 	"github.com/kronos/kronos/internal/manifest"
 	"github.com/kronos/kronos/internal/repository"
+	"github.com/kronos/kronos/internal/secret"
 	"github.com/kronos/kronos/internal/storage"
 	"github.com/kronos/kronos/internal/storage/local"
 	"github.com/kronos/kronos/internal/storage/s3"
@@ -38,6 +39,7 @@ type BackupExecutor struct {
 	PublicKey       ed25519.PublicKey
 	PrivateKey      ed25519.PrivateKey
 	Clock           core.Clock
+	SecretResolver  secret.Resolver
 }
 
 // SyncResources refreshes targets, storage backends, and backup metadata from the control plane.
@@ -54,6 +56,11 @@ func (e *BackupExecutor) SyncResources(ctx context.Context, client *Client) erro
 	}
 	targetMap := make(map[core.ID]drivers.Target, len(targets))
 	for _, target := range targets {
+		options, err := resolveResourceOptions(ctx, target.Options, e.SecretResolver)
+		if err != nil {
+			return fmt.Errorf("target %s secrets: %w", target.ID, err)
+		}
+		target.Options = options
 		targetMap[target.ID] = drivers.Target{
 			Name:       target.Name,
 			Driver:     string(target.Driver),
@@ -73,6 +80,11 @@ func (e *BackupExecutor) SyncResources(ctx context.Context, client *Client) erro
 	}
 	backendMap := make(map[core.ID]storage.Backend, len(storages))
 	for _, item := range storages {
+		options, err := resolveResourceOptions(ctx, item.Options, e.SecretResolver)
+		if err != nil {
+			return fmt.Errorf("storage %s secrets: %w", item.ID, err)
+		}
+		item.Options = options
 		backend, err := storageFactory(item)
 		if err != nil {
 			return fmt.Errorf("storage %s: %w", item.ID, err)
@@ -277,6 +289,37 @@ func optionString(options map[string]any, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func resolveResourceOptions(ctx context.Context, in map[string]any, resolver secret.Resolver) (map[string]any, error) {
+	if len(in) == 0 {
+		return in, nil
+	}
+	if resolver == nil {
+		resolver = secret.NewRegistry()
+	}
+	out := make(map[string]any, len(in))
+	for key, value := range in {
+		text, ok := value.(string)
+		if !ok {
+			out[key] = value
+			continue
+		}
+		ref, found, err := secret.ParsePlaceholder(strings.TrimSpace(text))
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", key, err)
+		}
+		if !found {
+			out[key] = value
+			continue
+		}
+		resolved, err := resolver.Resolve(ctx, ref)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", key, err)
+		}
+		out[key] = resolved
+	}
+	return out, nil
 }
 
 func optionBool(options map[string]any, keys ...string) bool {

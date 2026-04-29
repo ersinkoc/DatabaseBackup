@@ -193,6 +193,13 @@ placeholder, to encrypt sensitive target and storage option values in the
 control-plane state DB. Keep this passphrase stable and backed up; encrypted
 resource options fail closed if the server starts without it.
 
+For deployments with an external secret manager, store target/storage option
+values as full placeholders such as `${env:POSTGRES_PASSWORD}` or
+`${file:/run/secrets/s3.json#secret_key}`. The control plane persists the
+reference, and worker agents resolve it immediately before opening the
+database driver or storage backend. The referenced environment variable or file
+must exist on the agent host.
+
 ## Alert Rule Examples
 
 Use these Prometheus rules as a starting point and tune thresholds to match your

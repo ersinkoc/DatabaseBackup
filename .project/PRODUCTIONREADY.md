@@ -99,7 +99,7 @@ KV has WAL/repair coverage and server restart recovery for active jobs. Agent cr
 ### 3.5 Security Vulnerabilities Found
 
 1. **High** — Unauthenticated local/no-token mode is unsafe if bound outside loopback. Mitigation: require explicit insecure dev mode and refuse public binds without auth.
-2. **Reduced** — Plaintext persisted target/storage option secrets can now be encrypted with `server.master_passphrase`. Remaining risk: deployments must configure and back up the passphrase, and external secret references are still preferable for stricter environments.
+2. **Reduced** — Plaintext persisted target/storage option secrets can now be encrypted with `server.master_passphrase`, and agents can resolve full-value option placeholders at execution time. Remaining risk: deployments must configure and back up the passphrase, and first-class secret-reference validation is still missing.
 3. **Reduced** — PostgreSQL/MongoDB command-argument password exposure was fixed on 2026-04-29. Remaining risk is host-level exposure through environment variables and temporary config files until native drivers or stronger secret management land.
 4. **Medium** — WebUI token in localStorage. Mitigation: short-lived tokens, CSP hardening, possible memory-only storage or secure cookie design.
 

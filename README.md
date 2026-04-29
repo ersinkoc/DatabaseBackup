@@ -230,6 +230,9 @@ structured JSON/YAML selectors such as `${file:secrets.yaml#database.password}`.
 When `server.master_passphrase` is configured, sensitive target and storage
 option values are encrypted before being written to the control-plane state DB
 and decrypted on authorized reads.
+Agents also resolve full-value target/storage option placeholders at execution
+time, so API-created resources can store `${env:DB_PASSWORD}` or
+`${file:/run/secrets/s3.json#secret_key}` instead of raw credential values.
 
 ## Verify A Backup Manifest
 

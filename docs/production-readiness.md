@@ -120,6 +120,8 @@ run.
   request IDs, security headers, and mutation audit events.
 - Optional state DB encryption for sensitive target/storage option values via
   `server.master_passphrase`.
+- Agent-side resolution for full-value target/storage secret placeholders,
+  allowing API-created resources to persist references instead of raw secrets.
 - Health, readiness, metrics, OpenAPI, operations docs, deployment topology
   docs, single-replica Kubernetes deployment examples, restore drill docs,
   release verification docs, release scripts, provenance metadata, SBOM
