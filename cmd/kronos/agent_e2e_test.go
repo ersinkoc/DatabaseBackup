@@ -121,6 +121,32 @@ func TestE2EWorkerVerificationFailsWhenChunkMissing(t *testing.T) {
 	}
 }
 
+func TestE2EWorkerVerificationFailsWhenChunkCorrupt(t *testing.T) {
+	redisServer := startE2ERedisServer(t)
+	repoDir := t.TempDir()
+	stores := newE2EControlPlaneStores(t, redisServer.endpoint, repoDir)
+	server := httptest.NewServer(newServerHandlerWithStores(nil, nil, stores))
+	defer server.Close()
+
+	_, privateKey := newE2EKeys(t)
+	backupJob := enqueueE2EBackup(t, server, "target-redis", "storage-local")
+	done, cancel := startE2EWorker(t, server, privateKey, "agent-e2e")
+	backup := waitForE2EBackup(t, stores.backups, stores.jobs, done, backupJob.ID)
+	cancel()
+	expectE2EWorkerCanceled(t, done)
+
+	corruptChunk := corruptFirstE2EChunkObject(t, repoDir)
+	verifyJob := enqueueE2EVerify(t, server, backup.ID, core.JobVerificationChunk)
+	done, cancel = startE2EWorker(t, server, privateKey, "agent-e2e")
+	failed := waitForE2EJobStatus(t, stores.jobs, done, verifyJob.ID, core.JobStatusFailed)
+	cancel()
+	expectE2EWorkerCanceled(t, done)
+
+	if failed.Operation != core.JobOperationVerify || !strings.Contains(failed.Error, "decrypt chunk") {
+		t.Fatalf("failed verify job = %#v, want decrypt failure for %q", failed, corruptChunk)
+	}
+}
+
 func TestE2EWorkerBacksUpAndRestoresPostgresThroughControlPlane(t *testing.T) {
 	restoreLog := installE2EPostgresTools(t)
 	repoDir := t.TempDir()
@@ -428,8 +454,29 @@ func enqueueE2EVerify(t *testing.T, server *httptest.Server, backupID core.ID, l
 func deleteFirstE2EChunkObject(t *testing.T, repoDir string) string {
 	t.Helper()
 
+	key, path := firstE2EChunkObject(t, repoDir)
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("Remove(%s) error = %v", path, err)
+	}
+	return key
+}
+
+func corruptFirstE2EChunkObject(t *testing.T, repoDir string) string {
+	t.Helper()
+
+	key, path := firstE2EChunkObject(t, repoDir)
+	if err := os.WriteFile(path, []byte("not a valid encrypted chunk envelope"), 0o600); err != nil {
+		t.Fatalf("WriteFile(%s) error = %v", path, err)
+	}
+	return key
+}
+
+func firstE2EChunkObject(t *testing.T, repoDir string) (string, string) {
+	t.Helper()
+
 	dataDir := filepath.Join(repoDir, "data")
-	var deletedKey string
+	var foundKey string
+	var foundPath string
 	err := filepath.WalkDir(dataDir, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -444,16 +491,17 @@ func deleteFirstE2EChunkObject(t *testing.T, repoDir string) string {
 		if err != nil {
 			return err
 		}
-		deletedKey = filepath.ToSlash(rel)
-		return os.Remove(path)
+		foundKey = filepath.ToSlash(rel)
+		foundPath = path
+		return filepath.SkipAll
 	})
 	if err != nil {
-		t.Fatalf("delete first chunk object error = %v", err)
+		t.Fatalf("find first chunk object error = %v", err)
 	}
-	if deletedKey == "" {
+	if foundKey == "" {
 		t.Fatalf("no chunk object found under %s", dataDir)
 	}
-	return deletedKey
+	return foundKey, foundPath
 }
 
 func seedE2EJobs(t *testing.T, dataDir string, jobs []core.Job) {
