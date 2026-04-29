@@ -200,6 +200,19 @@ func TestCIWorkflowCoversMongoDBConformanceVersions(t *testing.T) {
 	}
 }
 
+func TestCIWorkflowPassesPostgresPasswordToContainerizedClients(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile(filepath.Join("..", ".github", "workflows", "ci.yml"))
+	if err != nil {
+		t.Fatalf("ReadFile(ci.yml) error = %v", err)
+	}
+	const want = "--network host --env PGPASSWORD \"postgres:${POSTGRES_VERSION:?}\""
+	if got := strings.Count(string(data), want); got != 4 {
+		t.Fatalf("PostgreSQL client wrappers with PGPASSWORD pass-through = %d, want 4", got)
+	}
+}
+
 func markdownFiles(t *testing.T, root string) []string {
 	t.Helper()
 

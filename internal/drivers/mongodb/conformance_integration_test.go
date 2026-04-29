@@ -247,8 +247,8 @@ func cleanupMongoDatabase(t *testing.T, ctx context.Context, target drivers.Targ
 func runMongoShell(t *testing.T, ctx context.Context, target drivers.Target, script string) {
 	t.Helper()
 
-	cmd := exec.CommandContext(ctx, "mongosh", "--quiet", mongoURI(target))
-	cmd.Stdin = strings.NewReader(script)
+	cmd := exec.CommandContext(ctx, "mongosh", "--quiet", mongoShellURI(target))
+	cmd.Stdin = strings.NewReader(mongoShellScript(target, script))
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	if out, err := cmd.Output(); err != nil {
@@ -259,7 +259,8 @@ func runMongoShell(t *testing.T, ctx context.Context, target drivers.Target, scr
 func queryMongoScalar(t *testing.T, ctx context.Context, target drivers.Target, script string) string {
 	t.Helper()
 
-	cmd := exec.CommandContext(ctx, "mongosh", "--quiet", mongoURI(target), "--eval", "print("+script+")")
+	cmd := exec.CommandContext(ctx, "mongosh", "--quiet", mongoShellURI(target))
+	cmd.Stdin = strings.NewReader(mongoShellScript(target, "print("+script+");"))
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -268,4 +269,33 @@ func queryMongoScalar(t *testing.T, ctx context.Context, target drivers.Target, 
 	}
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	return strings.TrimSpace(lines[len(lines)-1])
+}
+
+func mongoShellURI(target drivers.Target) string {
+	uri := mongoURI(target)
+	if strings.TrimSpace(mongoPassword(target)) == "" {
+		return uri
+	}
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return uri
+	}
+	parsed.User = nil
+	return parsed.String()
+}
+
+func mongoShellScript(target drivers.Target, script string) string {
+	username := strings.TrimSpace(firstNonEmpty(target.Connection["username"], target.Connection["user"]))
+	password := mongoPassword(target)
+	if username == "" || strings.TrimSpace(password) == "" {
+		return script
+	}
+	authSource := firstNonEmpty(
+		strings.TrimSpace(target.Connection["authSource"]),
+		strings.TrimSpace(target.Connection["auth_source"]),
+		strings.TrimSpace(target.Options["authSource"]),
+		strings.TrimSpace(target.Options["auth_source"]),
+		"admin",
+	)
+	return fmt.Sprintf("db.getSiblingDB(%q).auth(%q, %q);\n%s", authSource, username, password, script)
 }
