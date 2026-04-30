@@ -23,6 +23,13 @@ kubectl apply -k deploy/kubernetes/overlays/gke
 kubectl apply -k deploy/kubernetes/overlays/aks
 ```
 
+An immutable image digest overlay is available as a copyable production
+starting point:
+
+```bash
+kubectl apply -k deploy/kubernetes/overlays/immutable-image
+```
+
 These overlays keep the single-replica control-plane boundary and add
 provider-appropriate PVC storage classes plus workload identity service account
 placeholders.
@@ -42,7 +49,9 @@ kubectl -n kronos rollout status deployment/kronos-agent
 
 Before using this in production:
 
-- Replace `ghcr.io/kronosbackup/kronos:latest` with an immutable image digest.
+- Replace `ghcr.io/kronosbackup/kronos:latest` with an immutable image digest,
+  or copy the `images` block from
+  `overlays/immutable-image/kustomization.yaml` into your provider overlay.
 - Replace the sample `kronos.yaml` with your targets, storages, schedules, and
   auth settings.
 - Keep `replicas: 1` unless the state backend is moved to a shared,

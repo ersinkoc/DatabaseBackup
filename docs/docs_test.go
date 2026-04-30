@@ -123,6 +123,43 @@ func TestKubernetesManagedClusterOverlaysExist(t *testing.T) {
 	}
 }
 
+func TestKubernetesImmutableImageOverlayPinsDigest(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join("..", "deploy", "kubernetes", "overlays", "immutable-image")
+	for _, name := range []string{"README.md", "kustomization.yaml"} {
+		path := filepath.Join(root, name)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(%s) error = %v", path, err)
+		}
+		if len(data) == 0 {
+			t.Fatalf("%s is empty", path)
+		}
+	}
+	kustomization, err := os.ReadFile(filepath.Join(root, "kustomization.yaml"))
+	if err != nil {
+		t.Fatalf("ReadFile(immutable image kustomization) error = %v", err)
+	}
+	text := string(kustomization)
+	for _, want := range []string{
+		"images:",
+		"name: ghcr.io/kronosbackup/kronos",
+		"digest: sha256:",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("immutable image kustomization missing %q", want)
+		}
+	}
+	readme, err := os.ReadFile(filepath.Join("..", "deploy", "kubernetes", "README.md"))
+	if err != nil {
+		t.Fatalf("ReadFile(deploy/kubernetes/README.md) error = %v", err)
+	}
+	if !strings.Contains(string(readme), "overlays/immutable-image") {
+		t.Fatalf("deploy/kubernetes/README.md missing immutable-image overlay guidance")
+	}
+}
+
 func TestReleaseWorkflowPublishesArtifacts(t *testing.T) {
 	t.Parallel()
 
