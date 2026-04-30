@@ -409,15 +409,18 @@ freshness, capacity, and token cleanup thresholds to match the deployment.
    The signing check fails fast when `git config user.signingkey` is missing,
    the configured GPG secret key is unavailable, the release tag already exists
    locally or on `origin`, or a temporary signed probe tag cannot be created and
-   verified. The `release` workflow runs the full Go test suite, builds the default
-   linux/darwin amd64/arm64 binaries through `scripts/release.sh`, verifies all
-   checksums, writes `bin/kronos-provenance.json` and
-   `bin/kronos-sbom.json`, signs binaries plus provenance/SBOM metadata with
-   keyless cosign signatures, verifies checksums, verifies SBOM module coverage
-   and `govulncheck` vulnerability status, verifies those signatures against the GitHub
-   Actions OIDC issuer and release workflow identity, creates GitHub build
-   provenance and SBOM attestations for the release binaries, uploads workflow
-   artifacts, and publishes the tag assets to the GitHub release.
+   verified. Also run `./scripts/check-release-workflow-prereqs.sh`; it fails if
+   the `KRONOS_RELEASE_TAG_PUBLIC_KEY` repository secret needed by release
+   evidence archival is missing. The `release` workflow runs the full Go test
+   suite, builds the default linux/darwin amd64/arm64 binaries through
+   `scripts/release.sh`, verifies all checksums, writes
+   `bin/kronos-provenance.json` and `bin/kronos-sbom.json`, signs binaries plus
+   provenance/SBOM metadata with keyless cosign signatures, verifies checksums,
+   verifies SBOM module coverage and `govulncheck` vulnerability status,
+   verifies those signatures against the GitHub Actions OIDC issuer and release
+   workflow identity, creates GitHub build provenance and SBOM attestations for
+   the release binaries, uploads workflow artifacts, and publishes the tag assets
+   to the GitHub release.
 
    To verify downloaded release signatures outside CI, install `cosign` and run:
 

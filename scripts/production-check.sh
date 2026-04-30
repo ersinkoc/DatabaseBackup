@@ -39,6 +39,7 @@ sh -n scripts/release.sh
 sh -n scripts/provenance.sh
 sh -n scripts/archive-release-evidence.sh
 sh -n scripts/check-release-signing.sh
+sh -n scripts/check-release-workflow-prereqs.sh
 sh -n scripts/release-rehearsal.sh
 sh -n scripts/sign-release.sh
 sh -n scripts/sbom.sh

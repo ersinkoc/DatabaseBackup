@@ -12,11 +12,14 @@ anything:
 
 ```bash
 ./scripts/check-release-signing.sh <tag>
+./scripts/check-release-workflow-prereqs.sh
 ```
 
 This confirms `user.signingkey` is configured, the matching GPG secret key is
 available, the tag is not already present locally or on `origin`, and a
-temporary signed probe tag can be created and verified.
+temporary signed probe tag can be created and verified. The workflow preflight
+confirms the tagged-release workflow can import the trusted tag-signing public
+key from `KRONOS_RELEASE_TAG_PUBLIC_KEY`.
 
 After pushing the release tag, verify the signed tag object from `origin`:
 
