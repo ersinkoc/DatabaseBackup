@@ -92,4 +92,6 @@ summary="$evidence_dir/summary.txt"
 	echo "digests=artifact-digests.txt"
 } >"$summary"
 
+./scripts/verify-release-evidence.sh "$evidence_dir" >/dev/null
+
 echo "release evidence archived in $evidence_dir"

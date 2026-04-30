@@ -107,12 +107,15 @@ artifact digest verification logs, run:
 
 ```bash
 KRONOS_RELEASE_TAG=<tag> ./scripts/archive-release-evidence.sh bin release-evidence/<tag>
+./scripts/verify-release-evidence.sh release-evidence/<tag>
 ```
 
 Set `GH_ATTESTATION_REPO=ersinkoc/Kronos` to include GitHub provenance and SBOM
 attestation verification output in the same evidence directory. When
 `KRONOS_RELEASE_TAG` is set, the archive also captures `git verify-tag` output
-from `./scripts/verify-release-tag.sh`.
+from `./scripts/verify-release-tag.sh`. Set `KRONOS_REQUIRE_ATTESTATIONS=1`
+when verifying production promotion evidence that must include GitHub
+attestation logs.
 
 To rehearse the full consumer-side verification path from GitHub release assets,
 run:

@@ -42,6 +42,7 @@ sh -n scripts/check-release-signing.sh
 sh -n scripts/release-rehearsal.sh
 sh -n scripts/sign-release.sh
 sh -n scripts/sbom.sh
+sh -n scripts/verify-release-evidence.sh
 sh -n scripts/verify-release-tag.sh
 sh -n scripts/verify-sbom.sh
 sh -n scripts/verify-signatures.sh

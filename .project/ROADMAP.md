@@ -85,7 +85,7 @@ Kronos has a strong core: CLI, HTTP control plane, agent worker, persistent KV s
 
 ### Final production preparation
 
-- [ ] Run signed-tag release rehearsal and archive checksum/signature/attestation evidence.
+- [ ] Run signed-tag release rehearsal and archive checksum/signature/tag-signature/attestation evidence.
 - [ ] Add immutable image digest guidance and example overlays.
 - [ ] Add systemd units if bare-metal Linux is a supported production target.
 - [ ] Add rollback procedure for state DB and binary upgrades.

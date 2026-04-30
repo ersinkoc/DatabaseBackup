@@ -425,12 +425,16 @@ groups:
    with:
 
    ```bash
+   KRONOS_RELEASE_TAG=v1.2.3 \
    GH_ATTESTATION_REPO=ersinkoc/Kronos \
      ./scripts/archive-release-evidence.sh bin release-evidence/v1.2.3
+   KRONOS_REQUIRE_ATTESTATIONS=1 \
+     ./scripts/verify-release-evidence.sh release-evidence/v1.2.3
    ```
 
-   Set `KRONOS_RELEASE_TAG=v1.2.3` when archiving a promoted release so the
-   evidence directory includes `tag-signature.log` from `git verify-tag`.
+   `KRONOS_RELEASE_TAG` makes the evidence directory include
+   `tag-signature.log` from `git verify-tag`; `KRONOS_REQUIRE_ATTESTATIONS=1`
+   fails verification if GitHub attestation logs were not captured.
 
 3. Drain new work by pausing schedules that should not run during the upgrade:
 
