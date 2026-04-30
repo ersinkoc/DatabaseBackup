@@ -1,5 +1,6 @@
 .tools/
 bin/
+release-evidence/
 web/dist/
 web/node_modules/
 web/*.tsbuildinfo

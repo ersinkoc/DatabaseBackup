@@ -125,5 +125,10 @@ run:
 ./scripts/release-rehearsal.sh <tag> release-evidence/<tag>
 ```
 
+`release-evidence/` is ignored by Git because it contains generated release
+artifacts and verification logs. Attach the verified evidence directory to the
+promotion ticket or store it in the release evidence archive used for deployment
+approvals.
+
 Do not promote a release if any checksum, SBOM, vulnerability, signature, or
 attestation check fails.
