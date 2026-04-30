@@ -85,6 +85,84 @@ func TestDriverBackupFullUsesMongoDumpArchive(t *testing.T) {
 	}
 }
 
+func TestDriverBackupFullUsesOplogReplicaSetArchive(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeRunner{outputs: [][]byte{[]byte("archive-with-oplog")}}
+	driver := &Driver{runner: runner}
+	target := drivers.Target{
+		Connection: map[string]string{
+			"addr":     "mongo.example:27018",
+			"username": "backup",
+			"password": "secret",
+		},
+		Options: map[string]string{"authSource": "admin", "oplog": "true"},
+	}
+	var stream drivers.MemoryRecordStream
+	rp, err := driver.BackupFull(context.Background(), target, &stream)
+	if err != nil {
+		t.Fatalf("BackupFull() error = %v", err)
+	}
+	if rp.Driver != "mongodb" || rp.Position != "mongodump:archive+oplog" {
+		t.Fatalf("ResumePoint = %#v", rp)
+	}
+	if len(runner.calls) != 1 || runner.calls[0].name != "mongodump" {
+		t.Fatalf("calls = %#v", runner.calls)
+	}
+	args := strings.Join(runner.calls[0].args, " ")
+	for _, want := range []string{"--config ", "--archive", "--oplog"} {
+		if !strings.Contains(args, want) {
+			t.Fatalf("mongodump args = %q, missing %q", args, want)
+		}
+	}
+	if strings.Contains(args, "--db") {
+		t.Fatalf("oplog mongodump args = %q, must not include --db", args)
+	}
+	if !strings.Contains(runner.calls[0].config, `uri: "mongodb://backup@mongo.example:27018/?authSource=admin"`) {
+		t.Fatalf("mongodump config = %q, want deployment-scoped URI", runner.calls[0].config)
+	}
+	records := stream.Records()
+	if len(records) != 2 ||
+		records[0].Object.Kind != deploymentObjectKind ||
+		records[0].Object.Name != "replica-set" ||
+		string(records[0].Payload) != "archive-with-oplog" ||
+		!records[1].Done {
+		t.Fatalf("records = %#v", records)
+	}
+}
+
+func TestDriverBackupFullRejectsDatabaseScopedOplogTarget(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeRunner{}
+	driver := &Driver{runner: runner}
+	target := drivers.Target{
+		Connection: map[string]string{"database": "app"},
+		Options:    map[string]string{"oplog": "true"},
+	}
+	var stream drivers.MemoryRecordStream
+	_, err := driver.BackupFull(context.Background(), target, &stream)
+	if err == nil || !strings.Contains(err.Error(), "full replica-set dump") {
+		t.Fatalf("BackupFull() error = %v, want full replica-set dump guard", err)
+	}
+}
+
+func TestDriverBackupFullRejectsURIPathScopedOplogTarget(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeRunner{}
+	driver := &Driver{runner: runner}
+	target := drivers.Target{
+		Connection: map[string]string{"uri": "mongodb://backup:secret@mongo.example:27018/app?authSource=admin"},
+		Options:    map[string]string{"oplog": "true"},
+	}
+	var stream drivers.MemoryRecordStream
+	_, err := driver.BackupFull(context.Background(), target, &stream)
+	if err == nil || !strings.Contains(err.Error(), `remove database "app"`) {
+		t.Fatalf("BackupFull() error = %v, want URI database scope guard", err)
+	}
+}
+
 func TestDriverBackupFullRequiresWriter(t *testing.T) {
 	t.Parallel()
 
@@ -114,6 +192,52 @@ func TestDriverRestoreUsesMongoRestoreArchive(t *testing.T) {
 		if !strings.Contains(args, want) {
 			t.Fatalf("mongorestore args = %q, missing %q", args, want)
 		}
+	}
+}
+
+func TestDriverRestoreUsesOplogReplayForReplicaSetArchive(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeRunner{outputs: [][]byte{[]byte("restore ok")}}
+	driver := &Driver{runner: runner}
+	var stream drivers.MemoryRecordStream
+	if err := stream.WriteRecord(drivers.ObjectRef{Name: "replica-set", Kind: deploymentObjectKind}, []byte("archive-bytes")); err != nil {
+		t.Fatalf("WriteRecord() error = %v", err)
+	}
+	target := drivers.Target{Connection: map[string]string{"addr": "mongo.example:27018"}}
+	if err := driver.Restore(context.Background(), target, &stream, drivers.RestoreOptions{ReplaceExisting: true}); err != nil {
+		t.Fatalf("Restore() error = %v", err)
+	}
+	if len(runner.calls) != 1 || runner.calls[0].name != "mongorestore" || string(runner.calls[0].stdin) != "archive-bytes" {
+		t.Fatalf("calls = %#v", runner.calls)
+	}
+	args := strings.Join(runner.calls[0].args, " ")
+	for _, want := range []string{"--uri mongodb://mongo.example:27018/", "--archive", "--drop", "--oplogReplay"} {
+		if !strings.Contains(args, want) {
+			t.Fatalf("mongorestore args = %q, missing %q", args, want)
+		}
+	}
+	if strings.Contains(args, "--nsFrom") || strings.Contains(args, "--nsTo") {
+		t.Fatalf("oplog mongorestore args = %q, must not rewrite namespaces", args)
+	}
+}
+
+func TestDriverRestoreRejectsDatabaseScopedOplogTarget(t *testing.T) {
+	t.Parallel()
+
+	runner := &fakeRunner{}
+	driver := &Driver{runner: runner}
+	var stream drivers.MemoryRecordStream
+	if err := stream.WriteRecord(drivers.ObjectRef{Name: "replica-set", Kind: deploymentObjectKind}, []byte("archive-bytes")); err != nil {
+		t.Fatalf("WriteRecord() error = %v", err)
+	}
+	target := drivers.Target{Connection: map[string]string{"database": "target"}}
+	err := driver.Restore(context.Background(), target, &stream, drivers.RestoreOptions{ReplaceExisting: true})
+	if err == nil || !strings.Contains(err.Error(), "full replica-set target") {
+		t.Fatalf("Restore() error = %v, want full replica-set target guard", err)
+	}
+	if len(runner.calls) != 0 {
+		t.Fatalf("guarded restore calls = %#v", runner.calls)
 	}
 }
 

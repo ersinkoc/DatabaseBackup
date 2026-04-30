@@ -172,8 +172,9 @@ broad multi-database production suite. The largest remaining areas are:
   MySQL/MariaDB restore drills, and a MongoDB `mongodump`/`mongorestore`
   archive MVP with unit coverage for restore guardrails and failed restore
   temp-config cleanup, authenticated MongoDB 7.0/8.0 real-service conformance,
-  and an authenticated MongoDB 7.0 10,000-document restore drill. MongoDB still
-  needs replica-set/oplog recovery coverage.
+  an authenticated MongoDB 7.0 10,000-document restore drill, and unit-covered
+  replica-set `--oplog` / `--oplogReplay` command wiring. MongoDB still needs a
+  real replica-set/oplog recovery drill in CI.
 - Additional storage backends such as SFTP, Azure Blob, and Google Cloud
   Storage. Current executable backends are local filesystem and S3-compatible
   object storage.

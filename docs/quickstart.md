@@ -124,9 +124,12 @@ backup/restore MVP that shells out to `mongodump` and `mongorestore` archive
 streams; install MongoDB Database Tools on worker agents before using it.
 MongoDB passwords are written to a 0600 temporary Database Tools `--config`
 file so the process list contains only the config path, not the secret.
-MongoDB restores also require explicit replace-existing intent. CI exercises
-this path against MongoDB 7.0 and 8.0 with real-service backup/restore
-conformance, plus a MongoDB 7.0 10,000-document restore drill.
+MongoDB restores also require explicit replace-existing intent. Set
+`oplog=true` in target options only for full replica-set backups; MongoDB
+Database Tools reject `--oplog` for database-scoped dumps, so Kronos rejects
+targets that combine both. CI exercises the database-scoped archive path
+against MongoDB 7.0 and 8.0 with real-service backup/restore conformance, plus
+a MongoDB 7.0 10,000-document restore drill.
 
 ## 6. Run A Backup
 

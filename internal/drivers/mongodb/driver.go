@@ -16,7 +16,10 @@ import (
 	"github.com/kronos/kronos/internal/manifest"
 )
 
-const databaseObjectKind = "database"
+const (
+	databaseObjectKind   = "database"
+	deploymentObjectKind = "deployment"
+)
 
 // Driver implements MongoDB logical backups with mongodump archive output.
 type Driver struct {
@@ -50,7 +53,7 @@ func (d *Driver) Version(ctx context.Context, target drivers.Target) (string, er
 
 // Test validates that mongodump can connect to the target database.
 func (d *Driver) Test(ctx context.Context, target drivers.Target) error {
-	args, cleanup, err := mongoDumpArgs(target)
+	args, cleanup, err := mongoDatabaseDumpArgs(target)
 	if err != nil {
 		return err
 	}
@@ -65,7 +68,6 @@ func (d *Driver) BackupFull(ctx context.Context, target drivers.Target, w driver
 	if w == nil {
 		return drivers.ResumePoint{}, fmt.Errorf("record writer is required")
 	}
-	database := databaseName(target)
 	args, cleanup, err := mongoDumpArgs(target)
 	if err != nil {
 		return drivers.ResumePoint{}, err
@@ -75,14 +77,18 @@ func (d *Driver) BackupFull(ctx context.Context, target drivers.Target, w driver
 	if err != nil {
 		return drivers.ResumePoint{}, err
 	}
-	obj := drivers.ObjectRef{Name: database, Kind: databaseObjectKind}
+	obj := mongoBackupObject(target)
 	if err := w.WriteRecord(obj, payload); err != nil {
 		return drivers.ResumePoint{}, err
 	}
 	if err := w.FinishObject(obj, 0); err != nil {
 		return drivers.ResumePoint{}, err
 	}
-	return drivers.ResumePoint{Driver: d.Name(), Position: "mongodump:archive"}, nil
+	position := "mongodump:archive"
+	if mongoOplogEnabled(target) {
+		position += "+oplog"
+	}
+	return drivers.ResumePoint{Driver: d.Name(), Position: position}, nil
 }
 
 // BackupIncremental is not supported by mongodump logical backups.
@@ -109,7 +115,7 @@ func (d *Driver) Restore(ctx context.Context, target drivers.Target, r drivers.R
 		if err != nil {
 			return err
 		}
-		if record.Done || record.Object.Kind != databaseObjectKind {
+		if record.Done || (record.Object.Kind != databaseObjectKind && record.Object.Kind != deploymentObjectKind) {
 			continue
 		}
 		if opts.DryRun {
@@ -118,7 +124,13 @@ func (d *Driver) Restore(ctx context.Context, target drivers.Target, r drivers.R
 		if !opts.ReplaceExisting {
 			return fmt.Errorf("mongodb restore requires replace_existing=true because archive restore can overwrite existing collections")
 		}
-		args, cleanup, err := mongoRestoreArgs(target, record.Object.Name)
+		replayOplog := record.Object.Kind == deploymentObjectKind
+		if replayOplog {
+			if database, ok := mongoDatabaseScope(target); ok && database != "" {
+				return fmt.Errorf("mongodb oplog restores require a full replica-set target; remove database %q from the target", database)
+			}
+		}
+		args, cleanup, err := mongoRestoreArgs(target, record.Object.Name, replayOplog)
 		if err != nil {
 			return err
 		}
@@ -162,6 +174,20 @@ func (execRunner) Run(ctx context.Context, name string, args []string, stdin []b
 }
 
 func mongoDumpArgs(target drivers.Target) ([]string, func(), error) {
+	if mongoOplogEnabled(target) {
+		if database, ok := mongoDatabaseScope(target); ok && database != "" {
+			return nil, nil, fmt.Errorf("mongodb oplog backups require a full replica-set dump; remove database %q from the target", database)
+		}
+		args, cleanup, err := mongoDeploymentConnectionArgs(target)
+		if err != nil {
+			return nil, nil, err
+		}
+		return append(args, "--archive", "--oplog"), cleanup, nil
+	}
+	return mongoDatabaseDumpArgs(target)
+}
+
+func mongoDatabaseDumpArgs(target drivers.Target) ([]string, func(), error) {
 	args, cleanup, err := mongoConnectionArgs(target)
 	if err != nil {
 		return nil, nil, err
@@ -169,25 +195,46 @@ func mongoDumpArgs(target drivers.Target) ([]string, func(), error) {
 	return append(args, "--db", databaseName(target), "--archive"), cleanup, nil
 }
 
-func mongoRestoreArgs(target drivers.Target, sourceDatabase string) ([]string, func(), error) {
-	args, cleanup, err := mongoConnectionArgs(target)
+func mongoRestoreArgs(target drivers.Target, sourceDatabase string, replayOplog bool) ([]string, func(), error) {
+	connectionArgs := mongoConnectionArgs
+	if replayOplog {
+		connectionArgs = mongoDeploymentConnectionArgs
+	}
+	args, cleanup, err := connectionArgs(target)
 	if err != nil {
 		return nil, nil, err
 	}
 	args = append(args, "--archive", "--drop")
+	if replayOplog {
+		args = append(args, "--oplogReplay")
+	}
 	targetDatabase := databaseName(target)
-	if sourceDatabase != "" && targetDatabase != "" && sourceDatabase != targetDatabase {
+	if !replayOplog && sourceDatabase != "" && targetDatabase != "" && sourceDatabase != targetDatabase {
 		args = append(args, "--nsFrom", sourceDatabase+".*", "--nsTo", targetDatabase+".*")
 	}
 	return args, cleanup, nil
 }
 
-func mongoConnectionArgs(target drivers.Target) ([]string, func(), error) {
-	password := mongoPassword(target)
-	if strings.TrimSpace(password) == "" {
-		return []string{"--uri", mongoURI(target)}, func() {}, nil
+func mongoBackupObject(target drivers.Target) drivers.ObjectRef {
+	if mongoOplogEnabled(target) {
+		return drivers.ObjectRef{Name: "replica-set", Kind: deploymentObjectKind}
 	}
-	path, err := writeMongoConfig(mongoURI(target), password)
+	return drivers.ObjectRef{Name: databaseName(target), Kind: databaseObjectKind}
+}
+
+func mongoConnectionArgs(target drivers.Target) ([]string, func(), error) {
+	return mongoConnectionArgsForURI(mongoURI(target), mongoPassword(target))
+}
+
+func mongoDeploymentConnectionArgs(target drivers.Target) ([]string, func(), error) {
+	return mongoConnectionArgsForURI(mongoDeploymentURI(target), mongoPassword(target))
+}
+
+func mongoConnectionArgsForURI(uri string, password string) ([]string, func(), error) {
+	if strings.TrimSpace(password) == "" {
+		return []string{"--uri", uri}, func() {}, nil
+	}
+	path, err := writeMongoConfig(uri, password)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -219,6 +266,47 @@ func mongoURI(target drivers.Target) string {
 		Scheme: "mongodb",
 		Host:   net.JoinHostPort(host, port),
 		Path:   "/" + database,
+	}
+	username := firstNonEmpty(target.Connection["username"], target.Connection["user"])
+	if username != "" {
+		u.User = url.User(username)
+	}
+	query := u.Query()
+	if authSource := strings.TrimSpace(firstNonEmpty(target.Connection["authSource"], target.Connection["auth_source"], target.Options["authSource"], target.Options["auth_source"])); authSource != "" {
+		query.Set("authSource", authSource)
+	}
+	tlsMode := strings.ToLower(strings.TrimSpace(firstNonEmpty(target.Connection["tls"], target.Options["tls"], target.Connection["ssl"], target.Options["ssl"])))
+	switch tlsMode {
+	case "true", "on", "require", "required":
+		query.Set("tls", "true")
+	case "false", "off", "disable", "disabled":
+		query.Set("tls", "false")
+	}
+	u.RawQuery = query.Encode()
+	return u.String()
+}
+
+func mongoDeploymentURI(target drivers.Target) string {
+	if value := strings.TrimSpace(firstNonEmpty(target.Connection["uri"], target.Connection["dsn"], target.Options["uri"], target.Options["dsn"])); value != "" {
+		return mongoURIWithoutDatabase(mongoURIWithoutPassword(value))
+	}
+	host, port := splitAddress(target.Connection["addr"])
+	if value := strings.TrimSpace(target.Connection["host"]); value != "" {
+		host = value
+	}
+	if value := strings.TrimSpace(target.Connection["port"]); value != "" {
+		port = value
+	}
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	if port == "" {
+		port = "27017"
+	}
+	u := url.URL{
+		Scheme: "mongodb",
+		Host:   net.JoinHostPort(host, port),
+		Path:   "/",
 	}
 	username := firstNonEmpty(target.Connection["username"], target.Connection["user"])
 	if username != "" {
@@ -290,6 +378,16 @@ func mongoURIWithoutPassword(value string) string {
 	return u.String()
 }
 
+func mongoURIWithoutDatabase(value string) string {
+	u, err := url.Parse(strings.TrimSpace(value))
+	if err != nil {
+		return value
+	}
+	u.Path = "/"
+	u.RawPath = ""
+	return u.String()
+}
+
 func passwordFromURL(value string) string {
 	u, err := url.Parse(strings.TrimSpace(value))
 	if err != nil || u.User == nil {
@@ -300,13 +398,65 @@ func passwordFromURL(value string) string {
 }
 
 func databaseName(target drivers.Target) string {
-	if value := strings.TrimSpace(target.Connection["database"]); value != "" {
-		return value
-	}
-	if value := strings.TrimSpace(target.Options["database"]); value != "" {
+	if value, ok := configuredDatabaseName(target); ok {
 		return value
 	}
 	return "admin"
+}
+
+func configuredDatabaseName(target drivers.Target) (string, bool) {
+	if value := strings.TrimSpace(target.Connection["database"]); value != "" {
+		return value, true
+	}
+	if value := strings.TrimSpace(target.Options["database"]); value != "" {
+		return value, true
+	}
+	return "", false
+}
+
+func mongoDatabaseScope(target drivers.Target) (string, bool) {
+	if value, ok := configuredDatabaseName(target); ok {
+		return value, true
+	}
+	for _, value := range []string{target.Connection["uri"], target.Connection["dsn"], target.Options["uri"], target.Options["dsn"]} {
+		if database, ok := databasePathFromURI(value); ok {
+			return database, true
+		}
+	}
+	return "", false
+}
+
+func databasePathFromURI(value string) (string, bool) {
+	u, err := url.Parse(strings.TrimSpace(value))
+	if err != nil {
+		return "", false
+	}
+	database := strings.Trim(strings.TrimSpace(u.EscapedPath()), "/")
+	if database == "" {
+		return "", false
+	}
+	unescaped, err := url.PathUnescape(database)
+	if err != nil {
+		return database, true
+	}
+	return unescaped, true
+}
+
+func mongoOplogEnabled(target drivers.Target) bool {
+	value := strings.ToLower(strings.TrimSpace(firstNonEmpty(
+		target.Connection["oplog"],
+		target.Connection["oplog_backup"],
+		target.Connection["consistent_snapshot"],
+		target.Options["oplog"],
+		target.Options["oplog_backup"],
+		target.Options["consistent_snapshot"],
+	)))
+	switch value {
+	case "true", "1", "yes", "on", "require", "required":
+		return true
+	default:
+		return false
+	}
 }
 
 func connectionTestCollection(target drivers.Target) string {

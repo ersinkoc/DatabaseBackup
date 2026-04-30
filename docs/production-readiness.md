@@ -100,12 +100,14 @@ run.
   restore rehearsals verify larger 1,500-row indexed JSON datasets across
   engines. Dedicated MySQL 8.4 and MariaDB 11.4 operator-scale restore drills
   verify 10,000 indexed JSON rows across separate source and target services.
-- MongoDB logical driver MVP using `mongodump --archive` for full backups and
-  `mongorestore --archive --drop` for restores, with unit coverage for target
-  tests, archive records, namespace remapping, replace-existing guardrails,
-  dry-run behavior, failed restore error propagation and temp-config cleanup,
-  process-list password exposure avoidance through 0600
-  temporary Database Tools `--config` files, and unsupported incremental/oplog paths. CI now runs
+- MongoDB logical driver MVP using `mongodump --archive` for database-scoped
+  full backups and `mongorestore --archive --drop` for restores, with unit
+  coverage for target tests, archive records, namespace remapping,
+  replace-existing guardrails, dry-run behavior, failed restore error
+  propagation and temp-config cleanup, process-list password exposure avoidance
+  through 0600 temporary Database Tools `--config` files, and an opt-in
+  full replica-set `mongodump --oplog` / `mongorestore --oplogReplay` command
+  path. CI now runs
   authenticated MongoDB 7.0/8.0 real-service conformance with archive
   backup/restore into a remapped database, indexed document count/checksum
   verification, and an authenticated MongoDB 7.0 10,000-document restore drill

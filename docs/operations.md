@@ -346,6 +346,10 @@ groups:
    separate MongoDB service. MongoDB non-dry-run restores require explicit
    replace-existing intent and replay through `mongorestore --archive --drop`
    with namespace remapping when the source and target database names differ.
+   MongoDB full replica-set snapshots can opt into `mongodump --oplog` by
+   setting target option `oplog=true`; this mode must not be combined with a
+   database-scoped target and restores replay the archive with
+   `mongorestore --oplogReplay`.
    Runtime commands pass MongoDB secrets through a 0600 temporary Database Tools
    `--config` file so process listings contain only the config path.
    Set `KRONOS_MONGODB_TEST_USER`, `KRONOS_MONGODB_TEST_PASSWORD`, and
