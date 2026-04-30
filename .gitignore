@@ -1,4 +1,5 @@
 .tools/
+.kronos-local/
 bin/
 release-evidence/
 web/dist/

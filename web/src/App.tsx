@@ -2,30 +2,73 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Activity,
   Archive,
-  Bell,
   CheckCircle2,
   Clock3,
+  Cloud,
   Database,
+  Folder,
   HardDrive,
   KeyRound,
+  Layers,
   Pencil,
   Plus,
   Play,
   RotateCcw,
   Save,
-  Search,
+  Server,
   ShieldCheck,
   TriangleAlert,
 } from "lucide-react";
 import { Button } from "./components/ui/button";
 
+type View = "dashboard" | "jobs" | "targets" | "storage" | "backups" | "automation";
+type SetupStepID = "target" | "storage" | "backup";
+type ChoiceOption = {
+  value: string;
+  label: string;
+  description: string;
+  icon: typeof Activity;
+};
+
 const navItems = [
-  { label: "Dashboard", icon: Activity, active: true },
-  { label: "Targets", icon: Database },
-  { label: "Backups", icon: Archive },
-  { label: "Storage", icon: HardDrive },
-  { label: "Keys", icon: KeyRound },
-];
+  { label: "Start", icon: Activity, view: "dashboard" },
+  { label: "Jobs", icon: Clock3, view: "jobs" },
+  { label: "Targets", icon: Database, view: "targets" },
+  { label: "Storage", icon: HardDrive, view: "storage" },
+  { label: "Backups", icon: Archive, view: "backups" },
+  { label: "Automation", icon: ShieldCheck, view: "automation" },
+] satisfies Array<{ label: string; icon: typeof Activity; view: View }>;
+
+const viewTitles: Record<View, { title: string; subtitle: string }> = {
+  dashboard: { title: "Start", subtitle: "Set up Kronos in three quick steps" },
+  jobs: { title: "Jobs", subtitle: "Queue, failures, retries, and details" },
+  targets: { title: "Targets", subtitle: "Databases Kronos can back up" },
+  storage: { title: "Storage", subtitle: "Repositories where backups are written" },
+  backups: { title: "Backups", subtitle: "Recovery points, verification, and restore" },
+  automation: { title: "Automation", subtitle: "Schedules and retention policies" },
+};
+
+const viewHelp: Record<View, string> = {
+  dashboard: "Add a target, add storage, then run the first backup. The wizard below keeps the path short.",
+  jobs: "Select a job to inspect errors, evidence, retry, and cancel controls.",
+  targets: "A target is a database Kronos protects. Redis, PostgreSQL, MySQL/MariaDB, and MongoDB can be registered.",
+  storage: "Storage is where backup data is written. Local filesystem and S3-compatible repositories are supported.",
+  backups: "Inspect completed backups, protect important recovery points, verify metadata, or preview restores.",
+  automation: "Create schedules for recurring backups and retention policies for pruning old recovery points.",
+};
+
+const driverChoices = [
+  { value: "redis", label: "Redis", description: "Fast key-value stores and Valkey-compatible targets.", icon: Activity },
+  { value: "postgres", label: "PostgreSQL", description: "Logical pg_dump and psql based backup flow.", icon: Database },
+  { value: "mysql", label: "MySQL", description: "mysqldump/mysql logical backup and restore.", icon: Server },
+  { value: "mariadb", label: "MariaDB", description: "MariaDB-compatible logical dump workflow.", icon: Layers },
+  { value: "mongodb", label: "MongoDB", description: "Archive backups through MongoDB database tools.", icon: Archive },
+] satisfies ChoiceOption[];
+
+const storageKindChoices = [
+  { value: "local", label: "Local folder", description: "Write backup objects to a filesystem path.", icon: Folder },
+  { value: "s3", label: "S3 compatible", description: "Use S3, MinIO, R2, or another compatible object store.", icon: Cloud },
+] satisfies ChoiceOption[];
 
 const statusClass: Record<string, string> = {
   running: "bg-warning/15 text-warning",
@@ -276,7 +319,7 @@ type RestoreStartResponse = {
   plan: RestorePlan;
 };
 
-type TargetForm = {
+export type TargetForm = {
   id: string;
   name: string;
   driver: string;
@@ -289,7 +332,7 @@ type TargetForm = {
   tier: string;
 };
 
-type StorageForm = {
+export type StorageForm = {
   id: string;
   name: string;
   kind: string;
@@ -402,6 +445,8 @@ export function App() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [activeView, setActiveView] = useState<View>("dashboard");
+  const [activeSetupStep, setActiveSetupStep] = useState<SetupStepID>("target");
   const [apiToken, setAPIToken] = useState(() => localStorage.getItem(tokenStorageKey) ?? "");
   const [draftToken, setDraftToken] = useState(apiToken);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -1114,6 +1159,8 @@ export function App() {
   const queuedJobs = overview?.jobs.by_status.queued ?? 0;
   const latestJobs = jobs.length > 0 ? jobs : overview?.latest_jobs ?? [];
   const latestBackups = backups.length > 0 ? backups : overview?.latest_backups ?? [];
+  const setupSteps = buildSetupSteps(overview);
+  const nextAction = buildNextAction(overview);
 
   return (
     <main className="min-h-screen bg-void text-marble">
@@ -1124,8 +1171,10 @@ export function App() {
             {navItems.map((item) => (
               <button
                 key={item.label}
+                type="button"
+                onClick={() => setActiveView(item.view)}
                 className={`flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium transition ${
-                  item.active ? "bg-bronze text-void" : "text-muted hover:bg-surface hover:text-marble"
+                  activeView === item.view ? "bg-bronze text-void" : "text-muted hover:bg-surface hover:text-marble"
                 }`}
               >
                 <item.icon className="h-4 w-4" />
@@ -1179,26 +1228,71 @@ export function App() {
         <section className="min-w-0">
           <header className="flex min-h-16 items-center justify-between gap-3 border-b border-line px-4 sm:px-6">
             <div className="min-w-0">
-              <h1 className="text-xl font-semibold text-marble">Operations</h1>
-              <p className="text-sm text-muted">{generatedAt ?? "Loading overview"}</p>
+              <h1 className="text-xl font-semibold text-marble">{viewTitles[activeView].title}</h1>
+              <p className="text-sm text-muted">{viewTitles[activeView].subtitle}</p>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" title="Search" aria-label="Search" icon={<Search className="h-4 w-4" />} />
-              <Button variant="ghost" title="Notifications" aria-label="Notifications" icon={<Bell className="h-4 w-4" />} />
+              <Button variant="ghost" icon={<RotateCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />} onClick={() => void loadOverview({ refresh: true })} type="button">
+                {refreshing ? "Refreshing" : "Refresh"}
+              </Button>
               <Button variant="primary" icon={<Play className="h-4 w-4" />} onClick={() => void queueBackup()} type="button">
                 Run backup
               </Button>
             </div>
           </header>
 
-          <div className="grid gap-6 px-4 py-6 sm:px-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="grid max-w-7xl gap-6 px-4 py-6 sm:px-6">
             <section className="grid gap-6">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <Metric icon={<CheckCircle2 />} label="Healthy agents" value={metricValue(overview?.agents.healthy, loading)} tone="success" />
-                <Metric icon={<Clock3 />} label="Queued jobs" value={metricValue(queuedJobs, loading)} tone="warning" />
-                <Metric icon={<ShieldCheck />} label="Protected backups" value={metricValue(overview?.backups.protected, loading)} tone="bronze" />
-                <Metric icon={<TriangleAlert />} label="Attention" value={metricValue(attentionTotal, loading)} tone="danger" />
-              </div>
+              <section className="rounded-md border border-line bg-panel p-4">
+                <div className="text-sm text-muted">{viewHelp[activeView]}</div>
+                <div className="mt-2 font-mono text-xs text-bronze">{generatedAt ?? "Loading overview"}</div>
+              </section>
+
+              {activeView === "dashboard" ? (
+                <>
+                  <GuidedStart
+                    backupsReady={(overview?.backups.total ?? 0) > 0}
+                    storageReady={(overview?.inventory.storages ?? 0) > 0}
+                    targetReady={(overview?.inventory.targets ?? 0) > 0}
+                    onSelectStep={setActiveSetupStep}
+                    onQueueBackup={queueBackup}
+                  />
+
+                  <QuickSetupWizard
+                    activeStep={activeSetupStep}
+                    backupForm={backupRunForm}
+                    backupJob={backupRunJob}
+                    backups={backups}
+                    editingStorage={editingStorageID !== null}
+                    editingTarget={editingTargetID !== null}
+                    queuingBackup={queuingBackup}
+                    savingStorage={savingStorage}
+                    savingTarget={savingTarget}
+                    storageForm={storageForm}
+                    storages={storages}
+                    targetForm={targetForm}
+                    targets={targets}
+                    onBackupChange={(patch) => setBackupRunForm((current) => ({ ...current, ...patch }))}
+                    onQueueBackup={queueBackup}
+                    onResetStorage={resetStorageForm}
+                    onResetTarget={resetTargetForm}
+                    onSaveStorage={saveStorage}
+                    onSaveTarget={saveTarget}
+                    onSelectStep={setActiveSetupStep}
+                    onStorageChange={(patch) => setStorageForm((current) => ({ ...current, ...patch }))}
+                    onTargetChange={(patch) => setTargetForm((current) => ({ ...current, ...patch }))}
+                  />
+
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <Metric icon={<CheckCircle2 />} label="Healthy agents" value={metricValue(overview?.agents.healthy, loading)} tone="success" />
+                    <Metric icon={<Clock3 />} label="Queued jobs" value={metricValue(queuedJobs, loading)} tone="warning" />
+                    <Metric icon={<ShieldCheck />} label="Protected backups" value={metricValue(overview?.backups.protected, loading)} tone="bronze" />
+                    <Metric icon={<TriangleAlert />} label="Attention" value={metricValue(attentionTotal, loading)} tone="danger" />
+                  </div>
+
+                  <SetupProgress loading={loading} nextAction={nextAction} steps={setupSteps} onQueueBackup={queueBackup} />
+                </>
+              ) : null}
 
               {error ? (
                 <section className="rounded-md border border-danger/50 bg-danger/10 p-4 text-sm text-danger-light">
@@ -1211,9 +1305,10 @@ export function App() {
                 </section>
               ) : null}
 
+              {activeView === "dashboard" || activeView === "jobs" ? (
               <section className="overflow-hidden rounded-md border border-line bg-panel">
                 <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-                  <h2 className="text-base font-semibold">Recent jobs</h2>
+                  <h2 className="text-base font-semibold">{activeView === "jobs" ? "Jobs" : "Recent jobs"}</h2>
                   <Button variant="secondary" icon={<RotateCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />} onClick={() => void loadOverview({ refresh: true })}>
                     {refreshing ? "Refreshing" : "Refresh"}
                   </Button>
@@ -1262,7 +1357,7 @@ export function App() {
                       ) : (
                         <tr className="border-t border-line">
                           <td className="px-4 py-6 text-sm text-muted" colSpan={6}>
-                            {loading ? "Loading jobs" : "No recent jobs"}
+                            {loading ? "Loading jobs" : "No jobs yet. Create a target and storage, then queue the first backup drill."}
                           </td>
                         </tr>
                       )}
@@ -1270,203 +1365,250 @@ export function App() {
                   </table>
                 </div>
               </section>
+              ) : null}
+
+              {activeView === "targets" ? (
+                <section className="rounded-md border border-line bg-panel p-4">
+                  <h2 className="text-base font-semibold">Registered targets</h2>
+                  <div className="mt-4">
+                    <InventoryGroup
+                      empty={loading ? "Loading targets" : "No targets yet. Use the editor on the right to add one."}
+                      items={targets.map((target) => ({
+                        key: target.id,
+                        label: target.name || target.id,
+                        value: `${target.driver} ${target.endpoint}`,
+                        loading: loadingInventoryID === target.id,
+                        onInspect: () => void inspectTarget(target),
+                      }))}
+                    />
+                  </div>
+                </section>
+              ) : null}
+
+              {activeView === "storage" ? (
+                <section className="rounded-md border border-line bg-panel p-4">
+                  <h2 className="text-base font-semibold">Storage repositories</h2>
+                  <div className="mt-4">
+                    <InventoryGroup
+                      empty={loading ? "Loading storage" : "No storage yet. Use the editor on the right to add one."}
+                      items={storages.map((storage) => ({
+                        key: storage.id,
+                        label: storage.name || storage.id,
+                        value: `${storage.kind} ${storage.uri}`,
+                        loading: loadingInventoryID === storage.id,
+                        onInspect: () => void inspectStorage(storage),
+                      }))}
+                    />
+                  </div>
+                </section>
+              ) : null}
+
+              {activeView === "backups" ? (
+                <>
+                  <RestoreCenter backup={selectedBackup} backups={latestBackups} loading={loading} onSelectBackup={inspectBackup} />
+                  <section className="rounded-md border border-line bg-panel p-4">
+                    <h2 className="text-base font-semibold">Backups</h2>
+                    <div className="mt-4 grid gap-3">
+                      {latestBackups.length > 0 ? (
+                        latestBackups.map((backup) => (
+                          <div key={backup.id} className="flex min-h-12 items-center justify-between gap-3 rounded-md bg-surface px-3 py-2 text-sm">
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold text-marble">{backup.id}</div>
+                              <div className="truncate text-xs text-muted">
+                                {backup.target_id} to {backup.storage_id}
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span className="font-mono text-xs text-muted">{formatBytes(backup.size_bytes)}</span>
+                              <Button className="h-7 px-2 text-xs" disabled={loadingBackupID === backup.id} onClick={() => void inspectBackup(backup)} type="button" variant="secondary">
+                                {loadingBackupID === backup.id ? "Loading" : "Restore"}
+                              </Button>
+                              <Button className="h-7 px-2 text-xs" disabled={loadingBackupID === backup.id} onClick={() => void inspectBackup(backup)} type="button" variant="ghost">
+                                Details
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-md bg-surface px-3 py-2 text-sm text-muted">{loading ? "Loading backups" : "No completed backups yet. Run a backup before restore is available."}</div>
+                      )}
+                    </div>
+                  </section>
+                </>
+              ) : null}
+
+              {activeView === "automation" ? (
+                <section className="rounded-md border border-line bg-panel p-4">
+                  <h2 className="text-base font-semibold">Schedules and retention</h2>
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    <InventoryGroup
+                      empty={loading ? "Loading schedules" : "No schedules yet. Use the editor on the right to add one."}
+                      items={schedules.map((schedule) => ({
+                        key: schedule.id,
+                        label: schedule.name || schedule.id,
+                        value: schedule.paused ? "paused" : `${schedule.backup_type} ${schedule.expression}`,
+                        loading: loadingAutomationID === schedule.id,
+                        onInspect: () => void inspectSchedule(schedule),
+                      }))}
+                    />
+                    <InventoryGroup
+                      empty={loading ? "Loading retention" : "No retention policies yet."}
+                      items={retentionPolicies.map((policy) => ({
+                        key: policy.id,
+                        label: policy.name || policy.id,
+                        value: `${policy.rules?.length ?? 0} rules`,
+                        loading: loadingAutomationID === policy.id,
+                        onInspect: () => void inspectRetentionPolicy(policy),
+                      }))}
+                    />
+                  </div>
+                </section>
+              ) : null}
             </section>
 
-            <aside className="grid content-start gap-6">
+            <section className="grid gap-6">
               <section className="rounded-md border border-line bg-panel p-4">
-                <h2 className="text-base font-semibold">Repository health</h2>
-                <div className="mt-4 grid gap-3">
-                  <HealthRow label="Readiness" value={overview?.health.status ?? "..."} tone={overview?.health.status === "ok" ? "success" : "warning"} />
-                  <HealthRow label="Targets" value={metricValue(overview?.inventory.targets, loading)} tone="bronze" />
-                  <HealthRow label="Storage used" value={overview ? formatBytes(overview.backups.bytes_total) : "..."} tone="indigo" />
-                  <HealthRow label="Schedules paused" value={metricValue(overview?.inventory.schedules_paused, loading)} tone="warning" />
-                </div>
+                <h2 className="text-base font-semibold">{viewTitles[activeView].title}</h2>
+                <p className="mt-2 text-sm text-muted">{viewHelp[activeView]}</p>
               </section>
 
-              <BackupRunPanel
-                backups={backups}
-                form={backupRunForm}
-                job={backupRunJob}
-                queuing={queuingBackup}
-                storages={storages}
-                targets={targets}
-                onChange={(patch) => setBackupRunForm((current) => ({ ...current, ...patch }))}
-                onQueue={queueBackup}
-              />
-
-              <section className="rounded-md border border-line bg-panel p-4">
-                <h2 className="text-base font-semibold">Inventory</h2>
-                <div className="mt-4 grid gap-3">
-                  <InventoryGroup
-                    empty={loading ? "Loading targets" : "No targets"}
-                    items={targets.map((target) => ({
-                      key: target.id,
-                      label: target.name || target.id,
-                      value: target.driver || "target",
-                      loading: loadingInventoryID === target.id,
-                      onInspect: () => void inspectTarget(target),
-                    }))}
-                  />
-                  <InventoryGroup
-                    empty={loading ? "Loading storage" : "No storage"}
-                    items={storages.map((storage) => ({
-                      key: storage.id,
-                      label: storage.name || storage.id,
-                      value: storage.kind || "storage",
-                      loading: loadingInventoryID === storage.id,
-                      onInspect: () => void inspectStorage(storage),
-                    }))}
-                  />
-                </div>
-              </section>
-
-              <TargetEditor
-                editing={editingTargetID !== null}
-                form={targetForm}
-                saving={savingTarget}
-                onChange={(patch) => setTargetForm((current) => ({ ...current, ...patch }))}
-                onReset={resetTargetForm}
-                onSave={saveTarget}
-              />
-              <StorageEditor
-                editing={editingStorageID !== null}
-                form={storageForm}
-                saving={savingStorage}
-                onChange={(patch) => setStorageForm((current) => ({ ...current, ...patch }))}
-                onReset={resetStorageForm}
-                onSave={saveStorage}
-              />
-              <ScheduleEditor
-                editing={editingScheduleID !== null}
-                form={scheduleForm}
-                retentionPolicies={retentionPolicies}
-                saving={savingSchedule}
-                storages={storages}
-                targets={targets}
-                onChange={(patch) => setScheduleForm((current) => ({ ...current, ...patch }))}
-                onReset={resetScheduleForm}
-                onSave={saveSchedule}
-              />
-              <RetentionPolicyEditor
-                editing={editingRetentionPolicyID !== null}
-                form={retentionPolicyForm}
-                saving={savingRetentionPolicy}
-                onChange={(patch) => setRetentionPolicyForm((current) => ({ ...current, ...patch }))}
-                onReset={resetRetentionPolicyForm}
-                onSave={saveRetentionPolicy}
-              />
-
-              <section className="rounded-md border border-line bg-panel p-4">
-                <h2 className="text-base font-semibold">Automation</h2>
-                <div className="mt-4 grid gap-3">
-                  <InventoryGroup
-                    empty={loading ? "Loading schedules" : "No schedules"}
-                    items={schedules.map((schedule) => ({
-                      key: schedule.id,
-                      label: schedule.name || schedule.id,
-                      value: schedule.paused ? "paused" : schedule.backup_type || "schedule",
-                      loading: loadingAutomationID === schedule.id,
-                      onInspect: () => void inspectSchedule(schedule),
-                    }))}
-                  />
-                  <InventoryGroup
-                    empty={loading ? "Loading retention" : "No retention policies"}
-                    items={retentionPolicies.map((policy) => ({
-                      key: policy.id,
-                      label: policy.name || policy.id,
-                      value: `${policy.rules?.length ?? 0} rules`,
-                      loading: loadingAutomationID === policy.id,
-                      onInspect: () => void inspectRetentionPolicy(policy),
-                    }))}
-                  />
-                </div>
-              </section>
-
-              <section className="rounded-md border border-line bg-panel p-4">
-                <h2 className="text-base font-semibold">Latest backups</h2>
-                <div className="mt-4 grid gap-3">
-                  {latestBackups.length > 0 ? (
-                    latestBackups.map((backup) => (
-                      <div key={backup.id} className="flex h-10 items-center justify-between gap-3 rounded-md bg-surface px-3 text-sm">
-                        <span className="min-w-0 truncate">{backup.target_id || backup.id}</span>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <span className="font-mono text-xs text-muted">{formatBytes(backup.size_bytes)}</span>
-                          <Button
-                            className="h-7 px-2 text-xs"
-                            disabled={updatingBackupID === backup.id}
-                            onClick={() => void toggleBackupProtection(backup)}
-                            type="button"
-                            variant={backup.protected ? "secondary" : "ghost"}
-                          >
-                            {updatingBackupID === backup.id ? "Saving" : backup.protected ? "Protected" : "Protect"}
-                          </Button>
-                          <Button
-                            className="h-7 px-2 text-xs"
-                            disabled={loadingBackupID === backup.id}
-                            onClick={() => void inspectBackup(backup)}
-                            type="button"
-                            variant="ghost"
-                          >
-                            {loadingBackupID === backup.id ? "Loading" : "Details"}
-                          </Button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="flex h-10 items-center justify-between rounded-md bg-surface px-3 text-sm text-muted">
-                      <span>{loading ? "Loading backups" : "No backups yet"}</span>
-                      <Clock3 className="h-4 w-4 text-bronze" />
+              {activeView === "dashboard" ? (
+                <>
+                  <section className="rounded-md border border-line bg-panel p-4">
+                    <h2 className="text-base font-semibold">Repository health</h2>
+                    <div className="mt-4 grid gap-3">
+                      <HealthRow label="Readiness" value={overview?.health.status ?? "..."} tone={overview?.health.status === "ok" ? "success" : "warning"} />
+                      <HealthRow label="Targets" value={metricValue(overview?.inventory.targets, loading)} tone="bronze" />
+                      <HealthRow label="Storage used" value={overview ? formatBytes(overview.backups.bytes_total) : "..."} tone="indigo" />
+                      <HealthRow label="Schedules paused" value={metricValue(overview?.inventory.schedules_paused, loading)} tone="warning" />
                     </div>
-                  )}
-                </div>
-              </section>
+                  </section>
+                  <BackupRunPanel
+                    backups={backups}
+                    form={backupRunForm}
+                    job={backupRunJob}
+                    queuing={queuingBackup}
+                    storages={storages}
+                    targets={targets}
+                    onChange={(patch) => setBackupRunForm((current) => ({ ...current, ...patch }))}
+                    onQueue={queueBackup}
+                  />
+                </>
+              ) : null}
 
-              <TargetDetail
-                confirmation={targetDeleteConfirmation}
-                deleting={deletingInventoryID === selectedTarget?.id}
-                target={selectedTarget}
-                onConfirmationChange={setTargetDeleteConfirmation}
-                onDelete={deleteTarget}
-                onEdit={editTarget}
-              />
-              <StorageDetail
-                confirmation={storageDeleteConfirmation}
-                deleting={deletingInventoryID === selectedStorage?.id}
-                storage={selectedStorage}
-                onConfirmationChange={setStorageDeleteConfirmation}
-                onDelete={deleteStorage}
-                onEdit={editStorage}
-              />
-              <ScheduleDetail schedule={selectedSchedule} updating={updatingScheduleID === selectedSchedule?.id} onEdit={editSchedule} onToggle={toggleSchedulePause} />
-              <RetentionPolicyDetail policy={selectedRetentionPolicy} onEdit={editRetentionPolicy} />
-              <JobDetail job={selectedJob} />
-              <BackupDetail
-                backup={selectedBackup}
-                backups={backups}
-                report={backupVerificationReport}
-                verificationHistory={backupVerificationHistory}
-                verificationJob={backupVerificationJob}
-                verifyingBackup={verifyingBackup}
-                restoreAt={restoreAt}
-                restoreConfirmation={restoreConfirmation}
-                restoreHistory={restoreJobHistory}
-                restoreJob={restoreJob}
-                restorePlan={restorePlan}
-                restoreReplaceExisting={restoreReplaceExisting}
-                restoreTargetID={restoreTargetID}
-                restoring={restoring}
-                targets={targets}
-                onPreview={previewRestore}
-                onRestoreConfirmationChange={setRestoreConfirmation}
-                onRestoreAtChange={setRestoreAt}
-                onRestoreReplaceExistingChange={setRestoreReplaceExisting}
-                onStartLive={startLiveRestore}
-                onStartDryRun={startDryRunRestore}
-                onTargetChange={setRestoreTargetID}
-                onQueueVerification={queueBackupVerification}
-                onVerify={verifyBackupMetadata}
-              />
-            </aside>
+              {activeView === "jobs" ? (
+                selectedJob ? <JobDetail job={selectedJob} /> : <EmptySidePanel text="Select a job from the table to see details, evidence, and retry controls." />
+              ) : null}
+
+              {activeView === "targets" ? (
+                <>
+                  <TargetEditor
+                    editing={editingTargetID !== null}
+                    form={targetForm}
+                    saving={savingTarget}
+                    onChange={(patch) => setTargetForm((current) => ({ ...current, ...patch }))}
+                    onReset={resetTargetForm}
+                    onSave={saveTarget}
+                  />
+                  <TargetDetail
+                    confirmation={targetDeleteConfirmation}
+                    deleting={deletingInventoryID === selectedTarget?.id}
+                    target={selectedTarget}
+                    onConfirmationChange={setTargetDeleteConfirmation}
+                    onDelete={deleteTarget}
+                    onEdit={editTarget}
+                  />
+                </>
+              ) : null}
+
+              {activeView === "storage" ? (
+                <>
+                  <StorageEditor
+                    editing={editingStorageID !== null}
+                    form={storageForm}
+                    saving={savingStorage}
+                    onChange={(patch) => setStorageForm((current) => ({ ...current, ...patch }))}
+                    onReset={resetStorageForm}
+                    onSave={saveStorage}
+                  />
+                  <StorageDetail
+                    confirmation={storageDeleteConfirmation}
+                    deleting={deletingInventoryID === selectedStorage?.id}
+                    storage={selectedStorage}
+                    onConfirmationChange={setStorageDeleteConfirmation}
+                    onDelete={deleteStorage}
+                    onEdit={editStorage}
+                  />
+                </>
+              ) : null}
+
+              {activeView === "backups" ? (
+                <>
+                  <BackupRunPanel
+                    backups={backups}
+                    form={backupRunForm}
+                    job={backupRunJob}
+                    queuing={queuingBackup}
+                    storages={storages}
+                    targets={targets}
+                    onChange={(patch) => setBackupRunForm((current) => ({ ...current, ...patch }))}
+                    onQueue={queueBackup}
+                  />
+                  <BackupDetail
+                    backup={selectedBackup}
+                    backups={backups}
+                    report={backupVerificationReport}
+                    verificationHistory={backupVerificationHistory}
+                    verificationJob={backupVerificationJob}
+                    verifyingBackup={verifyingBackup}
+                    restoreAt={restoreAt}
+                    restoreConfirmation={restoreConfirmation}
+                    restoreHistory={restoreJobHistory}
+                    restoreJob={restoreJob}
+                    restorePlan={restorePlan}
+                    restoreReplaceExisting={restoreReplaceExisting}
+                    restoreTargetID={restoreTargetID}
+                    restoring={restoring}
+                    targets={targets}
+                    onPreview={previewRestore}
+                    onRestoreConfirmationChange={setRestoreConfirmation}
+                    onRestoreAtChange={setRestoreAt}
+                    onRestoreReplaceExistingChange={setRestoreReplaceExisting}
+                    onStartLive={startLiveRestore}
+                    onStartDryRun={startDryRunRestore}
+                    onTargetChange={setRestoreTargetID}
+                    onQueueVerification={queueBackupVerification}
+                    onVerify={verifyBackupMetadata}
+                  />
+                </>
+              ) : null}
+
+              {activeView === "automation" ? (
+                <>
+                  <ScheduleEditor
+                    editing={editingScheduleID !== null}
+                    form={scheduleForm}
+                    retentionPolicies={retentionPolicies}
+                    saving={savingSchedule}
+                    storages={storages}
+                    targets={targets}
+                    onChange={(patch) => setScheduleForm((current) => ({ ...current, ...patch }))}
+                    onReset={resetScheduleForm}
+                    onSave={saveSchedule}
+                  />
+                  <RetentionPolicyEditor
+                    editing={editingRetentionPolicyID !== null}
+                    form={retentionPolicyForm}
+                    saving={savingRetentionPolicy}
+                    onChange={(patch) => setRetentionPolicyForm((current) => ({ ...current, ...patch }))}
+                    onReset={resetRetentionPolicyForm}
+                    onSave={saveRetentionPolicy}
+                  />
+                  <ScheduleDetail schedule={selectedSchedule} updating={updatingScheduleID === selectedSchedule?.id} onEdit={editSchedule} onToggle={toggleSchedulePause} />
+                  <RetentionPolicyDetail policy={selectedRetentionPolicy} onEdit={editRetentionPolicy} />
+                </>
+              ) : null}
+            </section>
           </div>
         </section>
       </div>
@@ -1501,6 +1643,473 @@ function HealthRow({ label, value, tone }: { label: string; value: string; tone:
       <span className={`min-w-0 truncate text-right font-semibold ${healthTone[tone]}`} title={value}>
         {value}
       </span>
+    </div>
+  );
+}
+
+function EmptySidePanel({ text }: { text: string }) {
+  return <section className="rounded-md border border-line bg-panel p-4 text-sm text-muted">{text}</section>;
+}
+
+function ChoiceGrid({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: ChoiceOption[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="grid gap-2">
+      <div className="text-xs font-semibold uppercase text-muted">{label}</div>
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        {options.map((option) => {
+          const Icon = option.icon;
+          const selected = option.value === value;
+          return (
+            <button
+              key={option.value}
+              className={`grid min-h-28 gap-3 rounded-md border p-3 text-left transition ${
+                selected ? "border-bronze bg-bronze/10 text-marble" : "border-line bg-surface text-muted hover:border-bronze/70 hover:text-marble"
+              }`}
+              onClick={() => onChange(option.value)}
+              type="button"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className={`flex h-9 w-9 items-center justify-center rounded-md ${selected ? "bg-bronze text-void" : "bg-panel text-bronze"}`}>
+                  <Icon className="h-4 w-4" />
+                </span>
+                {selected ? <CheckCircle2 className="h-4 w-4 text-success" /> : null}
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-marble">{option.label}</div>
+                <div className="mt-1 text-xs leading-5 text-muted">{option.description}</div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function GuidedStart({
+  backupsReady,
+  storageReady,
+  targetReady,
+  onSelectStep,
+  onQueueBackup,
+}: {
+  backupsReady: boolean;
+  storageReady: boolean;
+  targetReady: boolean;
+  onSelectStep: (step: SetupStepID) => void;
+  onQueueBackup: () => Promise<void>;
+}) {
+  return (
+    <section className="rounded-md border border-bronze/40 bg-panel p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-marble">Fast path to the first backup</h2>
+          <p className="mt-1 text-sm text-muted">Three steps, no hunting through menus.</p>
+        </div>
+        <Button icon={<Play className="h-4 w-4" />} disabled={!targetReady || !storageReady} onClick={() => void onQueueBackup()} type="button" variant="primary">
+          Run first backup
+        </Button>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        <GuideCard
+          done={targetReady}
+          label="1"
+          title="Add target"
+          text="Register the database you want Kronos to protect."
+          action="Open target step"
+          onClick={() => onSelectStep("target")}
+        />
+        <GuideCard
+          done={storageReady}
+          label="2"
+          title="Add storage"
+          text="Choose the local or S3 repository where backups will be written."
+          action="Open storage step"
+          onClick={() => onSelectStep("storage")}
+        />
+        <GuideCard
+          done={backupsReady}
+          label="3"
+          title="Run backup"
+          text={targetReady && storageReady ? "Ready. Queue the first full backup." : "Target and storage must be ready first."}
+          action={targetReady && storageReady ? "Run backup" : "Open backup step"}
+          onClick={() => {
+            if (targetReady && storageReady) {
+              void onQueueBackup();
+              return;
+            }
+            onSelectStep("backup");
+          }}
+        />
+      </div>
+    </section>
+  );
+}
+
+function GuideCard({
+  action,
+  done,
+  label,
+  onClick,
+  text,
+  title,
+}: {
+  action: string;
+  done: boolean;
+  label: string;
+  onClick: () => void;
+  text: string;
+  title: string;
+}) {
+  return (
+    <div className="grid gap-3 rounded-md bg-surface p-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className={`flex h-8 w-8 items-center justify-center rounded-md font-mono text-sm font-semibold ${done ? "bg-success/15 text-success" : "bg-bronze/15 text-bronze"}`}>
+          {done ? <CheckCircle2 className="h-4 w-4" /> : label}
+        </span>
+        <span className={`rounded px-2 py-1 text-xs font-semibold ${done ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}>
+          {done ? "ready" : "needed"}
+        </span>
+      </div>
+      <div>
+        <h3 className="text-base font-semibold text-marble">{title}</h3>
+        <p className="mt-1 min-h-10 text-sm text-muted">{text}</p>
+      </div>
+      <Button className="h-8 text-xs" onClick={onClick} type="button" variant={done ? "secondary" : "primary"}>
+        {action}
+      </Button>
+    </div>
+  );
+}
+
+function QuickSetupWizard({
+  activeStep,
+  backupForm,
+  backupJob,
+  backups,
+  editingStorage,
+  editingTarget,
+  queuingBackup,
+  savingStorage,
+  savingTarget,
+  storageForm,
+  storages,
+  targetForm,
+  targets,
+  onBackupChange,
+  onQueueBackup,
+  onResetStorage,
+  onResetTarget,
+  onSaveStorage,
+  onSaveTarget,
+  onSelectStep,
+  onStorageChange,
+  onTargetChange,
+}: {
+  activeStep: SetupStepID;
+  backupForm: BackupRunForm;
+  backupJob: Job | null;
+  backups: Backup[];
+  editingStorage: boolean;
+  editingTarget: boolean;
+  queuingBackup: boolean;
+  savingStorage: boolean;
+  savingTarget: boolean;
+  storageForm: StorageForm;
+  storages: Storage[];
+  targetForm: TargetForm;
+  targets: Target[];
+  onBackupChange: (patch: Partial<BackupRunForm>) => void;
+  onQueueBackup: () => Promise<void>;
+  onResetStorage: () => void;
+  onResetTarget: () => void;
+  onSaveStorage: () => Promise<void>;
+  onSaveTarget: () => Promise<void>;
+  onSelectStep: (step: SetupStepID) => void;
+  onStorageChange: (patch: Partial<StorageForm>) => void;
+  onTargetChange: (patch: Partial<TargetForm>) => void;
+}) {
+  return (
+    <section className="rounded-md border border-line bg-panel p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Quick setup wizard</h2>
+          <p className="mt-1 text-sm text-muted">Stay here and move step by step. Each step writes to the real control plane.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <WizardStepButton active={activeStep === "target"} label="1 Target" onClick={() => onSelectStep("target")} />
+          <WizardStepButton active={activeStep === "storage"} label="2 Storage" onClick={() => onSelectStep("storage")} />
+          <WizardStepButton active={activeStep === "backup"} label="3 Backup" onClick={() => onSelectStep("backup")} />
+        </div>
+      </div>
+      <div className="mt-4">
+        {activeStep === "target" ? (
+          <TargetEditor
+            editing={editingTarget}
+            form={targetForm}
+            saving={savingTarget}
+            onChange={onTargetChange}
+            onReset={onResetTarget}
+            onSave={async () => {
+              await onSaveTarget();
+              onSelectStep("storage");
+            }}
+          />
+        ) : null}
+        {activeStep === "storage" ? (
+          <StorageEditor
+            editing={editingStorage}
+            form={storageForm}
+            saving={savingStorage}
+            onChange={onStorageChange}
+            onReset={onResetStorage}
+            onSave={async () => {
+              await onSaveStorage();
+              onSelectStep("backup");
+            }}
+          />
+        ) : null}
+        {activeStep === "backup" ? (
+          <BackupRunPanel
+            backups={backups}
+            form={backupForm}
+            job={backupJob}
+            queuing={queuingBackup}
+            storages={storages}
+            targets={targets}
+            onChange={onBackupChange}
+            onQueue={onQueueBackup}
+          />
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function WizardStepButton({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      className={`h-8 rounded-md px-3 text-xs font-semibold transition ${active ? "bg-bronze text-void" : "bg-surface text-muted hover:text-marble"}`}
+      onClick={onClick}
+      type="button"
+    >
+      {label}
+    </button>
+  );
+}
+
+type SetupStep = {
+  label: string;
+  done: boolean;
+  value: string;
+};
+
+type NextAction = {
+  label: string;
+  description: string;
+  action?: "queue-backup";
+};
+
+function SetupProgress({
+  loading,
+  nextAction,
+  steps,
+  onQueueBackup,
+}: {
+  loading: boolean;
+  nextAction: NextAction;
+  steps: SetupStep[];
+  onQueueBackup: () => Promise<void>;
+}) {
+  const completed = steps.filter((step) => step.done).length;
+  const progress = steps.length > 0 ? Math.round((completed / steps.length) * 100) : 0;
+  return (
+    <section className="grid gap-4 rounded-md border border-line bg-panel p-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+      <div>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Setup path</h2>
+            <p className="mt-1 text-sm text-muted">
+              {loading ? "Reading control-plane state" : `${completed} of ${steps.length} operational prerequisites are ready`}
+            </p>
+          </div>
+          <span className="rounded-md bg-surface px-2 py-1 font-mono text-xs text-bronze">{loading ? "..." : `${progress}%`}</span>
+        </div>
+        <div className="mt-4 h-2 overflow-hidden rounded bg-surface">
+          <div className="h-full bg-bronze transition-all" style={{ width: `${loading ? 12 : progress}%` }} />
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {steps.map((step) => (
+            <div key={step.label} className="flex min-h-12 items-center gap-3 rounded-md bg-surface px-3 py-2">
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${step.done ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}>
+                {step.done ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
+              </span>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-marble">{step.label}</div>
+                <div className="truncate text-xs text-muted">{loading ? "checking" : step.value}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="rounded-md border border-bronze/35 bg-bronze/10 p-3">
+        <div className="text-xs font-semibold uppercase text-bronze">Next action</div>
+        <h3 className="mt-2 text-sm font-semibold text-marble">{loading ? "Load overview" : nextAction.label}</h3>
+        <p className="mt-2 text-sm text-muted">{loading ? "Kronos is checking the local control plane." : nextAction.description}</p>
+        {nextAction.action === "queue-backup" ? (
+          <Button className="mt-3 h-8 text-xs" icon={<Play className="h-3.5 w-3.5" />} onClick={() => void onQueueBackup()} type="button" variant="primary">
+            Queue backup
+          </Button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+type DetailItem = {
+  label: string;
+  value: string;
+  tone: keyof typeof healthTone;
+};
+
+function OverviewDetails({ loading, overview }: { loading: boolean; overview: Overview | null }) {
+  const readiness = overview ? detailItemsFromRecord(overview.health.checks, "ok") : [];
+  const jobStatus = overview ? detailItemsFromCounts(overview.jobs.by_status, "No job activity") : [];
+  const backupTypes = overview ? detailItemsFromCounts(overview.backups.by_type, "No backup types") : [];
+  const attention = overview ? detailItemsFromCounts(overview.attention, "No attention signals") : [];
+  return (
+    <section className="grid gap-3 xl:grid-cols-2">
+      <DetailPanel
+        empty="Waiting for readiness checks"
+        items={loading ? [] : readiness}
+        title="Readiness checks"
+        value={overview?.health.status ?? "..."}
+      />
+      <DetailPanel
+        empty="Waiting for inventory counts"
+        items={
+          loading || !overview
+            ? []
+            : [
+                { label: "targets", value: String(overview.inventory.targets), tone: overview.inventory.targets > 0 ? "success" : "warning" },
+                { label: "storages", value: String(overview.inventory.storages), tone: overview.inventory.storages > 0 ? "success" : "warning" },
+                { label: "schedules", value: String(overview.inventory.schedules), tone: overview.inventory.schedules > 0 ? "success" : "bronze" },
+                { label: "retention policies", value: String(overview.inventory.retention_policies), tone: overview.inventory.retention_policies > 0 ? "success" : "bronze" },
+                { label: "notifications", value: `${overview.inventory.notification_rules_enabled}/${overview.inventory.notification_rules}`, tone: overview.inventory.notification_rules > 0 ? "success" : "bronze" },
+                { label: "users", value: String(overview.inventory.users), tone: overview.inventory.users > 0 ? "success" : "bronze" },
+              ]
+        }
+        title="Inventory detail"
+        value={`${overview?.inventory.targets ?? 0}/${overview?.inventory.storages ?? 0}`}
+      />
+      <DetailPanel empty="No jobs have been queued" items={loading ? [] : jobStatus} title="Job status" value={String(overview?.jobs.active ?? 0)} />
+      <DetailPanel empty="No backups have completed" items={loading ? [] : backupTypes} title="Backup mix" value={overview ? formatBytes(overview.backups.bytes_total) : "..."} />
+      <DetailPanel empty="No attention signals" items={loading ? [] : attention} title="Attention signals" value={String(overview ? sumValues(overview.attention) : 0)} wide />
+    </section>
+  );
+}
+
+function DetailPanel({
+  empty,
+  items,
+  title,
+  value,
+  wide = false,
+}: {
+  empty: string;
+  items: DetailItem[];
+  title: string;
+  value: string;
+  wide?: boolean;
+}) {
+  return (
+    <section className={`rounded-md border border-line bg-panel p-4 ${wide ? "xl:col-span-2" : ""}`}>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold">{title}</h2>
+        <span className="rounded-md bg-surface px-2 py-1 font-mono text-xs text-bronze">{value}</span>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        {items.length > 0 ? (
+          items.map((item) => (
+            <div key={item.label} className="flex min-h-9 items-center justify-between gap-3 rounded-md bg-surface px-3 text-sm">
+              <span className="min-w-0 truncate text-muted">{humanizeLabel(item.label)}</span>
+              <span className={`shrink-0 font-mono text-xs font-semibold ${healthTone[item.tone]}`}>{item.value}</span>
+            </div>
+          ))
+        ) : (
+          <div className="rounded-md bg-surface px-3 py-2 text-sm text-muted sm:col-span-2">{empty}</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function RestoreCenter({
+  backup,
+  backups,
+  loading,
+  onSelectBackup,
+}: {
+  backup: Backup | null;
+  backups: Backup[];
+  loading: boolean;
+  onSelectBackup: (backup: Backup) => Promise<void>;
+}) {
+  const canRestore = backups.length > 0;
+  return (
+    <section className="rounded-md border border-bronze/40 bg-panel p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold">Restore center</h2>
+          <p className="mt-1 text-sm text-muted">Pick a completed backup, preview the restore plan, then queue a dry-run or live restore.</p>
+        </div>
+        <span className={`rounded-md px-2 py-1 text-xs font-semibold ${backup ? "bg-success/15 text-success" : canRestore ? "bg-warning/15 text-warning" : "bg-surface text-muted"}`}>
+          {backup ? "backup selected" : canRestore ? "select backup" : "waiting for backup"}
+        </span>
+      </div>
+      <div className="mt-4 grid gap-3 lg:grid-cols-3">
+        <RestoreStep done={canRestore} label="1" title="Completed backup" text={canRestore ? `${backups.length} backup option(s) available` : loading ? "Loading backups" : "Run a backup first"} />
+        <RestoreStep done={Boolean(backup)} label="2" title="Restore plan" text={backup ? "Open backup detail below and click Preview" : "Select a backup to unlock restore controls"} />
+        <RestoreStep done={false} label="3" title="Dry-run first" text="Queue a dry-run restore before a live restore." />
+      </div>
+      {backup ? (
+        <div className="mt-4 rounded-md bg-surface px-3 py-2 text-sm">
+          <span className="text-muted">Selected backup: </span>
+          <span className="font-mono text-bronze">{backup.id}</span>
+        </div>
+      ) : canRestore ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {backups.slice(0, 4).map((item) => (
+            <Button key={item.id} className="h-8 text-xs" onClick={() => void onSelectBackup(item)} type="button" variant="secondary">
+              Restore {item.target_id || item.id}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function RestoreStep({ done, label, text, title }: { done: boolean; label: string; text: string; title: string }) {
+  return (
+    <div className="rounded-md bg-surface p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className={`flex h-8 w-8 items-center justify-center rounded-md font-mono text-sm font-semibold ${done ? "bg-success/15 text-success" : "bg-bronze/15 text-bronze"}`}>
+          {done ? <CheckCircle2 className="h-4 w-4" /> : label}
+        </span>
+      </div>
+      <h3 className="mt-3 text-sm font-semibold text-marble">{title}</h3>
+      <p className="mt-1 text-xs leading-5 text-muted">{text}</p>
     </div>
   );
 }
@@ -1683,6 +2292,9 @@ function TargetEditor({
   onSave: () => Promise<void>;
 }) {
   const disabled = saving || !form.name.trim() || !form.driver.trim() || !form.endpoint.trim();
+  const isRedis = form.driver === "redis";
+  const authLabel = isRedis ? "ACL user" : "User";
+  const authPlaceholder = isRedis ? "default or optional ACL user" : "database user";
   return (
     <section className="rounded-md border border-line bg-panel p-4">
       <div className="flex items-center justify-between gap-3">
@@ -1703,7 +2315,7 @@ function TargetEditor({
             onChange={(event) => onChange({ id: event.target.value })}
           />
         </label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid gap-2 md:grid-cols-2">
           <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="target-name">
             Name
             <input
@@ -1713,48 +2325,37 @@ function TargetEditor({
               onChange={(event) => onChange({ name: event.target.value })}
             />
           </label>
-          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="target-driver">
-            Driver
-            <select
-              id="target-driver"
-              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition focus:border-bronze"
-              value={form.driver}
-              onChange={(event) => onChange({ driver: event.target.value })}
-            >
-              <option value="redis">redis</option>
-              <option value="postgres">postgres</option>
-              <option value="mysql">mysql</option>
-              <option value="mariadb">mariadb</option>
-              <option value="mongodb">mongodb</option>
-            </select>
-          </label>
         </div>
+        <ChoiceGrid label="Source type" options={driverChoices} value={form.driver} onChange={(driver) => onChange({ driver })} />
         <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="target-endpoint">
           Endpoint
           <input
             id="target-endpoint"
             className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
-            placeholder="host:port"
+            placeholder={targetEndpointPlaceholder(form.driver)}
             value={form.endpoint}
             onChange={(event) => onChange({ endpoint: event.target.value })}
           />
         </label>
-        <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="target-database">
-          Database
-          <input
-            id="target-database"
-            className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
-            placeholder="optional"
-            value={form.database}
-            onChange={(event) => onChange({ database: event.target.value })}
-          />
-        </label>
+        {!isRedis ? (
+          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="target-database">
+            Database
+            <input
+              id="target-database"
+              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+              placeholder={form.driver === "mongodb" ? "database name or blank for deployment" : "database name"}
+              value={form.database}
+              onChange={(event) => onChange({ database: event.target.value })}
+            />
+          </label>
+        ) : null}
         <div className="grid grid-cols-2 gap-2">
           <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="target-user">
-            User
+            {authLabel}
             <input
               id="target-user"
               className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+              placeholder={authPlaceholder}
               value={form.username}
               onChange={(event) => onChange({ username: event.target.value })}
             />
@@ -1827,6 +2428,7 @@ function StorageEditor({
   onSave: () => Promise<void>;
 }) {
   const disabled = saving || !form.name.trim() || !form.kind.trim() || !form.uri.trim();
+  const isS3 = form.kind === "s3";
   return (
     <section className="rounded-md border border-line bg-panel p-4">
       <div className="flex items-center justify-between gap-3">
@@ -1847,7 +2449,7 @@ function StorageEditor({
             onChange={(event) => onChange({ id: event.target.value })}
           />
         </label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid gap-2 md:grid-cols-2">
           <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-name">
             Name
             <input
@@ -1857,101 +2459,100 @@ function StorageEditor({
               onChange={(event) => onChange({ name: event.target.value })}
             />
           </label>
-          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-kind">
-            Kind
-            <select
-              id="storage-kind"
-              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition focus:border-bronze"
-              value={form.kind}
-              onChange={(event) => onChange({ kind: event.target.value })}
-            >
-              <option value="local">local</option>
-              <option value="s3">s3</option>
-            </select>
-          </label>
         </div>
+        <ChoiceGrid label="Storage type" options={storageKindChoices} value={form.kind} onChange={(kind) => onChange({ kind })} />
         <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-uri">
           URI
           <input
             id="storage-uri"
             className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
-            placeholder="file:///var/lib/kronos/repo or s3://bucket/prefix"
+            placeholder={isS3 ? "s3://bucket/prefix" : "file:///var/lib/kronos/repo"}
             value={form.uri}
             onChange={(event) => onChange({ uri: event.target.value })}
           />
         </label>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-region">
-            Region
-            <input
-              id="storage-region"
-              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
-              value={form.region}
-              onChange={(event) => onChange({ region: event.target.value })}
-            />
-          </label>
-          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-endpoint">
-            Endpoint
-            <input
-              id="storage-endpoint"
-              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
-              value={form.endpoint}
-              onChange={(event) => onChange({ endpoint: event.target.value })}
-            />
-          </label>
-        </div>
-        <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-credentials">
-          Credentials
-          <input
-            id="storage-credentials"
-            className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
-            placeholder="mode or secret reference"
-            value={form.credentials}
-            onChange={(event) => onChange({ credentials: event.target.value })}
-          />
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-access-key">
-            Access key
-            <input
-              id="storage-access-key"
-              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
-              type="password"
-              value={form.accessKey}
-              onChange={(event) => onChange({ accessKey: event.target.value })}
-            />
-          </label>
-          <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-secret-key">
-            Secret key
-            <input
-              id="storage-secret-key"
-              className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
-              type="password"
-              value={form.secretKey}
-              onChange={(event) => onChange({ secretKey: event.target.value })}
-            />
-          </label>
-        </div>
-        <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-session-token">
-          Session token
-          <input
-            id="storage-session-token"
-            className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
-            type="password"
-            value={form.sessionToken}
-            onChange={(event) => onChange({ sessionToken: event.target.value })}
-          />
-        </label>
-        <label className="flex min-h-9 items-center gap-2 rounded-md bg-surface px-3 text-sm text-muted" htmlFor="storage-force-path-style">
-          <input
-            id="storage-force-path-style"
-            checked={form.forcePathStyle}
-            className="h-4 w-4 accent-bronze"
-            type="checkbox"
-            onChange={(event) => onChange({ forcePathStyle: event.target.checked })}
-          />
-          Force path-style requests
-        </label>
+        {isS3 ? (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-region">
+                Region
+                <input
+                  id="storage-region"
+                  className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+                  placeholder="us-east-1"
+                  value={form.region}
+                  onChange={(event) => onChange({ region: event.target.value })}
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-endpoint">
+                Endpoint
+                <input
+                  id="storage-endpoint"
+                  className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+                  placeholder="https://s3.example.com"
+                  value={form.endpoint}
+                  onChange={(event) => onChange({ endpoint: event.target.value })}
+                />
+              </label>
+            </div>
+            <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-credentials">
+              Credentials
+              <input
+                id="storage-credentials"
+                className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+                placeholder="env, instance-role, or secret reference"
+                value={form.credentials}
+                onChange={(event) => onChange({ credentials: event.target.value })}
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-access-key">
+                Access key
+                <input
+                  id="storage-access-key"
+                  className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+                  type="password"
+                  value={form.accessKey}
+                  onChange={(event) => onChange({ accessKey: event.target.value })}
+                />
+              </label>
+              <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-secret-key">
+                Secret key
+                <input
+                  id="storage-secret-key"
+                  className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+                  type="password"
+                  value={form.secretKey}
+                  onChange={(event) => onChange({ secretKey: event.target.value })}
+                />
+              </label>
+            </div>
+            <label className="grid gap-1 text-xs font-semibold uppercase text-muted" htmlFor="storage-session-token">
+              Session token
+              <input
+                id="storage-session-token"
+                className="h-9 rounded-md border border-line bg-surface px-3 text-sm normal-case text-marble outline-none transition placeholder:text-muted focus:border-bronze"
+                type="password"
+                value={form.sessionToken}
+                onChange={(event) => onChange({ sessionToken: event.target.value })}
+              />
+            </label>
+            <label className="flex min-h-9 items-center gap-2 rounded-md bg-surface px-3 text-sm text-muted" htmlFor="storage-force-path-style">
+              <input
+                id="storage-force-path-style"
+                checked={form.forcePathStyle}
+                className="h-4 w-4 accent-bronze"
+                type="checkbox"
+                onChange={(event) => onChange({ forcePathStyle: event.target.checked })}
+              />
+              Force path-style requests
+            </label>
+          </>
+        ) : (
+          <div className="rounded-md bg-surface px-3 py-2 text-sm text-muted">
+            Local storage only needs a filesystem URI. S3 credentials are hidden for this path.
+          </div>
+        )}
         <Button className="h-8 text-xs" disabled={disabled} icon={<Save className="h-4 w-4" />} onClick={() => void onSave()} type="button" variant="primary">
           {saving ? "Saving" : editing ? "Update storage" : "Create storage"}
         </Button>
@@ -2753,7 +3354,7 @@ function targetFormFromTarget(target: Target): TargetForm {
   };
 }
 
-function targetPayload(form: TargetForm, editingID: string | null) {
+export function targetPayload(form: TargetForm, editingID: string | null) {
   const payload: Record<string, unknown> = {
     name: form.name.trim(),
     driver: form.driver.trim(),
@@ -2763,7 +3364,7 @@ function targetPayload(form: TargetForm, editingID: string | null) {
   if (id) {
     payload.id = id;
   }
-  if (form.database.trim()) {
+  if (form.driver !== "redis" && form.database.trim()) {
     payload.database = form.database.trim();
   }
   const options: Record<string, string> = {};
@@ -2808,7 +3409,7 @@ function storageFormFromStorage(storage: Storage): StorageForm {
   };
 }
 
-function storagePayload(form: StorageForm, editingID: string | null) {
+export function storagePayload(form: StorageForm, editingID: string | null) {
   const payload: Record<string, unknown> = {
     name: form.name.trim(),
     kind: form.kind.trim(),
@@ -2819,26 +3420,28 @@ function storagePayload(form: StorageForm, editingID: string | null) {
     payload.id = id;
   }
   const options: Record<string, unknown> = {};
-  if (form.region.trim()) {
-    options.region = form.region.trim();
-  }
-  if (form.endpoint.trim()) {
-    options.endpoint = form.endpoint.trim();
-  }
-  if (form.credentials.trim()) {
-    options.credentials = form.credentials.trim();
-  }
-  if (form.accessKey.trim()) {
-    options.access_key = form.accessKey.trim();
-  }
-  if (form.secretKey.trim()) {
-    options.secret_key = form.secretKey.trim();
-  }
-  if (form.sessionToken.trim()) {
-    options.session_token = form.sessionToken.trim();
-  }
-  if (form.forcePathStyle) {
-    options.force_path_style = true;
+  if (form.kind === "s3") {
+    if (form.region.trim()) {
+      options.region = form.region.trim();
+    }
+    if (form.endpoint.trim()) {
+      options.endpoint = form.endpoint.trim();
+    }
+    if (form.credentials.trim()) {
+      options.credentials = form.credentials.trim();
+    }
+    if (form.accessKey.trim()) {
+      options.access_key = form.accessKey.trim();
+    }
+    if (form.secretKey.trim()) {
+      options.secret_key = form.secretKey.trim();
+    }
+    if (form.sessionToken.trim()) {
+      options.session_token = form.sessionToken.trim();
+    }
+    if (form.forcePathStyle) {
+      options.force_path_style = true;
+    }
   }
   if (Object.keys(options).length > 0) {
     payload.options = options;
@@ -3056,6 +3659,111 @@ function isActiveJobStatus(status: string) {
   return status === "running" || status === "finalizing";
 }
 
+function buildSetupSteps(overview: Overview | null): SetupStep[] {
+  return [
+    {
+      label: "Worker connected",
+      done: (overview?.agents.healthy ?? 0) > 0,
+      value: `${overview?.agents.healthy ?? 0} healthy / ${overview?.agents.capacity ?? 0} capacity`,
+    },
+    {
+      label: "Target registered",
+      done: (overview?.inventory.targets ?? 0) > 0,
+      value: `${overview?.inventory.targets ?? 0} targets`,
+    },
+    {
+      label: "Storage attached",
+      done: (overview?.inventory.storages ?? 0) > 0,
+      value: `${overview?.inventory.storages ?? 0} storage backends`,
+    },
+    {
+      label: "First backup captured",
+      done: (overview?.backups.total ?? 0) > 0,
+      value: `${overview?.backups.total ?? 0} backups`,
+    },
+  ];
+}
+
+function buildNextAction(overview: Overview | null): NextAction {
+  if (!overview) {
+    return {
+      label: "Load overview",
+      description: "Kronos is reading health, inventory, jobs, and backup state from the control plane.",
+    };
+  }
+  if (overview.agents.healthy === 0) {
+    return {
+      label: "Start a worker",
+      description: "The control plane is reachable, but no worker can claim backup or restore jobs yet.",
+    };
+  }
+  if (overview.inventory.targets === 0) {
+    return {
+      label: "Register a target",
+      description: "Add the first database target in the Target editor so Kronos has something to protect.",
+    };
+  }
+  if (overview.inventory.storages === 0) {
+    return {
+      label: "Attach storage",
+      description: "Create a local or S3 repository in the Storage editor before queueing backups.",
+    };
+  }
+  if (overview.backups.total === 0) {
+    return {
+      label: "Run the first backup",
+      description: "Target and storage are ready. Queue a full backup to create the first recovery point.",
+      action: "queue-backup",
+    };
+  }
+  if (overview.attention.failed_jobs > 0) {
+    return {
+      label: "Review failed jobs",
+      description: "Open recent job details, inspect the failure evidence, then retry once the underlying issue is fixed.",
+    };
+  }
+  if (overview.attention.unprotected_backups > 0) {
+    return {
+      label: "Protect important backups",
+      description: "Mark critical backups as protected so retention cannot prune them accidentally.",
+    };
+  }
+  return {
+    label: "Keep watch",
+    description: "The repository is initialized. Monitor schedules, verification jobs, and restore drills from this dashboard.",
+  };
+}
+
+function detailItemsFromRecord(record: Record<string, string>, successValue: string): DetailItem[] {
+  return Object.entries(record)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([label, value]) => ({
+      label,
+      value,
+      tone: value === successValue ? "success" : "warning",
+    }));
+}
+
+function detailItemsFromCounts(record: Record<string, number>, emptyLabel: string): DetailItem[] {
+  const entries = Object.entries(record).filter(([, value]) => value > 0);
+  if (entries.length === 0) {
+    return [
+      {
+        label: emptyLabel,
+        value: "0",
+        tone: "bronze",
+      },
+    ];
+  }
+  return entries
+    .sort(([leftLabel, leftValue], [rightLabel, rightValue]) => rightValue - leftValue || leftLabel.localeCompare(rightLabel))
+    .map(([label, value]) => ({
+      label,
+      value: Intl.NumberFormat().format(value),
+      tone: value > 0 && label.includes("failed") ? "warning" : "success",
+    }));
+}
+
 function metricValue(value: number | undefined, loading: boolean) {
   if (typeof value === "number") {
     return Intl.NumberFormat().format(value);
@@ -3065,6 +3773,24 @@ function metricValue(value: number | undefined, loading: boolean) {
 
 function sumValues(values: Record<string, number>) {
   return Object.values(values).reduce((sum, value) => sum + value, 0);
+}
+
+function humanizeLabel(value: string) {
+  return value.replaceAll("_", " ");
+}
+
+function targetEndpointPlaceholder(driver: string) {
+  switch (driver) {
+    case "postgres":
+      return "postgres.example.com:5432";
+    case "mysql":
+    case "mariadb":
+      return "mysql.example.com:3306";
+    case "mongodb":
+      return "mongo.example.com:27017";
+    default:
+      return "redis.example.com:6379";
+  }
 }
 
 function formatRecord(value: Record<string, unknown> | undefined) {
