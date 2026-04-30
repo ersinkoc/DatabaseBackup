@@ -26,6 +26,10 @@ After pushing the release tag, verify the signed tag object from `origin`:
 
 This fetches the tag if needed and runs `git verify-tag` so the release evidence
 can distinguish "tag exists" from "tag signature verified".
+Tagged GitHub release runs also require the repository secret
+`KRONOS_RELEASE_TAG_PUBLIC_KEY` to contain the trusted armored public GPG key for
+the release tag signer. The release workflow imports that key before archiving
+and uploading release evidence.
 
 Download the release assets for the target platform into one directory:
 
@@ -128,7 +132,8 @@ run:
 `release-evidence/` is ignored by Git because it contains generated release
 artifacts and verification logs. Attach the verified evidence directory to the
 promotion ticket or store it in the release evidence archive used for deployment
-approvals.
+approvals. Tagged GitHub release runs upload the same evidence as a workflow
+artifact named `kronos-release-evidence-<tag>`.
 
 Do not promote a release if any checksum, SBOM, vulnerability, signature, or
 attestation check fails.

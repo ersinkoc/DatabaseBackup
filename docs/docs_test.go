@@ -396,6 +396,10 @@ func TestReleaseWorkflowPublishesArtifacts(t *testing.T) {
 		"actions/attest@v4.1.0",
 		"sigstore/cosign-installer@v4.1.1",
 		"actions/upload-artifact@v7",
+		"KRONOS_RELEASE_TAG_PUBLIC_KEY",
+		"./scripts/archive-release-evidence.sh bin",
+		"./scripts/verify-release-evidence.sh",
+		"kronos-release-evidence-${{ github.ref_name }}",
 		"gh release create",
 	} {
 		if !strings.Contains(text, want) {

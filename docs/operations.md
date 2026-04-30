@@ -444,7 +444,9 @@ freshness, capacity, and token cleanup thresholds to match the deployment.
    `tag-signature.log` from `git verify-tag`; `KRONOS_REQUIRE_ATTESTATIONS=1`
    fails verification if GitHub attestation logs were not captured. The
    generated `release-evidence/` directory is gitignored; attach the verified
-   evidence archive to the change ticket or release approval record.
+   evidence archive to the change ticket or release approval record. Tagged
+   GitHub release runs import `KRONOS_RELEASE_TAG_PUBLIC_KEY` from repository
+   secrets and upload `kronos-release-evidence-<tag>` as a workflow artifact.
 
 3. Drain new work by pausing schedules that should not run during the upgrade:
 
