@@ -12,26 +12,30 @@ mkdir -p "$(dirname "$out")"
 tmp="$out.tmp"
 {
 	printf '{\n'
-	printf '  "bomFormat": "CycloneDX",\n'
-	printf '  "specVersion": "1.5",\n'
-	printf '  "version": 1,\n'
-	printf '  "metadata": {\n'
-	printf '    "component": {"type": "application", "name": "kronos", "version": "%s"},\n' "$version"
-	printf '    "commit": "%s",\n' "$commit"
-	printf '    "buildDate": "%s"\n' "$build_date"
+	printf '  "spdxVersion": "SPDX-2.3",\n'
+	printf '  "dataLicense": "CC0-1.0",\n'
+	printf '  "SPDXID": "SPDXRef-DOCUMENT",\n'
+	printf '  "name": "kronos-%s",\n' "$version"
+	printf '  "documentNamespace": "https://github.com/ersinkoc/Kronos/sbom/%s/%s",\n' "$version" "$commit"
+	printf '  "creationInfo": {\n'
+	printf '    "created": "%s",\n' "$build_date"
+	printf '    "creators": ["Tool: scripts/sbom.sh"]\n'
 	printf '  },\n'
-	printf '  "components": [\n'
+	printf '  "packages": [\n'
 	first=1
+	index=0
 	"$go_cmd" list -m all | while read -r path module_version; do
 		[ -n "$path" ] || continue
 		if [ "$first" -eq 0 ]; then
 			printf ',\n'
 		fi
 		first=0
+		index=$((index + 1))
+		spdx_id="$(printf '%s' "$path" | tr -c 'A-Za-z0-9.' '-')"
 		if [ -n "${module_version:-}" ]; then
-			printf '    {"type": "library", "name": "%s", "version": "%s"}' "$path" "$module_version"
+			printf '    {"name": "%s", "SPDXID": "SPDXRef-Package-%s-%s", "versionInfo": "%s", "downloadLocation": "NOASSERTION", "filesAnalyzed": false, "supplier": "NOASSERTION"}' "$path" "$index" "$spdx_id" "$module_version"
 		else
-			printf '    {"type": "application", "name": "%s", "version": "%s"}' "$path" "$version"
+			printf '    {"name": "%s", "SPDXID": "SPDXRef-Package-%s-%s", "versionInfo": "%s", "downloadLocation": "NOASSERTION", "filesAnalyzed": false, "supplier": "NOASSERTION"}' "$path" "$index" "$spdx_id" "$version"
 		fi
 	done
 	printf '\n  ]\n'

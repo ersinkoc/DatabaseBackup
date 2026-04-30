@@ -28,9 +28,8 @@ require_text() {
 	fi
 }
 
-require_text '"bomFormat": "CycloneDX"' "CycloneDX format marker"
-require_text '"specVersion": "1.5"' "CycloneDX spec version"
-require_text '"components": [' "component list"
+require_text '"spdxVersion": "SPDX-2.3"' "SPDX format marker"
+require_text '"packages": [' "package list"
 
 missing="$(mktemp)"
 trap 'rm -f "$missing"' EXIT HUP INT TERM
@@ -42,7 +41,7 @@ trap 'rm -f "$missing"' EXIT HUP INT TERM
 	if ! grep -F "\"name\": \"$module\"" "$sbom" >/dev/null 2>&1; then
 		echo "missing SBOM component for Go module: $module" >>"$missing"
 	fi
-	if [ -n "${version:-}" ] && ! grep -F "\"version\": \"$version\"" "$sbom" >/dev/null 2>&1; then
+	if [ -n "${version:-}" ] && ! grep -F "\"versionInfo\": \"$version\"" "$sbom" >/dev/null 2>&1; then
 		echo "missing SBOM version $version for Go module: $module" >>"$missing"
 	fi
 done
