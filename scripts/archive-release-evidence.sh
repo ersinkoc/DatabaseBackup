@@ -35,7 +35,7 @@ found=0
 for artifact in "$release_dir"/kronos-*; do
 	[ -f "$artifact" ] || continue
 	case "$artifact" in
-		*.sha256 | *.json | *.sig | *.pem | *.tmp) continue ;;
+		*.sha256 | *.json | *.sig | *.pem | *.bundle | *.tmp) continue ;;
 	esac
 	found=1
 	if command -v sha256sum >/dev/null 2>&1; then
@@ -63,7 +63,7 @@ if [ -n "$repo" ]; then
 	for artifact in "$release_dir"/kronos-*; do
 		[ -f "$artifact" ] || continue
 		case "$artifact" in
-			*.sha256 | *.json | *.sig | *.pem | *.tmp) continue ;;
+			*.sha256 | *.json | *.sig | *.pem | *.bundle | *.tmp) continue ;;
 		esac
 		{
 			echo "## $artifact provenance"

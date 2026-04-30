@@ -28,13 +28,23 @@ found=0
 for artifact in "$dir"/kronos-*; do
 	[ -f "$artifact" ] || continue
 	case "$artifact" in
-		*.sha256 | *.sig | *.pem | *.tmp) continue ;;
+		*.sha256 | *.sig | *.pem | *.bundle | *.tmp) continue ;;
 	esac
 	found=1
+	bundle="$artifact.bundle"
 	signature="$artifact.sig"
 	certificate="$artifact.pem"
+	if [ -s "$bundle" ]; then
+		cosign verify-blob \
+			--bundle "$bundle" \
+			--certificate-identity-regexp "$identity_regexp" \
+			--certificate-oidc-issuer "$issuer" \
+			"$artifact"
+		echo "$artifact: signature OK"
+		continue
+	fi
 	if [ ! -s "$signature" ] || [ ! -s "$certificate" ]; then
-		echo "missing signature or certificate for $artifact" >&2
+		echo "missing signature bundle or signature/certificate pair for $artifact" >&2
 		exit 1
 	fi
 	cosign verify-blob \

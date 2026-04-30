@@ -34,9 +34,10 @@ mkdir -p bin
 gh release download <tag> --repo ersinkoc/Kronos --dir bin
 ```
 
-For each binary, keep the matching `.sha256`, `.sig`, and `.pem` files. Keep
-`kronos-provenance.json` and `kronos-sbom.json` with their own `.sig` and `.pem`
-files as well.
+For each binary, keep the matching `.sha256` and `.bundle` files. Keep
+`kronos-provenance.json` and `kronos-sbom.json` with their own `.bundle` files
+as well. Older releases may use `.sig` plus `.pem` pairs; the verification
+script accepts both formats.
 
 ## Checksum Verification
 

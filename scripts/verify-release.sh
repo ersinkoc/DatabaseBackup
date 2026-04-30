@@ -12,7 +12,7 @@ found_binary=0
 for artifact in "$dir"/kronos-*; do
 	[ -f "$artifact" ] || continue
 	case "$artifact" in
-		*.sha256 | *.json | *.sig | *.pem | *.tmp) continue ;;
+		*.sha256 | *.json | *.sig | *.pem | *.bundle | *.tmp) continue ;;
 	esac
 	found_binary=1
 	checksum="$artifact.sha256"

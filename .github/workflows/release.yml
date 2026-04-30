@@ -96,4 +96,4 @@ jobs:
           gh release create "$GITHUB_REF_NAME" bin/kronos-* \
             --verify-tag \
             --title "$GITHUB_REF_NAME" \
-            --notes "Kronos release $GITHUB_REF_NAME. Verify downloads with the attached .sha256 files, inspect kronos-provenance.json plus kronos-sbom.json for build metadata, and verify keyless signatures with the attached .sig and .pem files."
+            --notes "Kronos release $GITHUB_REF_NAME. Verify downloads with the attached .sha256 files, inspect kronos-provenance.json plus kronos-sbom.json for build metadata, and verify keyless signatures with the attached .bundle files."

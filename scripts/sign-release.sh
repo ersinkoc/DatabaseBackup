@@ -18,14 +18,13 @@ found=0
 for artifact in "$dir"/kronos-*; do
 	[ -f "$artifact" ] || continue
 	case "$artifact" in
-		*.sha256 | *.sig | *.pem | *.tmp) continue ;;
+		*.sha256 | *.sig | *.pem | *.bundle | *.tmp) continue ;;
 	esac
 	found=1
 	cosign sign-blob --yes \
-		--output-signature "$artifact.sig" \
-		--output-certificate "$artifact.pem" \
+		--bundle "$artifact.bundle" \
 		"$artifact"
-	if [ ! -s "$artifact.sig" ] || [ ! -s "$artifact.pem" ]; then
+	if [ ! -s "$artifact.bundle" ]; then
 		echo "missing cosign output for $artifact" >&2
 		exit 1
 	fi

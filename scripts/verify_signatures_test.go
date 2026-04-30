@@ -14,7 +14,7 @@ func TestVerifySignaturesDefaultsToProjectWorkflowIdentity(t *testing.T) {
 	root := filepath.Dir(mustGetwd(t))
 	dir := t.TempDir()
 	artifact := filepath.Join(dir, "kronos-linux-amd64")
-	for _, path := range []string{artifact, artifact + ".sig", artifact + ".pem"} {
+	for _, path := range []string{artifact, artifact + ".bundle"} {
 		if err := os.WriteFile(path, []byte("payload\n"), 0o755); err != nil {
 			t.Fatalf("WriteFile(%s) error = %v", path, err)
 		}
