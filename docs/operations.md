@@ -303,6 +303,7 @@ groups:
    make release-all
    make provenance
    make sbom
+   make verify-sbom
    make sign-release
    make verify-signatures
    make verify-release
@@ -372,7 +373,8 @@ groups:
    linux/darwin amd64/arm64 binaries through `scripts/release.sh`, verifies all
    checksums, writes `bin/kronos-provenance.json` and
    `bin/kronos-sbom.json`, signs binaries plus provenance/SBOM metadata with
-   keyless cosign signatures, verifies those signatures against the GitHub
+   keyless cosign signatures, verifies checksums, verifies SBOM module coverage
+   and `govulncheck` vulnerability status, verifies those signatures against the GitHub
    Actions OIDC issuer and release workflow identity, creates GitHub build
    provenance and SBOM attestations for the release binaries, uploads workflow
    artifacts, and publishes the tag assets to the GitHub release.

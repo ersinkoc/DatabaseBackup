@@ -120,7 +120,9 @@ func TestReleaseWorkflowPublishesArtifacts(t *testing.T) {
 		"./scripts/sign-release.sh",
 		"./scripts/verify-signatures.sh",
 		"./scripts/verify-release.sh",
+		"./scripts/verify-sbom.sh",
 		"./scripts/smoke-release.sh",
+		"govulncheck",
 		"attestations: write",
 		"id-token: write",
 		"actions/attest-build-provenance@v4.1.0",
@@ -144,6 +146,7 @@ func TestReleaseScriptsIncludeProvenance(t *testing.T) {
 		filepath.Join("..", "scripts", "sign-release.sh"),
 		filepath.Join("..", "scripts", "verify-signatures.sh"),
 		filepath.Join("..", "scripts", "verify-release.sh"),
+		filepath.Join("..", "scripts", "verify-sbom.sh"),
 		filepath.Join("..", "Makefile"),
 	} {
 		data, err := os.ReadFile(path)
@@ -167,7 +170,9 @@ func TestReleaseVerificationDocumentsSupplyChainChecks(t *testing.T) {
 	text := string(data)
 	for _, want := range []string{
 		"./scripts/verify-release.sh",
+		"./scripts/verify-sbom.sh",
 		"./scripts/verify-signatures.sh",
+		"govulncheck",
 		"./scripts/release-rehearsal.sh",
 		"gh attestation verify",
 		"--signer-workflow .github/workflows/release.yml",

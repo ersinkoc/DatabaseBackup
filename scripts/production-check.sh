@@ -41,6 +41,7 @@ sh -n scripts/archive-release-evidence.sh
 sh -n scripts/release-rehearsal.sh
 sh -n scripts/sign-release.sh
 sh -n scripts/sbom.sh
+sh -n scripts/verify-sbom.sh
 sh -n scripts/verify-signatures.sh
 sh -n scripts/verify-release.sh
 sh -n scripts/smoke-release.sh

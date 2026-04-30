@@ -2,7 +2,8 @@
 
 Use this checklist before promoting a downloaded Kronos release into a
 production environment. It verifies the artifact bytes, the keyless cosign
-signature, and the GitHub-hosted build/SBOM attestations.
+signature, the SBOM module coverage and vulnerability scan, and the
+GitHub-hosted build/SBOM attestations.
 
 ## Inputs
 
@@ -25,6 +26,19 @@ files as well.
 
 This confirms every `kronos-*` binary has a matching SHA-256 checksum and that
 the release metadata files are present.
+
+## SBOM And Vulnerability Verification
+
+Install `govulncheck`, then verify the SBOM covers the current Go module graph
+and run the vulnerability scan used by the release gate:
+
+```bash
+KRONOS_REQUIRE_GOVULNCHECK=1 ./scripts/verify-sbom.sh bin
+```
+
+This validates `kronos-sbom.json` against `go list -m all` and runs
+`govulncheck ./...`. It is a source/module vulnerability gate, not a standalone
+binary artifact scanner.
 
 ## Keyless Signature Verification
 
@@ -85,4 +99,5 @@ run:
 ./scripts/release-rehearsal.sh <tag> release-evidence/<tag>
 ```
 
-Do not promote a release if any checksum, signature, or attestation check fails.
+Do not promote a release if any checksum, SBOM, vulnerability, signature, or
+attestation check fails.

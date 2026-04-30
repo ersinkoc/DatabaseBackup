@@ -55,6 +55,7 @@ jobs:
           sh -n scripts/release.sh
           sh -n scripts/provenance.sh
           sh -n scripts/sbom.sh
+          sh -n scripts/verify-sbom.sh
           sh -n scripts/verify-release.sh
           sh -n scripts/smoke-release.sh
           sh -n scripts/production-check.sh
@@ -65,6 +66,7 @@ jobs:
           VERSION=ci COMMIT=${GITHUB_SHA::12} BUILD_DATE=1970-01-01T00:00:00Z ./scripts/provenance.sh
           VERSION=ci COMMIT=${GITHUB_SHA::12} BUILD_DATE=1970-01-01T00:00:00Z ./scripts/sbom.sh
           ./scripts/verify-release.sh bin
+          KRONOS_REQUIRE_GOVULNCHECK=1 ./scripts/verify-sbom.sh bin
           ./scripts/smoke-release.sh bin
 
       - name: Build container image

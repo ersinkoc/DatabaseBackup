@@ -34,6 +34,9 @@ jobs:
       - name: Test
         run: go test ./...
 
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
       - name: Build release artifacts
         env:
           VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.ref_name }}
@@ -47,6 +50,7 @@ jobs:
       - name: Verify checksums
         run: |
           ./scripts/verify-release.sh bin
+          KRONOS_REQUIRE_GOVULNCHECK=1 ./scripts/verify-sbom.sh bin
           ./scripts/smoke-release.sh bin
 
       - name: Attest build provenance

@@ -2,6 +2,8 @@ module github.com/kronos/kronos
 
 go 1.25.0
 
+toolchain go1.25.9
+
 require (
 	github.com/klauspost/compress v1.18.1
 	golang.org/x/crypto v0.50.0

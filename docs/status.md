@@ -1,6 +1,6 @@
 # Project Status
 
-Last reviewed from the repository state on April 29, 2026.
+Last reviewed from the repository state on April 30, 2026.
 
 Kronos is currently a working Phase 1 / early Phase 2 backup platform rather
 than a bare scaffold. The core control plane, CLI, state store, scheduler,
@@ -76,9 +76,9 @@ flowchart LR
 - Readiness, health, Prometheus metrics with `GET`/`HEAD` probe support,
   operations docs, CLI docs, quickstart, architecture docs, deployment topology
   guidance, restore drill guidance, multi-platform release artifacts, checksums,
-  provenance metadata, SBOM metadata, release artifact smoke checks, container
-  builds, GitHub release publishing, Kubernetes deployment examples, and cloud
-  secret integration guidance.
+  provenance metadata, SBOM metadata, SBOM module/vulnerability verification,
+  release artifact smoke checks, container builds, GitHub release publishing,
+  Kubernetes deployment examples, and cloud secret integration guidance.
 
 ## Recent Progress
 
@@ -198,10 +198,9 @@ broad multi-database production suite. The largest remaining areas are:
 
 ## Next Best Work
 
-1. Add release artifact vulnerability/SBOM verification to the documented gate.
-2. Add deeper failure-injection verification drills for missing or corrupted chunks.
-3. Add additional notification channels and hook execution surfaces.
-4. Run a signed-tag release rehearsal and archive checksum, signature, and
+1. Add deeper failure-injection verification drills for missing or corrupted chunks.
+2. Add additional notification channels and hook execution surfaces.
+3. Run a signed-tag release rehearsal and archive checksum, signature, and
    attestation verification evidence.
-5. Add cloud-specific deployment overlays for common managed Kubernetes
+4. Add cloud-specific deployment overlays for common managed Kubernetes
    environments.
