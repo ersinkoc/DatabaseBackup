@@ -169,10 +169,11 @@ run.
   local repository storage, and Redis-compatible RESP target together for
   backup and restore. It also covers scheduled pre-backup shell/webhook hook
   execution, failure hook execution with `KRONOS_JOB_ERROR`, retention apply
-  over committed backup metadata, including dry-run behavior, deletion, and
-  mutation audit recording. Lost-agent recovery is covered through heartbeat,
-  claim, failed running job, target unblock, and recovery audit behavior.
-  Server restart recovery is covered through persisted running/finalizing jobs,
+  over committed backup metadata, including dry-run behavior, deletion,
+  protected backup retention, retained backup-chain protection, and mutation
+  audit recording. Lost-agent recovery is covered through heartbeat, claim,
+  failed running job, target unblock, and recovery audit behavior. Server
+  restart recovery is covered through persisted running/finalizing jobs,
   boot-time recovery, HTTP job inspection, and post-shutdown state verification.
   PostgreSQL worker smoke coverage exercises backup and restore through fake
   `pg_dump`/`psql` tools, the control plane, local storage, manifests, and the
@@ -181,8 +182,8 @@ run.
 
 ## Blocking Work Before Calling The Whole Product Production-Ready
 
-1. Extend E2E coverage into more retention policy edge cases and release
-   verification drills.
+1. Extend E2E coverage into release verification drills and remaining
+   service-level failure scenarios.
 2. Add deeper verification drill evidence, including failure-injection
    scenarios beyond the current agent-level missing/corrupted chunk drills.
 3. Run at least one signed-tag release rehearsal against a disposable version

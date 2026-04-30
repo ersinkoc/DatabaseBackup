@@ -350,6 +350,100 @@ func TestE2ERetentionApplyPrunesBackupMetadata(t *testing.T) {
 	t.Fatalf("retention.applied audit event not found in %#v", events)
 }
 
+func TestE2ERetentionApplyKeepsProtectedAndBackupChain(t *testing.T) {
+	stores := newE2EAPIStores(t)
+	server := httptest.NewServer(newServerHandlerWithStores(nil, nil, stores))
+	defer server.Close()
+
+	now := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
+	full := core.Backup{
+		ID:         "chain-full",
+		TargetID:   "target-redis",
+		StorageID:  "storage-local",
+		JobID:      "job-full",
+		Type:       core.BackupTypeFull,
+		ManifestID: "manifest-full",
+		StartedAt:  now.Add(-5 * time.Hour),
+		EndedAt:    now.Add(-5 * time.Hour),
+	}
+	incr1 := core.Backup{
+		ID:         "chain-incr-1",
+		TargetID:   "target-redis",
+		StorageID:  "storage-local",
+		JobID:      "job-incr-1",
+		Type:       core.BackupTypeIncremental,
+		ParentID:   full.ID,
+		ManifestID: "manifest-incr-1",
+		StartedAt:  now.Add(-4 * time.Hour),
+		EndedAt:    now.Add(-4 * time.Hour),
+	}
+	incr2 := core.Backup{
+		ID:         "chain-incr-2",
+		TargetID:   "target-redis",
+		StorageID:  "storage-local",
+		JobID:      "job-incr-2",
+		Type:       core.BackupTypeIncremental,
+		ParentID:   incr1.ID,
+		ManifestID: "manifest-incr-2",
+		StartedAt:  now.Add(-30 * time.Minute),
+		EndedAt:    now.Add(-30 * time.Minute),
+	}
+	protected := core.Backup{
+		ID:         "protected-old",
+		TargetID:   "target-redis",
+		StorageID:  "storage-local",
+		JobID:      "job-protected",
+		Type:       core.BackupTypeFull,
+		ManifestID: "manifest-protected",
+		StartedAt:  now.Add(-720 * time.Hour),
+		EndedAt:    now.Add(-720 * time.Hour),
+		Protected:  true,
+	}
+	unrelated := core.Backup{
+		ID:         "unrelated-old",
+		TargetID:   "target-redis",
+		StorageID:  "storage-local",
+		JobID:      "job-unrelated",
+		Type:       core.BackupTypeFull,
+		ManifestID: "manifest-unrelated",
+		StartedAt:  now.Add(-6 * time.Hour),
+		EndedAt:    now.Add(-6 * time.Hour),
+	}
+	for _, backup := range []core.Backup{full, incr1, incr2, protected, unrelated} {
+		if err := stores.backups.Save(backup); err != nil {
+			t.Fatalf("Save(backup %s) error = %v", backup.ID, err)
+		}
+	}
+
+	applied := applyE2ERetention(t, server, false)
+	if applied.DryRun {
+		t.Fatalf("apply response = %#v", applied)
+	}
+	assertE2EDeletedBackups(t, applied.Deleted, "unrelated-old")
+	for _, id := range []core.ID{"chain-full", "chain-incr-1", "chain-incr-2", "protected-old"} {
+		if _, ok, err := stores.backups.Get(id); err != nil || !ok {
+			t.Fatalf("backup %s exists=%v error=%v, want kept", id, ok, err)
+		}
+	}
+	if _, ok, err := stores.backups.Get("unrelated-old"); err != nil || ok {
+		t.Fatalf("unrelated-old exists=%v error=%v, want deleted", ok, err)
+	}
+	keptReasons := make(map[core.ID][]string)
+	for _, item := range applied.Plan.Items {
+		if item.Keep {
+			keptReasons[item.Backup.ID] = item.Reasons
+		}
+	}
+	for _, id := range []core.ID{"chain-full", "chain-incr-1"} {
+		if !hasE2ERetentionReason(keptReasons[id], "chain") {
+			t.Fatalf("backup %s reasons = %v, want chain", id, keptReasons[id])
+		}
+	}
+	if !hasE2ERetentionReason(keptReasons["protected-old"], "protected") {
+		t.Fatalf("protected-old reasons = %v, want protected", keptReasons["protected-old"])
+	}
+}
+
 func TestE2EClaimFailsLostAgentJobAndUnblocksTarget(t *testing.T) {
 	now := time.Date(2026, 4, 25, 12, 0, 0, 0, time.UTC)
 	registry := control.NewAgentRegistry(func() time.Time { return now }, time.Minute)
@@ -715,6 +809,15 @@ func assertE2EDeletedBackups(t *testing.T, got []core.ID, want core.ID) {
 	if len(got) != 1 || got[0] != want {
 		t.Fatalf("deleted backups = %#v, want [%s]", got, want)
 	}
+}
+
+func hasE2ERetentionReason(reasons []string, want string) bool {
+	for _, reason := range reasons {
+		if reason == want {
+			return true
+		}
+	}
+	return false
 }
 
 func waitForE2EBackup(t *testing.T, backups *control.BackupStore, jobs *control.JobStore, done <-chan error, jobID core.ID) core.Backup {
