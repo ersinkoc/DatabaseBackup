@@ -392,11 +392,15 @@ groups:
    version:
 
    ```bash
+   ./scripts/check-release-signing.sh v1.2.3
    git tag -s v1.2.3 -m "v1.2.3"
    git push origin v1.2.3
    ```
 
-   The `release` workflow runs the full Go test suite, builds the default
+   The signing check fails fast when `git config user.signingkey` is missing,
+   the configured GPG secret key is unavailable, the release tag already exists
+   locally or on `origin`, or a temporary signed probe tag cannot be created and
+   verified. The `release` workflow runs the full Go test suite, builds the default
    linux/darwin amd64/arm64 binaries through `scripts/release.sh`, verifies all
    checksums, writes `bin/kronos-provenance.json` and
    `bin/kronos-sbom.json`, signs binaries plus provenance/SBOM metadata with

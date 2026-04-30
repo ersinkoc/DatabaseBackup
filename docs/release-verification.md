@@ -7,6 +7,17 @@ GitHub-hosted build/SBOM attestations.
 
 ## Inputs
 
+Before cutting a production tag, verify local signing readiness without pushing
+anything:
+
+```bash
+./scripts/check-release-signing.sh <tag>
+```
+
+This confirms `user.signingkey` is configured, the matching GPG secret key is
+available, the tag is not already present locally or on `origin`, and a
+temporary signed probe tag can be created and verified.
+
 Download the release assets for the target platform into one directory:
 
 ```bash
