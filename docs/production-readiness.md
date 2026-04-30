@@ -12,11 +12,12 @@ failed restores, a 2,500-row indexed JSONB restore rehearsal, and optional
 PostgreSQL global role metadata capture through `include_globals=true` without
 leaking role password material, plus a focused `postgres_globals` restore drill
 for role metadata. CI also runs a PostgreSQL 15-to-17 restore rehearsal and a
-dedicated PostgreSQL 17 full global restore rehearsal that replays the actual
-`pg_dumpall --globals-only` stream plus database stream into a separate target.
+PostgreSQL 16-to-17 restore rehearsal, plus a dedicated PostgreSQL 17 full
+global restore rehearsal that replays the actual `pg_dumpall --globals-only`
+stream plus database stream into a separate target.
 CI also runs a PostgreSQL 17 operator-scale restore drill with 10,000 indexed
-JSONB rows across separate source and target services. It still needs broader
-upgrade rehearsals before it should be treated as a fully production-grade
+JSONB rows across separate source and target services. It still lacks native
+WAL/PITR support before it should be treated as a fully production-grade
 PostgreSQL path. MongoDB now has a `mongodump`/`mongorestore` archive MVP with
 deterministic unit coverage, explicit replace-existing restore guardrails,
 failed restore temp-config cleanup coverage, authenticated real-service MongoDB
@@ -87,9 +88,9 @@ run.
   for role metadata, a PostgreSQL 17 full global restore rehearsal that replays
   actual globals plus database streams into a separate target, `replace_existing`
   enforcement for non-dry-run restores, single-transaction `psql` execution,
-  rollback verification for failed restores, a PostgreSQL 15-to-17 restore
-  rehearsal, and a PostgreSQL 17 operator-scale restore drill that verifies
-  10,000 indexed JSONB rows across separate source and target services.
+  rollback verification for failed restores, PostgreSQL 15-to-17 and 16-to-17
+  restore rehearsals, and a PostgreSQL 17 operator-scale restore drill that
+  verifies 10,000 indexed JSONB rows across separate source and target services.
 - MySQL/MariaDB logical driver MVP using `mysqldump` for full backups and
   `mysql` for restores, with password material passed through `MYSQL_PWD`
   instead of command arguments and unit coverage for backup, restore,
@@ -150,7 +151,7 @@ run.
   metadata, GitHub build/SBOM attestations, keyless cosign release signatures
   and verification.
 - CI runs formatting, vet, staticcheck, govulncheck, race tests, PostgreSQL
-  15/16/17 service conformance, PostgreSQL 15-to-17 restore rehearsal,
+  15/16/17 service conformance, PostgreSQL 15-to-17 and 16-to-17 restore rehearsals,
   PostgreSQL 17 full global restore rehearsal, PostgreSQL 17 operator-scale
   restore drill, MySQL 8.4 and MariaDB 11.4 service conformance,
   bidirectional MySQL/MariaDB restore rehearsals, 10,000-row MySQL/MariaDB
@@ -175,17 +176,14 @@ run.
 
 ## Blocking Work Before Calling The Whole Product Production-Ready
 
-1. Harden PostgreSQL operational behavior around broader upgrade rehearsal
-   evidence.
-2. Extend E2E coverage into more retention policy edge cases and release
+1. Extend E2E coverage into more retention policy edge cases and release
    verification drills.
-3. Add deeper verification drill evidence, including failure-injection
+2. Add deeper verification drill evidence, including failure-injection
    scenarios for missing or corrupted chunks.
-4. Run at least one signed-tag release rehearsal against a disposable version
+3. Run at least one signed-tag release rehearsal against a disposable version
    tag and archive the verification evidence.
 
 ## Next Engineering Slices
 
-1. Extend PostgreSQL hardening around broader upgrade rehearsal evidence.
-2. Run a signed-tag release rehearsal and archive checksum, signature, and
+1. Run a signed-tag release rehearsal and archive checksum, signature, and
    attestation verification evidence.

@@ -218,6 +218,28 @@ func TestCIWorkflowPassesPostgresPasswordToContainerizedClients(t *testing.T) {
 	}
 }
 
+func TestCIWorkflowCoversPostgresUpgradeRehearsalMatrix(t *testing.T) {
+	t.Parallel()
+
+	data, err := os.ReadFile(filepath.Join("..", ".github", "workflows", "ci.yml"))
+	if err != nil {
+		t.Fatalf("ReadFile(ci.yml) error = %v", err)
+	}
+	text := string(data)
+	for _, want := range []string{
+		"name: postgres-upgrade-rehearsal (${{ matrix.upgrade_path }})",
+		"upgrade_path: 15-to-17",
+		"upgrade_path: 16-to-17",
+		"source_version: \"15\"",
+		"source_version: \"16\"",
+		"KRONOS_POSTGRES_TEST_DSN: postgres://postgres:postgres@127.0.0.1:${{ matrix.source_port }}/postgres?sslmode=disable",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("ci.yml missing %q", want)
+		}
+	}
+}
+
 func TestCIWorkflowMountsMongoTempConfigIntoContainerizedClients(t *testing.T) {
 	t.Parallel()
 

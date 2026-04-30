@@ -160,11 +160,12 @@ broad multi-database production suite. The largest remaining areas are:
   `pg_dumpall --globals-only --no-role-passwords`, including a conformance
   assertion that role password material is not emitted and a focused
   `postgres_globals` restore drill for role metadata. CI also runs a
-  PostgreSQL 15-to-17 restore rehearsal and a PostgreSQL 17 full global restore
-  rehearsal that replays actual globals plus database streams into a separate
-  target, plus a PostgreSQL 17 operator-scale restore drill that verifies
-  10,000 indexed JSONB rows across separate source and target services.
-  Remaining hardening is around broader upgrade rehearsal evidence.
+  PostgreSQL 15-to-17 and 16-to-17 restore rehearsals and a PostgreSQL 17 full
+  global restore rehearsal that replays actual globals plus database streams
+  into a separate target, plus a PostgreSQL 17 operator-scale restore drill
+  that verifies 10,000 indexed JSONB rows across separate source and target
+  services. Remaining hardening is around native PITR/WAL coverage and broader
+  failure-injection evidence.
 - Additional database driver depth. Current executable driver coverage is
   Redis/Valkey, the PostgreSQL logical MVP, a MySQL/MariaDB
   `mysqldump`/`mysql` logical MVP with unit coverage plus real-service MySQL
@@ -197,8 +198,8 @@ broad multi-database production suite. The largest remaining areas are:
 
 ## Next Best Work
 
-1. Extend PostgreSQL hardening around broader upgrade rehearsal evidence.
-2. Add release artifact vulnerability/SBOM verification to the documented gate.
+1. Add release artifact vulnerability/SBOM verification to the documented gate.
+2. Add deeper failure-injection verification drills for missing or corrupted chunks.
 3. Add additional notification channels and hook execution surfaces.
 4. Run a signed-tag release rehearsal and archive checksum, signature, and
    attestation verification evidence.

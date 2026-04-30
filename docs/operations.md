@@ -331,8 +331,9 @@ groups:
    driver writes a separate `postgres_globals` stream from
    `pg_dumpall --globals-only --no-role-passwords` before the database stream.
    The main CI workflow runs this conformance suite against PostgreSQL 15, 16,
-   and 17 with matching client binaries, and also runs a PostgreSQL 15-to-17
-   restore rehearsal against separate source and target service containers.
+   and 17 with matching client binaries, and also runs PostgreSQL 15-to-17 and
+   16-to-17 restore rehearsals against separate source and target service
+   containers.
 
    MongoDB conformance can be exercised against a reachable MongoDB service
    when `mongosh`, `mongodump`, and `mongorestore` are installed:

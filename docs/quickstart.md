@@ -109,9 +109,9 @@ read those objects, and role passwords are intentionally excluded. PostgreSQL
 restore requires `--replace-existing` and `--yes`; the driver refuses
 non-dry-run plain SQL restores without `replace_existing=true` and runs `psql`
 in a single transaction. CI exercises PostgreSQL 15, 16, and 17 conformance,
-a PostgreSQL 15-to-17 restore rehearsal, and a PostgreSQL 17 full global restore
-rehearsal that replays actual globals plus database streams into a separate
-target, plus a PostgreSQL 17 10,000-row restore drill. MySQL/MariaDB has a
+PostgreSQL 15-to-17 and 16-to-17 restore rehearsals, and a PostgreSQL 17 full
+global restore rehearsal that replays actual globals plus database streams into
+a separate target, plus a PostgreSQL 17 10,000-row restore drill. MySQL/MariaDB has a
 logical backup/restore MVP that
 shells out to `mysqldump` for full backups and `mysql` for restores; install
 matching MySQL or MariaDB client tools on worker agents before using it. MySQL

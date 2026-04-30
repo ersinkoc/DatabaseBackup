@@ -133,15 +133,25 @@ jobs:
         run: go test -tags=integration ./internal/drivers/postgres
 
   postgres-upgrade-rehearsal:
-    name: postgres-upgrade-rehearsal (15-to-17)
+    name: postgres-upgrade-rehearsal (${{ matrix.upgrade_path }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - upgrade_path: 15-to-17
+            source_version: "15"
+            source_port: "15432"
+          - upgrade_path: 16-to-17
+            source_version: "16"
+            source_port: "16432"
     services:
       postgres-source:
-        image: postgres:15
+        image: postgres:${{ matrix.source_version }}
         env:
           POSTGRES_PASSWORD: postgres
         ports:
-          - 15432:5432
+          - "${{ matrix.source_port }}:5432"
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s
@@ -184,9 +194,9 @@ jobs:
           done
           echo "$PWD/.tools/postgres-client" >> "$GITHUB_PATH"
 
-      - name: PostgreSQL 15 to 17 restore rehearsal
+      - name: PostgreSQL ${{ matrix.upgrade_path }} restore rehearsal
         env:
-          KRONOS_POSTGRES_TEST_DSN: postgres://postgres:postgres@127.0.0.1:15432/postgres?sslmode=disable
+          KRONOS_POSTGRES_TEST_DSN: postgres://postgres:postgres@127.0.0.1:${{ matrix.source_port }}/postgres?sslmode=disable
           KRONOS_POSTGRES_RESTORE_DSN: postgres://postgres:postgres@127.0.0.1:17432/postgres?sslmode=disable
           POSTGRES_VERSION: "17"
         run: go test -tags=integration ./internal/drivers/postgres
