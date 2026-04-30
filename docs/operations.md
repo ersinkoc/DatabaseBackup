@@ -395,6 +395,7 @@ groups:
    ./scripts/check-release-signing.sh v1.2.3
    git tag -s v1.2.3 -m "v1.2.3"
    git push origin v1.2.3
+   ./scripts/verify-release-tag.sh v1.2.3
    ```
 
    The signing check fails fast when `git config user.signingkey` is missing,

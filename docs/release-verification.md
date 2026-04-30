@@ -18,6 +18,15 @@ This confirms `user.signingkey` is configured, the matching GPG secret key is
 available, the tag is not already present locally or on `origin`, and a
 temporary signed probe tag can be created and verified.
 
+After pushing the release tag, verify the signed tag object from `origin`:
+
+```bash
+./scripts/verify-release-tag.sh <tag>
+```
+
+This fetches the tag if needed and runs `git verify-tag` so the release evidence
+can distinguish "tag exists" from "tag signature verified".
+
 Download the release assets for the target platform into one directory:
 
 ```bash

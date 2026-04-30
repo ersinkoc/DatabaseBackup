@@ -200,5 +200,6 @@ broad multi-database production suite. The largest remaining areas are:
 
 ## Next Best Work
 
-1. Run a signed-tag release rehearsal and archive checksum, signature, and
-   attestation verification evidence.
+1. Configure a local GPG signing key, run `check-release-signing.sh`, push a
+   disposable signed tag, verify it with `verify-release-tag.sh`, and archive
+   checksum, signature, and attestation verification evidence.
