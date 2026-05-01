@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/kronos/kronos/internal/core"
+	"github.com/kronos/kronos/internal/storage"
 )
 
 func TestMemoryBackendCRUDAndList(t *testing.T) {
@@ -88,6 +89,15 @@ func TestMemoryBackendCRUDAndList(t *testing.T) {
 	if _, _, err := backend.Get(ctx, "chunks/a"); !errors.Is(err, core.ErrNotFound) {
 		t.Fatalf("Get(deleted) error = %v, want not found", err)
 	}
+}
+
+func TestMemoryBackendConformance(t *testing.T) {
+	t.Parallel()
+
+	RunBackendConformance(t, func(t *testing.T) storage.Backend {
+		t.Helper()
+		return NewMemoryBackend("mem")
+	}, ConformanceOptions{InvalidKeyErrors: true})
 }
 
 func TestMemoryBackendRejectsBadInputs(t *testing.T) {

@@ -20,8 +20,11 @@ import (
 	"github.com/kronos/kronos/internal/repository"
 	"github.com/kronos/kronos/internal/secret"
 	"github.com/kronos/kronos/internal/storage"
+	azurestorage "github.com/kronos/kronos/internal/storage/azure"
+	gcsstorage "github.com/kronos/kronos/internal/storage/gcs"
 	"github.com/kronos/kronos/internal/storage/local"
 	"github.com/kronos/kronos/internal/storage/s3"
+	sftpstorage "github.com/kronos/kronos/internal/storage/sftp"
 	"github.com/kronos/kronos/internal/verify"
 )
 
@@ -123,8 +126,26 @@ func OpenStorageBackend(item core.Storage) (storage.Backend, error) {
 			return nil, err
 		}
 		return s3.New(cfg)
+	case core.StorageKindSFTP:
+		cfg, err := sftpStorageConfig(item)
+		if err != nil {
+			return nil, err
+		}
+		return sftpstorage.New(context.Background(), cfg)
+	case core.StorageKindAzure:
+		cfg, err := azureStorageConfig(item)
+		if err != nil {
+			return nil, err
+		}
+		return azurestorage.New(cfg)
+	case core.StorageKindGCS:
+		cfg, err := gcsStorageConfig(item)
+		if err != nil {
+			return nil, err
+		}
+		return gcsstorage.New(cfg)
 	default:
-		return nil, fmt.Errorf("storage kind %q is not implemented in this build; supported storage kinds: local, s3", item.Kind)
+		return nil, fmt.Errorf("storage kind %q is not implemented in this build; supported storage kinds: local, s3, sftp, azure, gcs", item.Kind)
 	}
 }
 
@@ -331,6 +352,106 @@ func parseS3Credentials(value string) (s3.Credentials, error) {
 		return s3.Credentials{}, fmt.Errorf("s3 credentials JSON requires access_key and secret_key")
 	}
 	return creds, nil
+}
+
+func sftpStorageConfig(item core.Storage) (sftpstorage.Config, error) {
+	u, err := url.Parse(item.URI)
+	if err != nil {
+		return sftpstorage.Config{}, fmt.Errorf("parse sftp storage uri: %w", err)
+	}
+	if u.Scheme != "sftp" {
+		return sftpstorage.Config{}, fmt.Errorf("sftp storage uri must use sftp scheme")
+	}
+	if u.Host == "" {
+		return sftpstorage.Config{}, fmt.Errorf("sftp storage uri host is required")
+	}
+	username := optionString(item.Options, "username", "user")
+	password := optionString(item.Options, "password")
+	if u.User != nil {
+		if username == "" {
+			username = u.User.Username()
+		}
+		if value, ok := u.User.Password(); ok && password == "" {
+			password = value
+		}
+	}
+	return sftpstorage.Config{
+		Name:                  item.Name,
+		Address:               u.Host,
+		Root:                  u.Path,
+		Username:              username,
+		Password:              password,
+		PrivateKeyPEM:         optionString(item.Options, "private_key", "privateKey"),
+		PrivateKeyPath:        optionString(item.Options, "private_key_path", "privateKeyPath"),
+		Passphrase:            optionString(item.Options, "passphrase", "private_key_passphrase", "privateKeyPassphrase"),
+		AgentSocket:           optionString(item.Options, "agent_socket", "ssh_agent_socket"),
+		KnownHostsPath:        optionString(item.Options, "known_hosts", "knownHosts"),
+		InsecureIgnoreHostKey: optionBool(item.Options, "insecure_ignore_host_key", "insecureIgnoreHostKey"),
+	}, nil
+}
+
+func azureStorageConfig(item core.Storage) (azurestorage.Config, error) {
+	u, err := url.Parse(item.URI)
+	if err != nil {
+		return azurestorage.Config{}, fmt.Errorf("parse azure storage uri: %w", err)
+	}
+	if u.Scheme != "azure" && u.Scheme != "azblob" {
+		return azurestorage.Config{}, fmt.Errorf("azure storage uri must use azure or azblob scheme")
+	}
+	account := optionString(item.Options, "account_name", "accountName", "account")
+	container := optionString(item.Options, "container")
+	prefix := optionString(item.Options, "prefix")
+	if u.Host != "" {
+		if account == "" {
+			account = u.Host
+		}
+		parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+		if len(parts) > 0 && parts[0] != "" {
+			if container == "" {
+				container = parts[0]
+			}
+			if prefix == "" && len(parts) > 1 {
+				prefix = strings.Join(parts[1:], "/")
+			}
+		}
+	}
+	return azurestorage.Config{
+		Name:        item.Name,
+		AccountName: account,
+		AccountKey:  optionString(item.Options, "account_key", "accountKey"),
+		Container:   container,
+		Prefix:      prefix,
+		Endpoint:    optionString(item.Options, "endpoint"),
+		SASToken:    optionString(item.Options, "sas_token", "sasToken", "sas"),
+	}, nil
+}
+
+func gcsStorageConfig(item core.Storage) (gcsstorage.Config, error) {
+	u, err := url.Parse(item.URI)
+	if err != nil {
+		return gcsstorage.Config{}, fmt.Errorf("parse gcs storage uri: %w", err)
+	}
+	if u.Scheme != "gcs" && u.Scheme != "gs" {
+		return gcsstorage.Config{}, fmt.Errorf("gcs storage uri must use gcs or gs scheme")
+	}
+	bucket := optionString(item.Options, "bucket")
+	prefix := optionString(item.Options, "prefix")
+	if u.Host != "" {
+		if bucket == "" {
+			bucket = u.Host
+		}
+		if prefix == "" {
+			prefix = strings.Trim(u.Path, "/")
+		}
+	}
+	return gcsstorage.Config{
+		Name:        item.Name,
+		Bucket:      bucket,
+		Prefix:      prefix,
+		Endpoint:    optionString(item.Options, "endpoint"),
+		BearerToken: optionString(item.Options, "bearer_token", "bearerToken", "access_token", "accessToken"),
+		APIKey:      optionString(item.Options, "api_key", "apiKey"),
+	}, nil
 }
 
 func firstNonEmpty(values ...string) string {

@@ -13,12 +13,22 @@ import (
 
 	"github.com/kronos/kronos/internal/core"
 	"github.com/kronos/kronos/internal/storage"
+	"github.com/kronos/kronos/internal/storage/storagetest"
 )
 
 func TestBackendImplementsStorageBackend(t *testing.T) {
 	t.Parallel()
 
 	var _ storage.Backend = (*Backend)(nil)
+}
+
+func TestBackendConformance(t *testing.T) {
+	t.Parallel()
+
+	storagetest.RunBackendConformance(t, func(t *testing.T) storage.Backend {
+		t.Helper()
+		return newTestBackend(t)
+	}, storagetest.ConformanceOptions{InvalidKeyErrors: true})
 }
 
 func TestPutGetHeadExistsDeleteList(t *testing.T) {

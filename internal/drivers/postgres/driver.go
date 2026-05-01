@@ -23,6 +23,7 @@ const (
 // Driver implements PostgreSQL logical backup with pg_dump plain SQL output.
 type Driver struct {
 	runner commandRunner
+	native pgNativeQueryer
 }
 
 type commandRunner interface {
@@ -33,7 +34,7 @@ type execRunner struct{}
 
 // NewDriver returns a PostgreSQL driver.
 func NewDriver() *Driver {
-	return &Driver{runner: execRunner{}}
+	return &Driver{runner: execRunner{}, native: pgNativeRunner{}}
 }
 
 // Name returns the driver name.
@@ -52,6 +53,14 @@ func (d *Driver) Version(ctx context.Context, target drivers.Target) (string, er
 
 // Test validates that pg_dump can connect and inspect schema metadata.
 func (d *Driver) Test(ctx context.Context, target drivers.Target) error {
+	if useNativeProtocol(target) {
+		queryer := d.native
+		if queryer == nil {
+			queryer = pgNativeRunner{}
+		}
+		_, err := queryer.SimpleQuery(ctx, target, "select 1")
+		return err
+	}
 	_, err := d.run(ctx, "pg_dump", []string{"--schema-only", "--dbname", postgresDSN(target)}, nil, postgresEnv(target))
 	return err
 }
@@ -60,6 +69,13 @@ func (d *Driver) Test(ctx context.Context, target drivers.Target) error {
 func (d *Driver) BackupFull(ctx context.Context, target drivers.Target, w drivers.RecordWriter) (drivers.ResumePoint, error) {
 	if w == nil {
 		return drivers.ResumePoint{}, fmt.Errorf("record writer is required")
+	}
+	if useNativeProtocol(target) {
+		queryer := d.native
+		if queryer == nil {
+			queryer = pgNativeRunner{}
+		}
+		return pgNativeBackupFull(ctx, target, w, queryer)
 	}
 	position := "pg_dump:plain"
 	if includeGlobals(target) {
@@ -114,6 +130,13 @@ func (d *Driver) Stream(ctx context.Context, _ drivers.Target, _ drivers.ResumeP
 func (d *Driver) Restore(ctx context.Context, target drivers.Target, r drivers.RecordReader, opts drivers.RestoreOptions) error {
 	if r == nil {
 		return fmt.Errorf("record reader is required")
+	}
+	if useNativeProtocol(target) {
+		queryer := d.native
+		if queryer == nil {
+			queryer = pgNativeRunner{}
+		}
+		return pgNativeRestore(ctx, target, r, opts, queryer)
 	}
 	for {
 		record, err := r.NextRecord()
@@ -274,6 +297,23 @@ func includeGlobals(target drivers.Target) bool {
 	)
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func useNativeProtocol(target drivers.Target) bool {
+	value := strings.ToLower(strings.TrimSpace(firstNonEmpty(
+		target.Connection["protocol"],
+		target.Connection["native_protocol"],
+		target.Connection["native"],
+		target.Options["protocol"],
+		target.Options["native_protocol"],
+		target.Options["native"],
+	)))
+	switch value {
+	case "native", "pgwire", "1", "true", "yes", "on":
 		return true
 	default:
 		return false

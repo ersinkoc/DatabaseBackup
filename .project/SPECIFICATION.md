@@ -3,9 +3,9 @@
 > Current implementation note, April 30, 2026: this document preserves the
 > long-term product vision. It is not an accurate MVP release contract where it
 > claims pure-Go database drivers, no shell-outs, PITR for PostgreSQL/MySQL/
-> MongoDB, gRPC agent transport, or SFTP/Azure/GCS storage. The implemented MVP
-> uses external database tools for PostgreSQL, MySQL/MariaDB, and MongoDB,
-> hardened HTTP polling for agents, and local/S3 storage. See
+> MongoDB or gRPC agent transport. The implemented build uses
+> external database tools for PostgreSQL, MySQL/MariaDB, and MongoDB, hardened
+> HTTP polling for agents, and local/S3/SFTP/Azure Blob/GCS storage. See
 > [`docs/decisions/0002-external-tool-driver-mvp.md`](../docs/decisions/0002-external-tool-driver-mvp.md)
 > and [`docs/production-readiness.md`](../docs/production-readiness.md) for the
 > current release scope.

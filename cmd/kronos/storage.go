@@ -80,6 +80,27 @@ func runStorageAdd(ctx context.Context, out io.Writer, args []string) error {
 	sessionToken := fs.String("session-token", "", "static S3 session token")
 	sessionTokenRef := fs.String("session-token-ref", "", "secret reference for static S3 session token, for example ${env:S3_SESSION_TOKEN}")
 	forcePathStyle := fs.Bool("force-path-style", false, "use path-style S3 requests")
+	accountName := fs.String("account-name", "", "Azure storage account name")
+	accountKey := fs.String("account-key", "", "Azure storage account key")
+	accountKeyRef := fs.String("account-key-ref", "", "secret reference for Azure storage account key, for example ${env:AZURE_STORAGE_ACCOUNT_KEY}")
+	sasToken := fs.String("sas-token", "", "Azure SAS token")
+	sasTokenRef := fs.String("sas-token-ref", "", "secret reference for Azure SAS token, for example ${env:AZURE_STORAGE_SAS_TOKEN}")
+	bearerToken := fs.String("bearer-token", "", "GCS bearer access token")
+	bearerTokenRef := fs.String("bearer-token-ref", "", "secret reference for GCS bearer access token, for example ${env:GCS_ACCESS_TOKEN}")
+	apiKey := fs.String("api-key", "", "GCS API key")
+	apiKeyRef := fs.String("api-key-ref", "", "secret reference for GCS API key, for example ${env:GCS_API_KEY}")
+	prefix := fs.String("prefix", "", "storage key prefix")
+	username := fs.String("username", "", "SFTP username")
+	password := fs.String("password", "", "SFTP password")
+	passwordRef := fs.String("password-ref", "", "secret reference for SFTP password, for example ${env:SFTP_PASSWORD}")
+	privateKey := fs.String("private-key", "", "SFTP private key PEM")
+	privateKeyRef := fs.String("private-key-ref", "", "secret reference for SFTP private key PEM")
+	privateKeyPath := fs.String("private-key-path", "", "SFTP private key file path")
+	passphrase := fs.String("passphrase", "", "SFTP private key passphrase")
+	passphraseRef := fs.String("passphrase-ref", "", "secret reference for SFTP private key passphrase")
+	agentSocket := fs.String("agent-socket", "", "SSH agent socket for SFTP authentication")
+	knownHosts := fs.String("known-hosts", "", "known_hosts file for SFTP host verification")
+	insecureIgnoreHostKey := fs.Bool("insecure-ignore-host-key", false, "skip SFTP host key verification")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -136,6 +157,15 @@ func runStorageAdd(ctx context.Context, out io.Writer, args []string) error {
 	if *forcePathStyle {
 		options["force_path_style"] = true
 	}
+	if err := addSFTPOptions(options, *username, *password, *passwordRef, *privateKey, *privateKeyRef, *privateKeyPath, *passphrase, *passphraseRef, *agentSocket, *knownHosts, *insecureIgnoreHostKey); err != nil {
+		return err
+	}
+	if err := addAzureOptions(options, *accountName, *accountKey, *accountKeyRef, *sasToken, *sasTokenRef, *prefix); err != nil {
+		return err
+	}
+	if err := addGCSOptions(options, *bearerToken, *bearerTokenRef, *apiKey, *apiKeyRef, *prefix); err != nil {
+		return err
+	}
 	if len(options) > 0 {
 		payload.Options = options
 	}
@@ -160,6 +190,27 @@ func runStorageUpdate(ctx context.Context, out io.Writer, args []string) error {
 	sessionToken := fs.String("session-token", "", "static S3 session token")
 	sessionTokenRef := fs.String("session-token-ref", "", "secret reference for static S3 session token, for example ${env:S3_SESSION_TOKEN}")
 	forcePathStyle := fs.Bool("force-path-style", false, "use path-style S3 requests")
+	accountName := fs.String("account-name", "", "Azure storage account name")
+	accountKey := fs.String("account-key", "", "Azure storage account key")
+	accountKeyRef := fs.String("account-key-ref", "", "secret reference for Azure storage account key, for example ${env:AZURE_STORAGE_ACCOUNT_KEY}")
+	sasToken := fs.String("sas-token", "", "Azure SAS token")
+	sasTokenRef := fs.String("sas-token-ref", "", "secret reference for Azure SAS token, for example ${env:AZURE_STORAGE_SAS_TOKEN}")
+	bearerToken := fs.String("bearer-token", "", "GCS bearer access token")
+	bearerTokenRef := fs.String("bearer-token-ref", "", "secret reference for GCS bearer access token, for example ${env:GCS_ACCESS_TOKEN}")
+	apiKey := fs.String("api-key", "", "GCS API key")
+	apiKeyRef := fs.String("api-key-ref", "", "secret reference for GCS API key, for example ${env:GCS_API_KEY}")
+	prefix := fs.String("prefix", "", "storage key prefix")
+	username := fs.String("username", "", "SFTP username")
+	password := fs.String("password", "", "SFTP password")
+	passwordRef := fs.String("password-ref", "", "secret reference for SFTP password, for example ${env:SFTP_PASSWORD}")
+	privateKey := fs.String("private-key", "", "SFTP private key PEM")
+	privateKeyRef := fs.String("private-key-ref", "", "secret reference for SFTP private key PEM")
+	privateKeyPath := fs.String("private-key-path", "", "SFTP private key file path")
+	passphrase := fs.String("passphrase", "", "SFTP private key passphrase")
+	passphraseRef := fs.String("passphrase-ref", "", "secret reference for SFTP private key passphrase")
+	agentSocket := fs.String("agent-socket", "", "SSH agent socket for SFTP authentication")
+	knownHosts := fs.String("known-hosts", "", "known_hosts file for SFTP host verification")
+	insecureIgnoreHostKey := fs.Bool("insecure-ignore-host-key", false, "skip SFTP host key verification")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -218,6 +269,15 @@ func runStorageUpdate(ctx context.Context, out io.Writer, args []string) error {
 	}
 	if *forcePathStyle {
 		options["force_path_style"] = true
+	}
+	if err := addSFTPOptions(options, *username, *password, *passwordRef, *privateKey, *privateKeyRef, *privateKeyPath, *passphrase, *passphraseRef, *agentSocket, *knownHosts, *insecureIgnoreHostKey); err != nil {
+		return err
+	}
+	if err := addAzureOptions(options, *accountName, *accountKey, *accountKeyRef, *sasToken, *sasTokenRef, *prefix); err != nil {
+		return err
+	}
+	if err := addGCSOptions(options, *bearerToken, *bearerTokenRef, *apiKey, *apiKeyRef, *prefix); err != nil {
+		return err
 	}
 	if len(options) > 0 {
 		payload.Options = options
@@ -249,6 +309,20 @@ func runStorageTest(ctx context.Context, out io.Writer, args []string) error {
 	secretKey := fs.String("secret-key", "", "static S3 secret key")
 	sessionToken := fs.String("session-token", "", "static S3 session token")
 	forcePathStyle := fs.Bool("force-path-style", false, "use path-style S3 requests")
+	accountName := fs.String("account-name", "", "Azure storage account name")
+	accountKey := fs.String("account-key", "", "Azure storage account key")
+	sasToken := fs.String("sas-token", "", "Azure SAS token")
+	bearerToken := fs.String("bearer-token", "", "GCS bearer access token")
+	apiKey := fs.String("api-key", "", "GCS API key")
+	prefix := fs.String("prefix", "", "storage key prefix")
+	username := fs.String("username", "", "SFTP username")
+	password := fs.String("password", "", "SFTP password")
+	privateKey := fs.String("private-key", "", "SFTP private key PEM")
+	privateKeyPath := fs.String("private-key-path", "", "SFTP private key file path")
+	passphrase := fs.String("passphrase", "", "SFTP private key passphrase")
+	agentSocket := fs.String("agent-socket", "", "SSH agent socket for SFTP authentication")
+	knownHosts := fs.String("known-hosts", "", "known_hosts file for SFTP host verification")
+	insecureIgnoreHostKey := fs.Bool("insecure-ignore-host-key", false, "skip SFTP host key verification")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -256,13 +330,27 @@ func runStorageTest(ctx context.Context, out io.Writer, args []string) error {
 		return fmt.Errorf("--uri is required")
 	}
 	backend, err := openStorageURI(*uri, *kind, map[string]any{
-		"region":           *region,
-		"endpoint":         *endpoint,
-		"credentials":      *credentials,
-		"access_key":       *accessKey,
-		"secret_key":       *secretKey,
-		"session_token":    *sessionToken,
-		"force_path_style": *forcePathStyle,
+		"region":                   *region,
+		"endpoint":                 *endpoint,
+		"credentials":              *credentials,
+		"access_key":               *accessKey,
+		"secret_key":               *secretKey,
+		"session_token":            *sessionToken,
+		"force_path_style":         *forcePathStyle,
+		"account_name":             *accountName,
+		"account_key":              *accountKey,
+		"sas_token":                *sasToken,
+		"bearer_token":             *bearerToken,
+		"api_key":                  *apiKey,
+		"prefix":                   *prefix,
+		"username":                 *username,
+		"password":                 *password,
+		"private_key":              *privateKey,
+		"private_key_path":         *privateKeyPath,
+		"passphrase":               *passphrase,
+		"agent_socket":             *agentSocket,
+		"known_hosts":              *knownHosts,
+		"insecure_ignore_host_key": *insecureIgnoreHostKey,
 	})
 	if err != nil {
 		return err
@@ -368,7 +456,7 @@ func inferStorageKind(scheme string) string {
 
 func storageKindImplemented(kind core.StorageKind) bool {
 	switch kind {
-	case core.StorageKindLocal, core.StorageKindS3:
+	case core.StorageKindLocal, core.StorageKindS3, core.StorageKindSFTP, core.StorageKindAzure, core.StorageKindGCS:
 		return true
 	default:
 		return false
@@ -380,7 +468,92 @@ func unsupportedStorageKindError(kind core.StorageKind) error {
 }
 
 func supportedStorageKinds() []string {
-	return []string{string(core.StorageKindLocal), string(core.StorageKindS3)}
+	return []string{string(core.StorageKindLocal), string(core.StorageKindS3), string(core.StorageKindSFTP), string(core.StorageKindAzure), string(core.StorageKindGCS)}
+}
+
+func addSFTPOptions(options map[string]any, username, password, passwordRef, privateKey, privateKeyRef, privateKeyPath, passphrase, passphraseRef, agentSocket, knownHosts string, insecureIgnoreHostKey bool) error {
+	if username != "" {
+		options["username"] = username
+	}
+	passwordValue, err := secretOptionValue(password, passwordRef, "password", "password-ref")
+	if err != nil {
+		return err
+	}
+	privateKeyValue, err := secretOptionValue(privateKey, privateKeyRef, "private-key", "private-key-ref")
+	if err != nil {
+		return err
+	}
+	passphraseValue, err := secretOptionValue(passphrase, passphraseRef, "passphrase", "passphrase-ref")
+	if err != nil {
+		return err
+	}
+	if passwordValue != "" {
+		options["password"] = passwordValue
+	}
+	if privateKeyValue != "" {
+		options["private_key"] = privateKeyValue
+	}
+	if privateKeyPath != "" {
+		options["private_key_path"] = privateKeyPath
+	}
+	if passphraseValue != "" {
+		options["passphrase"] = passphraseValue
+	}
+	if agentSocket != "" {
+		options["agent_socket"] = agentSocket
+	}
+	if knownHosts != "" {
+		options["known_hosts"] = knownHosts
+	}
+	if insecureIgnoreHostKey {
+		options["insecure_ignore_host_key"] = true
+	}
+	return nil
+}
+
+func addAzureOptions(options map[string]any, accountName, accountKey, accountKeyRef, sasToken, sasTokenRef, prefix string) error {
+	if accountName != "" {
+		options["account_name"] = accountName
+	}
+	accountKeyValue, err := secretOptionValue(accountKey, accountKeyRef, "account-key", "account-key-ref")
+	if err != nil {
+		return err
+	}
+	sasTokenValue, err := secretOptionValue(sasToken, sasTokenRef, "sas-token", "sas-token-ref")
+	if err != nil {
+		return err
+	}
+	if accountKeyValue != "" {
+		options["account_key"] = accountKeyValue
+	}
+	if sasTokenValue != "" {
+		options["sas_token"] = sasTokenValue
+	}
+	if prefix != "" {
+		options["prefix"] = prefix
+	}
+	return nil
+}
+
+func addGCSOptions(options map[string]any, bearerToken, bearerTokenRef, apiKey, apiKeyRef, prefix string) error {
+	bearerTokenValue, err := secretOptionValue(bearerToken, bearerTokenRef, "bearer-token", "bearer-token-ref")
+	if err != nil {
+		return err
+	}
+	apiKeyValue, err := secretOptionValue(apiKey, apiKeyRef, "api-key", "api-key-ref")
+	if err != nil {
+		return err
+	}
+	if bearerTokenValue != "" {
+		options["bearer_token"] = bearerTokenValue
+	}
+	if apiKeyValue != "" {
+		options["api_key"] = apiKeyValue
+	}
+	if prefix != "" {
+		options["prefix"] = prefix
+	}
+	return nil
 }
 
 func runStorageDU(ctx context.Context, out io.Writer, args []string) error {
@@ -395,6 +568,20 @@ func runStorageDU(ctx context.Context, out io.Writer, args []string) error {
 	secretKey := fs.String("secret-key", "", "static S3 secret key")
 	sessionToken := fs.String("session-token", "", "static S3 session token")
 	forcePathStyle := fs.Bool("force-path-style", false, "use path-style S3 requests")
+	accountName := fs.String("account-name", "", "Azure storage account name")
+	accountKey := fs.String("account-key", "", "Azure storage account key")
+	sasToken := fs.String("sas-token", "", "Azure SAS token")
+	bearerToken := fs.String("bearer-token", "", "GCS bearer access token")
+	apiKey := fs.String("api-key", "", "GCS API key")
+	prefixOption := fs.String("storage-prefix", "", "storage key prefix")
+	username := fs.String("username", "", "SFTP username")
+	password := fs.String("password", "", "SFTP password")
+	privateKey := fs.String("private-key", "", "SFTP private key PEM")
+	privateKeyPath := fs.String("private-key-path", "", "SFTP private key file path")
+	passphrase := fs.String("passphrase", "", "SFTP private key passphrase")
+	agentSocket := fs.String("agent-socket", "", "SSH agent socket for SFTP authentication")
+	knownHosts := fs.String("known-hosts", "", "known_hosts file for SFTP host verification")
+	insecureIgnoreHostKey := fs.Bool("insecure-ignore-host-key", false, "skip SFTP host key verification")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -402,13 +589,27 @@ func runStorageDU(ctx context.Context, out io.Writer, args []string) error {
 		return fmt.Errorf("--uri is required")
 	}
 	backend, err := openStorageURI(*uri, *kind, map[string]any{
-		"region":           *region,
-		"endpoint":         *endpoint,
-		"credentials":      *credentials,
-		"access_key":       *accessKey,
-		"secret_key":       *secretKey,
-		"session_token":    *sessionToken,
-		"force_path_style": *forcePathStyle,
+		"region":                   *region,
+		"endpoint":                 *endpoint,
+		"credentials":              *credentials,
+		"access_key":               *accessKey,
+		"secret_key":               *secretKey,
+		"session_token":            *sessionToken,
+		"force_path_style":         *forcePathStyle,
+		"account_name":             *accountName,
+		"account_key":              *accountKey,
+		"sas_token":                *sasToken,
+		"bearer_token":             *bearerToken,
+		"api_key":                  *apiKey,
+		"prefix":                   *prefixOption,
+		"username":                 *username,
+		"password":                 *password,
+		"private_key":              *privateKey,
+		"private_key_path":         *privateKeyPath,
+		"passphrase":               *passphrase,
+		"agent_socket":             *agentSocket,
+		"known_hosts":              *knownHosts,
+		"insecure_ignore_host_key": *insecureIgnoreHostKey,
 	})
 	if err != nil {
 		return err

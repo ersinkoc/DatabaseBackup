@@ -3,16 +3,17 @@
 Last reviewed from the repository state on April 30, 2026.
 
 This track covers what the current repository can honestly support: the Kronos
-control plane, CLI, polling agent, local/S3-compatible repositories, Redis or
-Valkey native backups, and PostgreSQL/MySQL/MariaDB/MongoDB logical backup MVPs
-that shell out to matching database client tools on worker agents.
+control plane, CLI, polling agent, local/S3-compatible/SFTP/Azure Blob/GCS
+repositories, Redis or Valkey native backups, and PostgreSQL/MySQL/MariaDB/
+MongoDB logical backup MVPs that shell out to matching database client tools on
+worker agents.
 
 ## Ready
 
 - Core backup objects are chunked, compressed, encrypted, hashed, and recorded
   in signed manifests.
-- Local filesystem and S3-compatible storage backends are implemented and
-  covered by tests.
+- Local filesystem, S3-compatible, SFTP, Azure Blob, and Google Cloud Storage
+  backends are implemented and covered by tests.
 - Redis/Valkey is the most complete native driver path.
 - PostgreSQL, MySQL/MariaDB, and MongoDB have external-tool logical backup and
   restore MVPs with unit tests and real-service CI conformance.
@@ -65,4 +66,6 @@ for checksums, signatures, SBOM/provenance, and smoke-test output.
   streaming as first-class Kronos-managed chains.
 - Full browser-auth flow with password login, enforced TOTP, or OIDC.
 - Frontend component/security/a11y test suite.
-- Broad storage matrix beyond local and S3-compatible backends.
+- Broad storage matrix real-service conformance and provider-native identity
+  coverage beyond the implemented local, S3-compatible, SFTP, Azure Blob, and
+  GCS backends.

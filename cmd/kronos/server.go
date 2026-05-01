@@ -954,10 +954,19 @@ func targetOptions(target config.TargetConfig) map[string]any {
 	setOption("username", target.Connection.User)
 	setOption("password", target.Connection.Password)
 	setOption("tls", target.Connection.TLS)
+	setOption("protocol", stringOption(target.Options, "protocol"))
 	if len(out) == 0 {
 		return nil
 	}
 	return out
+}
+
+func stringOption(options map[string]any, key string) string {
+	if options == nil {
+		return ""
+	}
+	value, _ := options[key].(string)
+	return value
 }
 
 func cloneOptions(in map[string]any) map[string]any {

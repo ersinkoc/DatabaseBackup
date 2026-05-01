@@ -30,8 +30,8 @@ failed restore temp-config cleanup coverage, authenticated real-service MongoDB
 7.0/8.0 conformance, and an authenticated MongoDB 7.0 10,000-document restore
 drill plus a MongoDB 7.0 replica-set/oplog recovery drill in CI. It still
 depends on MongoDB Database Tools archive/oplog semantics rather than native
-continuous oplog streaming. The full product vision across SFTP, Azure Blob,
-Google Cloud Storage, deeper WebUI workflows beyond the authenticated live
+continuous oplog streaming. The full product vision across deeper WebUI
+workflows beyond the authenticated live
 overview/jobs/backups/inventory dashboard plus
 target/storage/schedule/retention/job/backup detail, schedule pause/resume, job
 cancel/retry, target/storage/schedule/retention create/update editing, guarded
@@ -57,7 +57,7 @@ fully production-grade.
 | Scope | Estimate | Notes |
 | --- | ---: | --- |
 | Implemented Redis/local/S3 path | 95% | Core pipeline, TLS/mTLS-capable agent/control-plane transport, lost-agent recovery, server restart recovery, restore planning, retention, notifications, schedule hooks, audit, metrics, release scripts, single-replica Kubernetes examples with EKS/GKE/AKS overlays, runbooks, a reusable production gate, and tagged worker/control-plane/Redis backup, restore, hook, retention apply, and recovery E2E tests are in place. |
-| Broad multi-database product vision | 96% | Redis is executable, PostgreSQL now has a plain SQL logical driver MVP, optional global role metadata capture, full global restore coverage, worker pipeline smoke E2E coverage, CI conformance coverage across PostgreSQL 15, 16, and 17, a PostgreSQL 15-to-17 restore rehearsal, and a 10,000-row PostgreSQL restore drill. MySQL/MariaDB now has a `mysqldump`/`mysql` logical MVP with unit coverage, real-service MySQL 8.4 and MariaDB 11.4 conformance, bidirectional MySQL/MariaDB restore rehearsal coverage, and 10,000-row MySQL/MariaDB restore drills. MongoDB now has a `mongodump`/`mongorestore` archive MVP with unit coverage, authenticated real-service MongoDB 7.0/8.0 conformance, failed restore cleanup coverage, an authenticated MongoDB 7.0 10,000-document restore drill, and a MongoDB 7.0 replica-set/oplog recovery drill, while storage backends, WebUI workflows, native MongoDB oplog streaming, and multi-instance deployment patterns remain roadmap work. |
+| Broad multi-database product vision | 96% | Redis is executable, PostgreSQL now has a plain SQL logical driver MVP, optional global role metadata capture, full global restore coverage, worker pipeline smoke E2E coverage, CI conformance coverage across PostgreSQL 15, 16, and 17, a PostgreSQL 15-to-17 restore rehearsal, and a 10,000-row PostgreSQL restore drill. MySQL/MariaDB now has a `mysqldump`/`mysql` logical MVP with unit coverage, real-service MySQL 8.4 and MariaDB 11.4 conformance, bidirectional MySQL/MariaDB restore rehearsal coverage, and 10,000-row MySQL/MariaDB restore drills. MongoDB now has a `mongodump`/`mongorestore` archive MVP with unit coverage, authenticated real-service MongoDB 7.0/8.0 conformance, failed restore cleanup coverage, an authenticated MongoDB 7.0 10,000-document restore drill, and a MongoDB 7.0 replica-set/oplog recovery drill. SFTP, Azure Blob, and GCS have executable backend paths, while deeper WebUI workflows, native MongoDB oplog streaming, and multi-instance deployment patterns remain roadmap work. |
 | Current repository release hygiene | 99% | Tests, vet, format checks, OpenAPI checks, release artifacts, provenance, SBOM metadata, SBOM module verification, GitHub build/SBOM attestations, keyless cosign signatures and verification, signed-tag preflight/verification scripts, consumer release verification docs, CI govulncheck, release-gated SBOM vulnerability verification, release artifact smoke checks, missing/corrupted chunk verification failure drills, notification fan-out and hook execution tests, PostgreSQL full global restore, PostgreSQL operator-scale restore, MySQL, MariaDB, bidirectional MySQL/MariaDB restore rehearsal conformance, 10,000-row MySQL/MariaDB restore drills, authenticated MongoDB 7.0/8.0 service conformance, authenticated MongoDB 7.0 operator-scale restore drill, MongoDB 7.0 replica-set/oplog recovery drill, the production check script, tagged backup/restore/hook/retention/recovery E2E coverage, and Node 24-native GitHub Actions are present. A signed rehearsal tag has been verified, but production tag workflows still require the `KRONOS_RELEASE_TAG_PUBLIC_KEY` repository secret. The `golang.org/x/crypto` advisories are fixed. |
 
 ## Current Release Gate
@@ -84,7 +84,11 @@ run.
 - Redis/Valkey driver coverage with backup and restore paths.
 - PostgreSQL logical driver MVP using `pg_dump` for full backups and `psql` for
   restores, with password material stripped from process-visible `--dbname`
-  arguments and passed through `PGPASSWORD`, deterministic command-runner unit tests, tagged worker
+  arguments and passed through `PGPASSWORD`, deterministic command-runner unit tests, a native
+  pgwire probe foundation for TCP/TLS startup, cleartext auth, MD5 auth,
+  SCRAM-SHA-256 auth, simple-query result decoding, catalog
+  extension/enum/domain/sequence/table/column/constraint/index/view/routine/
+  trigger discovery, and plain-SQL snapshot/restore output, tagged worker
   pipeline smoke E2E coverage, CI real-service conformance coverage across
   PostgreSQL 15, 16, and 17,
   extension-backed data, large object checks, indexed JSONB bulk restore
@@ -121,7 +125,7 @@ run.
   verification, and an authenticated MongoDB 7.0 10,000-document restore drill
   across separate source and target services, plus a MongoDB 7.0 replica-set
   oplog archive/replay drill against disposable source and target replica sets.
-- Local and S3-compatible storage backends.
+- Local, S3-compatible, SFTP, Azure Blob, and Google Cloud Storage backends.
 - Persistent control plane state, scheduler state, jobs, backups, retention,
   notifications, users, tokens, and audit log.
 - Configured notification rules can fan out one event to multiple webhook

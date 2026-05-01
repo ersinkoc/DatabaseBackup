@@ -73,6 +73,7 @@ func runTargetAdd(ctx context.Context, out io.Writer, args []string) error {
 	password := fs.String("password", "", "connection password")
 	passwordRef := fs.String("password-ref", "", "secret reference for connection password, for example ${env:REDIS_PASSWORD}")
 	tlsMode := fs.String("tls", "", "connection TLS mode")
+	protocol := fs.String("protocol", "", "connection protocol mode")
 	agentID := fs.String("agent", "", "agent id assigned to this target")
 	tier := fs.String("tier", "", "target tier label")
 	if err := fs.Parse(args); err != nil {
@@ -108,6 +109,9 @@ func runTargetAdd(ctx context.Context, out io.Writer, args []string) error {
 	if *tlsMode != "" {
 		options["tls"] = *tlsMode
 	}
+	if *protocol != "" {
+		options["protocol"] = *protocol
+	}
 	if len(options) > 0 {
 		payload.Options = options
 	}
@@ -136,6 +140,7 @@ func runTargetUpdate(ctx context.Context, out io.Writer, args []string) error {
 	password := fs.String("password", "", "connection password")
 	passwordRef := fs.String("password-ref", "", "secret reference for connection password, for example ${env:REDIS_PASSWORD}")
 	tlsMode := fs.String("tls", "", "connection TLS mode")
+	protocol := fs.String("protocol", "", "connection protocol mode")
 	agentID := fs.String("agent", "", "agent id assigned to this target")
 	tier := fs.String("tier", "", "target tier label")
 	if err := fs.Parse(args); err != nil {
@@ -173,6 +178,9 @@ func runTargetUpdate(ctx context.Context, out io.Writer, args []string) error {
 	}
 	if *tlsMode != "" {
 		options["tls"] = *tlsMode
+	}
+	if *protocol != "" {
+		options["protocol"] = *protocol
 	}
 	if len(options) > 0 {
 		payload.Options = options
@@ -230,6 +238,7 @@ func runTargetTest(ctx context.Context, out io.Writer, args []string) error {
 	username := fs.String("user", "", "connection username")
 	password := fs.String("password", "", "connection password")
 	tlsMode := fs.String("tls", "", "connection TLS mode")
+	protocol := fs.String("protocol", "", "connection protocol mode")
 	timeout := fs.Duration("timeout", 5*time.Second, "connection test timeout")
 	positionalName := ""
 	parseArgs := args
@@ -280,7 +289,7 @@ func runTargetTest(ctx context.Context, out io.Writer, args []string) error {
 		Name:       nameValue,
 		Driver:     *driverName,
 		Connection: targetTestConnection(*endpoint, *database, *username, *password),
-		Options:    targetTestOptions(*tlsMode),
+		Options:    targetTestOptions(*tlsMode, *protocol),
 	}
 	testCtx, cancel := context.WithTimeout(ctx, *timeout)
 	defer cancel()
@@ -325,9 +334,16 @@ func targetTestConnection(endpoint string, database string, username string, pas
 	return connection
 }
 
-func targetTestOptions(tlsMode string) map[string]string {
-	if tlsMode == "" {
+func targetTestOptions(tlsMode string, protocol string) map[string]string {
+	if tlsMode == "" && protocol == "" {
 		return nil
 	}
-	return map[string]string{"tls": tlsMode}
+	options := map[string]string{}
+	if tlsMode != "" {
+		options["tls"] = tlsMode
+	}
+	if protocol != "" {
+		options["protocol"] = protocol
+	}
+	return options
 }

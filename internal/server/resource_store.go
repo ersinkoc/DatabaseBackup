@@ -716,10 +716,13 @@ func validateStorageURI(kind core.StorageKind, raw string) error {
 			return fmt.Errorf("sftp storage uri host is required")
 		}
 	case core.StorageKindAzure:
-		if parsed.Scheme != "azure" {
-			return fmt.Errorf("azure storage uri must use azure scheme")
+		if parsed.Scheme != "azure" && parsed.Scheme != "azblob" {
+			return fmt.Errorf("azure storage uri must use azure or azblob scheme")
 		}
 		if parsed.Host == "" {
+			return fmt.Errorf("azure storage uri account is required")
+		}
+		if strings.Trim(parsed.Path, "/") == "" {
 			return fmt.Errorf("azure storage uri container is required")
 		}
 	case core.StorageKindGCS:
@@ -736,15 +739,21 @@ func validateStorageURI(kind core.StorageKind, raw string) error {
 var targetOptionKeys = map[string]struct{}{
 	"authSource": {}, "auth_source": {}, "connection_test_collection": {}, "database": {}, "dsn": {},
 	"dump_set_gtid_purged": {}, "globals": {}, "host": {}, "includeGlobals": {}, "include_globals": {},
-	"password": {}, "port": {}, "set_gtid_purged": {}, "ssl": {}, "sslmode": {}, "tls": {}, "uri": {},
+	"native": {}, "native_protocol": {}, "password": {}, "port": {}, "protocol": {}, "set_gtid_purged": {}, "ssl": {}, "sslmode": {}, "tls": {}, "uri": {},
 	"user": {}, "username": {},
 }
 
 var storageOptionKeys = map[string]struct{}{
 	"accessKey": {}, "access_key": {}, "aws_access_key_id": {}, "aws_secret_access_key": {},
-	"aws_session_token": {}, "credentials": {}, "credentials_provider": {}, "endpoint": {},
+	"account": {}, "accountKey": {}, "accountName": {}, "account_key": {}, "account_name": {},
+	"accessToken": {}, "access_token": {}, "apiKey": {}, "api_key": {}, "aws_session_token": {},
+	"bearerToken": {}, "bearer_token": {}, "bucket": {}, "container": {}, "credentials": {}, "credentials_provider": {}, "endpoint": {},
 	"force_path_style": {}, "imds_endpoint": {}, "region": {}, "secretKey": {}, "secret_key": {},
-	"sessionToken": {}, "session_token": {},
+	"sas": {}, "sasToken": {}, "sas_token": {}, "sessionToken": {}, "session_token": {},
+	"agent_socket": {}, "insecure_ignore_host_key": {}, "knownHosts": {}, "known_hosts": {},
+	"passphrase": {}, "password": {}, "privateKey": {}, "privateKeyPassphrase": {},
+	"private_key": {}, "private_key_passphrase": {}, "private_key_path": {}, "ssh_agent_socket": {},
+	"prefix": {}, "user": {}, "username": {},
 }
 
 func validateOptions(label string, options map[string]any, allowed map[string]struct{}) error {

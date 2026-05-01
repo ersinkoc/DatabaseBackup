@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -48,6 +49,9 @@ func (b *MemoryBackend) Put(ctx context.Context, key string, r io.Reader, size i
 	if err := ctx.Err(); err != nil {
 		return storage.ObjectInfo{}, err
 	}
+	if err := validateKey(key); err != nil {
+		return storage.ObjectInfo{}, err
+	}
 	var buf bytes.Buffer
 	hash := sha256.New()
 	written, err := io.Copy(io.MultiWriter(&buf, hash), r)
@@ -81,6 +85,9 @@ func (b *MemoryBackend) Get(ctx context.Context, key string) (io.ReadCloser, sto
 	if err := ctx.Err(); err != nil {
 		return nil, storage.ObjectInfo{}, err
 	}
+	if err := validateKey(key); err != nil {
+		return nil, storage.ObjectInfo{}, err
+	}
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	obj, ok := b.objects[key]
@@ -93,6 +100,9 @@ func (b *MemoryBackend) Get(ctx context.Context, key string) (io.ReadCloser, sto
 // GetRange returns a byte range from an object.
 func (b *MemoryBackend) GetRange(ctx context.Context, key string, off, length int64) (io.ReadCloser, error) {
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := validateKey(key); err != nil {
 		return nil, err
 	}
 	b.mu.RLock()
@@ -114,6 +124,9 @@ func (b *MemoryBackend) GetRange(ctx context.Context, key string, off, length in
 // Head returns object metadata.
 func (b *MemoryBackend) Head(ctx context.Context, key string) (storage.ObjectInfo, error) {
 	if err := ctx.Err(); err != nil {
+		return storage.ObjectInfo{}, err
+	}
+	if err := validateKey(key); err != nil {
 		return storage.ObjectInfo{}, err
 	}
 	b.mu.RLock()
@@ -142,9 +155,28 @@ func (b *MemoryBackend) Delete(ctx context.Context, key string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if err := validateKey(key); err != nil {
+		return err
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	delete(b.objects, key)
+	return nil
+}
+
+func validateKey(key string) error {
+	cleaned := path.Clean(key)
+	if key == "" || cleaned == "." || path.IsAbs(cleaned) || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return storage.InvalidKeyError{Key: key}
+	}
+	if strings.Contains(key, "\\") {
+		return storage.InvalidKeyError{Key: key}
+	}
+	for _, segment := range strings.Split(key, "/") {
+		if segment == ".." {
+			return storage.InvalidKeyError{Key: key}
+		}
+	}
 	return nil
 }
 

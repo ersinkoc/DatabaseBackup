@@ -24,7 +24,18 @@ import (
 	"github.com/kronos/kronos/internal/core"
 	kcrypto "github.com/kronos/kronos/internal/crypto"
 	"github.com/kronos/kronos/internal/storage"
+	"github.com/kronos/kronos/internal/storage/storagetest"
 )
+
+func TestBackendConformance(t *testing.T) {
+	t.Parallel()
+
+	storagetest.RunBackendConformance(t, func(t *testing.T) storage.Backend {
+		t.Helper()
+		server := newMockS3Server(t)
+		return newMockBackend(t, server.URL)
+	}, storagetest.ConformanceOptions{InvalidKeyErrors: true})
+}
 
 func TestBackendCRUD(t *testing.T) {
 	t.Parallel()

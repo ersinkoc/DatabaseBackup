@@ -39,14 +39,18 @@ flowchart LR
 - Single Go binary with server, local, agent, and administrative CLI modes.
 - Embedded kvstore with WAL, B+Tree buckets, repair coverage, and persisted
   control-plane stores.
-- Local and S3-compatible storage backends.
+- Local, S3-compatible, SFTP, Azure Blob, and Google Cloud Storage backends.
 - Chunking, deduplication, compression, encryption envelopes, signed manifests,
   and manifest/chunk verification.
 - Redis backup and restore driver coverage, including ACL and command-stream
   replay paths.
 - PostgreSQL logical driver MVP using `pg_dump` plain SQL output for full
   backups and `psql` for restores, with PostgreSQL 15, 16, and 17 conformance
-  coverage plus focused restore rehearsal evidence.
+  coverage plus focused restore rehearsal evidence. A native pgwire foundation
+  is also present for TCP/TLS startup, cleartext, MD5, and SCRAM-SHA-256 auth,
+  simple-query result decoding, catalog extension/enum/domain/sequence/table/column/constraint/
+  index/view/routine/trigger discovery, and a plain-SQL snapshot/restore path
+  behind `protocol=native`.
 - MySQL/MariaDB logical driver MVP using `mysqldump`/`mysql` with real-service
   MySQL 8.4 and MariaDB 11.4 conformance plus bidirectional restore rehearsal
   coverage.
@@ -180,9 +184,10 @@ broad multi-database production suite. The largest remaining areas are:
   an authenticated MongoDB 7.0 10,000-document restore drill, and unit-covered
   replica-set `--oplog` / `--oplogReplay` command wiring backed by a real
   MongoDB 7.0 replica-set/oplog recovery drill in CI.
-- Additional storage backends such as SFTP, Azure Blob, and Google Cloud
-  Storage. Current executable backends are local filesystem and S3-compatible
-  object storage.
+- Additional storage backend depth remains around real-service conformance and
+  provider-native identity modes. Current executable backends are local
+  filesystem, S3-compatible object storage, SFTP, Azure Blob, and Google Cloud
+  Storage.
 - Deeper WebUI interaction beyond the current authenticated live
   overview/jobs/backups/inventory dashboard plus
   target/storage/schedule/retention/job/backup detail, schedule pause/resume,

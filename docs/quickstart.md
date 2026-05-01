@@ -85,9 +85,9 @@ mkdir -p /tmp/kronos-repo
 ./bin/kronos storage test --uri file:///tmp/kronos-repo
 ```
 
-This build can execute local and S3-compatible repositories. Other domain-level
-storage kinds such as SFTP, Azure Blob, and Google Cloud Storage are still
-roadmap backends and fail fast with an explicit unsupported-kind error.
+This build can execute local, S3-compatible, SFTP, Azure Blob, and Google Cloud
+Storage repositories. Provider-native identity modes and real-service emulator
+matrices are still being expanded.
 
 Register a Redis target. Adjust the endpoint if Redis is elsewhere:
 
@@ -100,7 +100,12 @@ Register a Redis target. Adjust the endpoint if Redis is elsewhere:
 Redis/Valkey is the most complete executable database driver in this build.
 PostgreSQL also has a logical backup/restore MVP that shells out to `pg_dump`
 for full backups and `psql` for restores; install PostgreSQL client tools on
-worker agents before using it. The driver strips password material from
+worker agents before using it. A native pgwire connection probe is available
+with `--protocol native` for TCP/TLS startup, cleartext auth, SCRAM-SHA-256
+auth, MD5 auth, simple-query checks, and the first catalog-driven plain-SQL
+snapshot/restore path with extension, enum/domain type, sequence, table, column,
+constraint, index, view, routine, and trigger metadata. The driver strips
+password material from
 process-visible `--dbname` arguments and passes the password through
 `PGPASSWORD`. Set target option `include_globals=true` when a
 backup should also capture PostgreSQL global role metadata through

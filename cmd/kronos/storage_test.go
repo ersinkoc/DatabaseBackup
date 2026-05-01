@@ -127,6 +127,163 @@ func TestRunStorageAddRequiresFields(t *testing.T) {
 	}
 }
 
+func TestRunStorageAddSFTPOptions(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/storages" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		defer r.Body.Close()
+		var body bytes.Buffer
+		if _, err := body.ReadFrom(r.Body); err != nil {
+			t.Fatalf("ReadFrom(request) error = %v", err)
+		}
+		text := body.String()
+		for _, want := range []string{
+			`"kind":"sftp"`,
+			`"uri":"sftp://backup.example.com/repo"`,
+			`"username":"backup"`,
+			`"password":"${env:SFTP_PASSWORD}"`,
+			`"private_key":"${file:/run/keys/sftp}"`,
+			`"passphrase":"${env:SFTP_KEY_PASSPHRASE}"`,
+			`"private_key_path":"/run/keys/fallback"`,
+			`"agent_socket":"/tmp/ssh-agent.sock"`,
+			`"known_hosts":"/run/known_hosts"`,
+			`"insecure_ignore_host_key":true`,
+		} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("storage add sftp request = %q, missing %s", text, want)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"id":"sftp-1","name":"sftp","kind":"sftp"}`)
+	}))
+	defer server.Close()
+
+	var out bytes.Buffer
+	err := run(context.Background(), &out, []string{
+		"storage", "add",
+		"--server", server.URL,
+		"--id", "sftp-1",
+		"--name", "sftp",
+		"--kind", "sftp",
+		"--uri", "sftp://backup.example.com/repo",
+		"--username", "backup",
+		"--password-ref", "${env:SFTP_PASSWORD}",
+		"--private-key-ref", "${file:/run/keys/sftp}",
+		"--private-key-path", "/run/keys/fallback",
+		"--passphrase-ref", "${env:SFTP_KEY_PASSPHRASE}",
+		"--agent-socket", "/tmp/ssh-agent.sock",
+		"--known-hosts", "/run/known_hosts",
+		"--insecure-ignore-host-key",
+	})
+	if err != nil {
+		t.Fatalf("storage add sftp error = %v", err)
+	}
+}
+
+func TestRunStorageAddAzureOptions(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/storages" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		defer r.Body.Close()
+		var body bytes.Buffer
+		if _, err := body.ReadFrom(r.Body); err != nil {
+			t.Fatalf("ReadFrom(request) error = %v", err)
+		}
+		text := body.String()
+		for _, want := range []string{
+			`"kind":"azure"`,
+			`"uri":"azure://acct/repo/prefix-from-uri"`,
+			`"endpoint":"http://127.0.0.1:10000/acct"`,
+			`"account_name":"acct"`,
+			`"account_key":"${env:AZURE_STORAGE_ACCOUNT_KEY}"`,
+			`"sas_token":"${env:AZURE_STORAGE_SAS_TOKEN}"`,
+			`"prefix":"cli-prefix"`,
+		} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("storage add azure request = %q, missing %s", text, want)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"id":"azure-1","name":"azure","kind":"azure"}`)
+	}))
+	defer server.Close()
+
+	var out bytes.Buffer
+	err := run(context.Background(), &out, []string{
+		"storage", "add",
+		"--server", server.URL,
+		"--id", "azure-1",
+		"--name", "azure",
+		"--kind", "azure",
+		"--uri", "azure://acct/repo/prefix-from-uri",
+		"--endpoint", "http://127.0.0.1:10000/acct",
+		"--account-name", "acct",
+		"--account-key-ref", "${env:AZURE_STORAGE_ACCOUNT_KEY}",
+		"--sas-token-ref", "${env:AZURE_STORAGE_SAS_TOKEN}",
+		"--prefix", "cli-prefix",
+	})
+	if err != nil {
+		t.Fatalf("storage add azure error = %v", err)
+	}
+}
+
+func TestRunStorageAddGCSOptions(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/storages" || r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		defer r.Body.Close()
+		var body bytes.Buffer
+		if _, err := body.ReadFrom(r.Body); err != nil {
+			t.Fatalf("ReadFrom(request) error = %v", err)
+		}
+		text := body.String()
+		for _, want := range []string{
+			`"kind":"gcs"`,
+			`"uri":"gcs://bucket/prefix-from-uri"`,
+			`"endpoint":"http://127.0.0.1:4443"`,
+			`"bearer_token":"${env:GCS_ACCESS_TOKEN}"`,
+			`"api_key":"${env:GCS_API_KEY}"`,
+			`"prefix":"cli-prefix"`,
+		} {
+			if !strings.Contains(text, want) {
+				t.Fatalf("storage add gcs request = %q, missing %s", text, want)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"id":"gcs-1","name":"gcs","kind":"gcs"}`)
+	}))
+	defer server.Close()
+
+	var out bytes.Buffer
+	err := run(context.Background(), &out, []string{
+		"storage", "add",
+		"--server", server.URL,
+		"--id", "gcs-1",
+		"--name", "gcs",
+		"--kind", "gcs",
+		"--uri", "gcs://bucket/prefix-from-uri",
+		"--endpoint", "http://127.0.0.1:4443",
+		"--bearer-token-ref", "${env:GCS_ACCESS_TOKEN}",
+		"--api-key-ref", "${env:GCS_API_KEY}",
+		"--prefix", "cli-prefix",
+	})
+	if err != nil {
+		t.Fatalf("storage add gcs error = %v", err)
+	}
+}
+
 func TestRunStorageRejectsConflictingSecretFlags(t *testing.T) {
 	t.Parallel()
 
@@ -292,10 +449,7 @@ func TestRunStorageTestRejectsUnimplementedKinds(t *testing.T) {
 	t.Parallel()
 
 	for _, args := range [][]string{
-		{"storage", "test", "--uri", "sftp://example.com/repo"},
-		{"storage", "test", "--uri", "gs://bucket/repo"},
-		{"storage", "du", "--uri", "azure://account/container"},
-		{"storage", "test", "--kind", "azure", "--uri", "https://account.blob.core.windows.net/container"},
+		{"storage", "test", "--kind", "webdav", "--uri", "webdav://example.com/repo"},
 	} {
 		args := args
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
@@ -306,7 +460,7 @@ func TestRunStorageTestRejectsUnimplementedKinds(t *testing.T) {
 				t.Fatal("storage command error = nil, want unsupported kind error")
 			}
 			text := err.Error()
-			if !strings.Contains(text, "not implemented") || !strings.Contains(text, "supported storage kinds: local, s3") {
+			if !strings.Contains(text, "not implemented") || !strings.Contains(text, "supported storage kinds: local, s3, sftp, azure, gcs") {
 				t.Fatalf("storage command error = %q", text)
 			}
 		})

@@ -20,8 +20,14 @@ additional API surfaces that are still roadmap work.
 - Native PostgreSQL, MySQL/MariaDB, and MongoDB protocol drivers are absent.
 - PostgreSQL WAL/PITR, MySQL binlog replay, and continuous MongoDB oplog
   streaming are not implemented as first-class recovery chains.
-- SFTP, Azure Blob, Google Cloud Storage, FTP, and WebDAV storage backends are
-  not implemented.
+- FTP and WebDAV storage backends are not implemented. SFTP has an executable
+  backend path and in-process SSH/SFTP conformance, with OpenSSH container
+  conformance still required before it is considered complete. Azure Blob has
+  an executable backend path and HTTP conformance, with Azurite/service
+  conformance and managed identity support still required before it is
+  considered complete. GCS has an executable backend path and JSON API HTTP
+  conformance, with fake-gcs/service conformance plus service-account/ADC auth
+  still required before it is considered complete.
 - OIDC, local password login, enforced TOTP, and browser-session hardening are
   incomplete.
 - gRPC and MCP API surfaces are not implemented.

@@ -11,6 +11,7 @@ The product brief and build plan live in `.project/`:
 - [Specification](.project/SPECIFICATION.md)
 - [Implementation](.project/IMPLEMENTATION.md)
 - [Tasks](.project/TASKS.md)
+- [Full capacity plan](.project/FULL_CAPACITY_PLAN.md)
 - [Branding](.project/BRANDING.md)
 - [Architecture](ARCHITECTURE.md)
 - [Changelog](CHANGELOG.md)
@@ -35,9 +36,8 @@ The product brief and build plan live in `.project/`:
 This repository currently has the Phase 0 foundation in place and active Phase
 1/early Phase 2 implementation work:
 
-- storage backends: local filesystem and S3-compatible object storage; SFTP,
-  Azure Blob, and Google Cloud Storage are domain-level roadmap kinds, not
-  executable backends in this build
+- storage backends: local filesystem, S3-compatible object storage, SFTP,
+  Azure Blob, and Google Cloud Storage
 - crypto/chunk core: FastCDC, BLAKE3 chunk IDs, compression, encryption
   envelopes, dedup index, backup/restore pipeline
 - repository metadata: signed manifests, manifest commit/load helpers, manifest
@@ -53,7 +53,12 @@ This repository currently has the Phase 0 foundation in place and active Phase
   SCAN/DUMP/RESTORE support with ACL snapshot/restore records and JSON command
   stream replay. PostgreSQL has a logical `pg_dump`/`psql` MVP with
   multi-version conformance, 15-to-17 restore rehearsal, and full global
-  restore rehearsal coverage in CI, plus a 10,000-row PostgreSQL restore drill.
+  restore rehearsal coverage in CI, plus a 10,000-row PostgreSQL restore drill;
+  its native pgwire foundation now covers TCP/TLS startup, cleartext, MD5, and
+  SCRAM-SHA-256 auth, simple-query result decoding, catalog
+  extension/enum/domain/sequence/table/column/constraint/index/view/routine/
+  trigger discovery, and plain-SQL snapshot/restore paths behind
+  `protocol=native`.
   MySQL/MariaDB has a `mysqldump`/`mysql` logical MVP with real-service MySQL
   8.4, MariaDB 11.4, and bidirectional MySQL/MariaDB restore rehearsal
   coverage in CI, plus 10,000-row MySQL and MariaDB restore drills. MongoDB

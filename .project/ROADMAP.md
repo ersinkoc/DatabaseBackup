@@ -27,7 +27,13 @@ Kronos has a strong core: CLI, HTTP control plane, agent worker, persistent KV s
 - [ ] Implement MongoDB OP_MSG/BSON/oplog or formalize `mongodump` MVP; spec §3.1.3; effort 2-4 weeks.
 - [ ] Add Redis RDB/PSYNC/AOF stream path beyond SCAN/DUMP; spec §3.1.4; effort 1-2 weeks.
 - [ ] Add gRPC or revise agent protocol spec around hardened HTTP polling; spec §3.16; effort 1-2 weeks.
-- [ ] Implement SFTP, Azure Blob, and GCS backends or move them out of Phase 1/v0.1 claims; spec §3.3; effort 2-4 weeks.
+- [ ] Complete remaining storage backends: SFTP now has an executable backend
+  path plus in-process SSH/SFTP conformance and still needs OpenSSH container
+  conformance; Azure Blob now has an executable backend path plus HTTP
+  conformance and still needs Azurite/service conformance plus managed identity
+  support; GCS now has an executable backend path plus JSON API HTTP
+  conformance and still needs fake-gcs/service conformance plus
+  service-account/ADC auth; spec §3.3; effort 2-4 weeks.
 
 ## Phase 3: Hardening (Week 7-8)
 

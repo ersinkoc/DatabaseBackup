@@ -611,13 +611,13 @@ func TestOpenStorageBackendRejectsUnsupportedKind(t *testing.T) {
 	_, err := OpenStorageBackend(core.Storage{
 		ID:   "storage-1",
 		Name: "repo",
-		Kind: core.StorageKindSFTP,
-		URI:  "sftp://example/repo",
+		Kind: core.StorageKind("webdav"),
+		URI:  "webdav://example.com/repo",
 	})
 	if err == nil {
 		t.Fatal("OpenStorageBackend() error = nil, want unsupported kind error")
 	}
-	if !strings.Contains(err.Error(), "not implemented") || !strings.Contains(err.Error(), "local, s3") {
+	if !strings.Contains(err.Error(), "not implemented") || !strings.Contains(err.Error(), "local, s3, sftp, azure, gcs") {
 		t.Fatalf("OpenStorageBackend() error = %v, want implemented supported list", err)
 	}
 }
@@ -740,6 +740,86 @@ func TestS3StorageConfigRejectsUnknownCredentialMode(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("s3StorageConfig() error = nil, want unknown credential mode error")
+	}
+}
+
+func TestSFTPStorageConfigParsesURIAndOptions(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := sftpStorageConfig(core.Storage{
+		ID:   "storage-1",
+		Name: "repo",
+		Kind: core.StorageKindSFTP,
+		URI:  "sftp://uri-user:uri-pass@example.com:2222/backups",
+		Options: map[string]any{
+			"username":                 "option-user",
+			"password":                 "option-pass",
+			"private_key_path":         "/run/keys/sftp",
+			"known_hosts":              "/run/known_hosts",
+			"insecure_ignore_host_key": true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("sftpStorageConfig() error = %v", err)
+	}
+	if cfg.Name != "repo" || cfg.Address != "example.com:2222" || cfg.Root != "/backups" {
+		t.Fatalf("sftp config location = %#v", cfg)
+	}
+	if cfg.Username != "option-user" || cfg.Password != "option-pass" || cfg.PrivateKeyPath != "/run/keys/sftp" {
+		t.Fatalf("sftp config auth = %#v", cfg)
+	}
+	if cfg.KnownHostsPath != "/run/known_hosts" || !cfg.InsecureIgnoreHostKey {
+		t.Fatalf("sftp config host key = %#v", cfg)
+	}
+}
+
+func TestAzureStorageConfigParsesURIAndOptions(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := azureStorageConfig(core.Storage{
+		ID:   "storage-1",
+		Name: "repo",
+		Kind: core.StorageKindAzure,
+		URI:  "azure://acct/container/path/prefix",
+		Options: map[string]any{
+			"endpoint":    "http://127.0.0.1:10000/acct",
+			"account_key": "key",
+			"sas_token":   "sv=test&sig=fake",
+		},
+	})
+	if err != nil {
+		t.Fatalf("azureStorageConfig() error = %v", err)
+	}
+	if cfg.Name != "repo" || cfg.AccountName != "acct" || cfg.Container != "container" || cfg.Prefix != "path/prefix" {
+		t.Fatalf("azure config location = %#v", cfg)
+	}
+	if cfg.Endpoint != "http://127.0.0.1:10000/acct" || cfg.AccountKey != "key" || cfg.SASToken != "sv=test&sig=fake" {
+		t.Fatalf("azure config auth = %#v", cfg)
+	}
+}
+
+func TestGCSStorageConfigParsesURIAndOptions(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := gcsStorageConfig(core.Storage{
+		ID:   "storage-1",
+		Name: "repo",
+		Kind: core.StorageKindGCS,
+		URI:  "gcs://bucket/path/prefix",
+		Options: map[string]any{
+			"endpoint":     "http://127.0.0.1:4443",
+			"bearer_token": "token",
+			"api_key":      "api-key",
+		},
+	})
+	if err != nil {
+		t.Fatalf("gcsStorageConfig() error = %v", err)
+	}
+	if cfg.Name != "repo" || cfg.Bucket != "bucket" || cfg.Prefix != "path/prefix" {
+		t.Fatalf("gcs config location = %#v", cfg)
+	}
+	if cfg.Endpoint != "http://127.0.0.1:4443" || cfg.BearerToken != "token" || cfg.APIKey != "api-key" {
+		t.Fatalf("gcs config auth = %#v", cfg)
 	}
 }
 
