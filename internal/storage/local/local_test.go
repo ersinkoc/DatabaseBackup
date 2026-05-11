@@ -350,3 +350,12 @@ func newTestBackend(t *testing.T) *Backend {
 	}
 	return backend
 }
+
+func TestBackendFaultInjection(t *testing.T) {
+	t.Parallel()
+
+	storagetest.RunFaultConformance(t, func(t *testing.T) storage.Backend {
+		t.Helper()
+		return newTestBackend(t)
+	})
+}

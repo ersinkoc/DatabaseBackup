@@ -145,3 +145,12 @@ type errReader struct{}
 func (errReader) Read([]byte) (int, error) {
 	return 0, errors.New("read failed")
 }
+
+func TestMemoryBackendFaultInjection(t *testing.T) {
+	t.Parallel()
+
+	RunFaultConformance(t, func(t *testing.T) storage.Backend {
+		t.Helper()
+		return NewMemoryBackend("mem")
+	})
+}
